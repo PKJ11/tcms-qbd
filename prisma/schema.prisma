@@ -1,0 +1,569 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  USER
+  MANAGER
+  TRAINER
+  TRAINING_HEAD
+  SUPER_ADMIN
+  MD
+}
+
+enum TrainingTrigger {
+  INDUCTION
+  UPGRADE
+  RETRAINING
+  REFRESHER
+}
+
+enum AssignmentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+  FAILED
+}
+
+enum ContentStatus {
+  DRAFT
+  APPROVED
+  RETIRED
+}
+
+enum VersionType {
+  MAJOR
+  MINOR
+}
+
+enum FileType {
+  PPT
+  PDF
+  VIDEO
+  OTHER
+}
+
+enum AssessmentOutcome {
+  PASS
+  FAIL
+  NEEDS_RETRAINING
+}
+
+enum QualStatus {
+  INITIATED
+  IN_PROGRESS
+  APPROVED
+  EXPIRED
+  REVOKED
+}
+
+enum QualOutcome {
+  COMPETENT
+  NOT_YET_COMPETENT
+}
+
+enum TechniqueType {
+  METHOD
+  INSTRUMENT
+  TECHNIQUE
+}
+
+enum SignatoryRole {
+  TRAINER
+  QA
+  QA_MANAGER
+  TRAINING_HEAD
+}
+
+enum SignatoryStatus {
+  PENDING
+  SIGNED
+  REJECTED
+}
+
+enum NotificationType {
+  ASSIGNMENT
+  DUE_SOON
+  OVERDUE
+  FAILED
+  RETRAINING
+  QUALIFICATION_EXPIRY
+  PASSWORD_RESET
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  APPROVE
+  REJECT
+  UPLOAD
+  GENERATE
+  ASSIGN
+  REVOKE
+}
+
+enum RefresherTriggerType {
+  PLANNED
+  DEVIATION
+  INCIDENT
+}
+
+enum RefresherStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+}
+
+// ─────────────────────────────────────────────
+// FOUNDATION MODELS
+// ─────────────────────────────────────────────
+
+model Unit {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g. "Unit 1", "Unit 2"
+  code        String   @unique // e.g. "U1", "U2"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  departments Department[]
+  persons     Person[]
+
+  @@map("units")
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   // e.g. "QC", "R&D", "Production"
+  code      String   // e.g. "QC", "RD"
+  unitId    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  unit    Unit     @relation(fields: [unitId], references: [id])
+  persons Person[]
+  topicDepartments TopicDepartment[]
+  techniques Technique[]
+
+
+  @@unique([unitId, code])
+  @@map("departments")
+}
+
+model Person {
+  id                 String    @id @default(cuid())
+  employeeId         String    @unique
+  name               String
+  email              String    @unique
+  passwordHash       String
+  mustChangePassword Boolean   @default(true)
+  role               UserRole  @default(USER)
+  designation        String    // job title e.g. "Senior Analyst"
+  isActive           Boolean   @default(true)
+  joiningDate        DateTime
+  lastLoginAt        DateTime?
+  unitId             String
+  departmentId       String?
+  managerId          String?   // self-reference for reporting line
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Relations
+  unit                    Unit                  @relation(fields: [unitId], references: [id])
+  department              Department?           @relation(fields: [departmentId], references: [id])
+  manager                 Person?               @relation("manages", fields: [managerId], references: [id])
+  subordinates            Person[]              @relation("manages")
+  trainingAssignments     TrainingAssignment[]
+  assessmentAttempts      AssessmentAttempt[]
+  qualificationRecords    QualificationRecord[] @relation("qualifiedPerson")
+  supervisedQualifications QualificationRecord[] @relation("supervisor")
+  initiatedQualifications  QualificationRecord[] @relation("initiator")
+  signatoryEntries        SignatoryEntry[]
+  uploadedDocuments       ScannedDocument[]
+  issuedCertificates      Certificate[]         @relation("issuer")
+  personCertificates      Certificate[]         @relation("certPerson")
+  notifications           Notification[]
+  auditLogs               AuditLog[]
+  refresherRaisedBy       RefresherTrigger[]    @relation("raisedBy")
+  refresherPersons        RefresherTrigger[]    @relation("refresherPerson")
+  uploadedContent         MaterialVersion[]     @relation("contentUploader")
+  approvedContent         MaterialVersion[]     @relation("contentApprover")
+  createdTopics           TrainingTopic[]
+  createdAssignments      TrainingAssignment[]  @relation("assignedBy")
+
+  @@map("persons")
+}
+
+
+// ─────────────────────────────────────────────
+// TRAINING TOPIC + CONTENT
+// ─────────────────────────────────────────────
+
+model TrainingTopic {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  createdBy        Person            @relation(fields: [createdById], references: [id])
+  topicDepartments TopicDepartment[]
+  materials        TrainingMaterial[]
+  questionBank     QuestionBank?
+  assignments      TrainingAssignment[]
+  refreshers       RefresherTrigger[]
+
+  @@map("training_topics")
+}
+
+// Junction table — topic maps to many departments
+model TopicDepartment {
+  id           String   @id @default(cuid())
+  topicId      String
+  departmentId String
+  createdAt    DateTime @default(now())
+
+  topic      TrainingTopic @relation(fields: [topicId], references: [id])
+  department Department    @relation(fields: [departmentId], references: [id])
+
+  @@unique([topicId, departmentId])
+  @@map("topic_departments")
+}
+
+model TrainingMaterial {
+  id             String        @id @default(cuid())
+  title          String
+  topicId        String
+  currentVersion Int           @default(1)
+  status         ContentStatus @default(DRAFT)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  topic    TrainingTopic     @relation(fields: [topicId], references: [id])
+  versions MaterialVersion[]
+
+  @@map("training_materials")
+}
+
+model MaterialVersion {
+  id           String      @id @default(cuid())
+  materialId   String
+  versionNo    Int         // e.g. 1, 2, 3
+  versionLabel String      // e.g. "1.0", "1.1", "2.0"
+  versionType  VersionType // MAJOR | MINOR
+  fileUrl      String      // path in storage
+  fileName     String
+  fileType     FileType
+  changeSummary String
+  effectiveDate DateTime
+  status       ContentStatus @default(DRAFT)
+  uploadedById String
+  approvedById String?
+  approvedAt   DateTime?
+  createdAt    DateTime    @default(now())
+
+  // Relations
+  material   TrainingMaterial @relation(fields: [materialId], references: [id])
+  uploadedBy Person           @relation("contentUploader", fields: [uploadedById], references: [id])
+  approvedBy Person?          @relation("contentApprover", fields: [approvedById], references: [id])
+
+  @@unique([materialId, versionNo])
+  @@map("material_versions")
+}
+
+// ─────────────────────────────────────────────
+// TRAINING ASSIGNMENT
+// ─────────────────────────────────────────────
+
+model TrainingAssignment {
+  id           String           @id @default(cuid())
+  personId     String
+  topicId      String
+  trigger      TrainingTrigger
+  status       AssignmentStatus @default(NOT_STARTED)
+  assignedById String
+  dueDate      DateTime
+  startedAt    DateTime?
+  completedAt  DateTime?
+  acknowledged Boolean          @default(false) // for minor version ack
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  // Relations
+  person     Person              @relation(fields: [personId], references: [id])
+  topic      TrainingTopic       @relation(fields: [topicId], references: [id])
+  assignedBy Person              @relation("assignedBy", fields: [assignedById], references: [id])
+  attempts   AssessmentAttempt[]
+
+  @@map("training_assignments")
+}
+
+// ─────────────────────────────────────────────
+// ASSESSMENT
+// ─────────────────────────────────────────────
+
+model QuestionBank {
+  id                 String   @id @default(cuid())
+  topicId            String   @unique
+  passingPercentage  Float    @default(70)
+  questionsPerAttempt Int     @default(10)
+  maxAttempts        Int      @default(3)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  topic     TrainingTopic       @relation(fields: [topicId], references: [id])
+  questions Question[]
+  attempts  AssessmentAttempt[]
+
+  @@map("question_banks")
+}
+
+model Question {
+  id           String   @id @default(cuid())
+  bankId       String
+  questionText String
+  optionA      String
+  optionB      String
+  optionC      String
+  optionD      String
+  correctAnswer String  // "A" | "B" | "C" | "D"
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  bank QuestionBank @relation(fields: [bankId], references: [id])
+
+  @@map("questions")
+}
+
+model AssessmentAttempt {
+  id           String            @id @default(cuid())
+  personId     String
+  bankId       String
+  assignmentId String
+  attemptNo    Int               // 1st, 2nd, 3rd attempt
+  score        Float             // percentage
+  outcome      AssessmentOutcome
+  answers      Json              // { questionId: "A", questionId: "B" ... }
+  startedAt    DateTime
+  submittedAt  DateTime
+  createdAt    DateTime          @default(now())
+
+  // Relations
+  person     Person             @relation(fields: [personId], references: [id])
+  bank       QuestionBank       @relation(fields: [bankId], references: [id])
+  assignment TrainingAssignment @relation(fields: [assignmentId], references: [id])
+
+  @@map("assessment_attempts")
+}
+
+// ─────────────────────────────────────────────
+// REFRESHER TRAINING
+// ─────────────────────────────────────────────
+
+model RefresherTrigger {
+  id            String               @id @default(cuid())
+  personId      String
+  topicId       String
+  triggerType   RefresherTriggerType // PLANNED | DEVIATION | INCIDENT
+  status        RefresherStatus      @default(PENDING)
+  justification String               // mandatory — why was this raised
+  raisedById    String
+  dueDate       DateTime
+  completedAt   DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  // Relations
+  person    Person        @relation("refresherPerson", fields: [personId], references: [id])
+  topic     TrainingTopic @relation(fields: [topicId], references: [id])
+  raisedBy  Person        @relation("raisedBy", fields: [raisedById], references: [id])
+
+  @@map("refresher_triggers")
+}
+
+// ─────────────────────────────────────────────
+// SCIENTIST QUALIFICATION (PROVISIONAL)
+// ─────────────────────────────────────────────
+
+model Technique {
+  id                      String        @id @default(cuid())
+  name                    String
+  code                    String        @unique
+  type                    TechniqueType // METHOD | INSTRUMENT | TECHNIQUE
+  departmentId            String
+  qualificationPeriodDays Int           @default(365)
+  isActive                Boolean       @default(true)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  // Relations
+  department     Department            @relation(fields: [departmentId], references: [id])
+  qualifications QualificationRecord[]
+
+  @@map("techniques")
+}
+
+model QualificationRecord {
+  id                String      @id @default(cuid())
+  personId          String
+  techniqueId       String
+  status            QualStatus  @default(INITIATED)
+  outcome           QualOutcome?
+  performedOn       DateTime?
+  supervisorId      String?
+  initiatedById     String
+  initiatedAt       DateTime    @default(now())
+  approvedAt        DateTime?
+  expiryDate        DateTime?
+  requalificationOf String?     // links to previous qualification
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relations
+  person          Person          @relation("qualifiedPerson", fields: [personId], references: [id])
+  technique       Technique       @relation(fields: [techniqueId], references: [id])
+  supervisor      Person?         @relation("supervisor", fields: [supervisorId], references: [id])
+  initiatedBy     Person          @relation("initiator", fields: [initiatedById], references: [id])
+  previousQual    QualificationRecord?  @relation("requalification", fields: [requalificationOf], references: [id])
+  nextQuals       QualificationRecord[] @relation("requalification")
+  signatories     SignatoryEntry[]
+  scannedDocuments ScannedDocument[]
+  certificate     Certificate?
+
+  @@map("qualification_records")
+}
+
+model SignatoryEntry {
+  id              String          @id @default(cuid())
+  qualificationId String
+  stepOrder       Int
+  requiredRole    SignatoryRole
+  signedById      String?
+  signedAt        DateTime?
+  justification   String?
+  status          SignatoryStatus @default(PENDING)
+  createdAt       DateTime        @default(now())
+
+  // Relations
+  qualification QualificationRecord @relation(fields: [qualificationId], references: [id])
+  signedBy      Person?             @relation(fields: [signedById], references: [id])
+
+  @@unique([qualificationId, stepOrder])
+  @@map("signatory_entries")
+}
+
+model ScannedDocument {
+  id              String   @id @default(cuid())
+  qualificationId String
+  fileUrl         String
+  fileName        String
+  fileType        String   // pdf | jpg | png
+  description     String
+  uploadedById    String
+  uploadedAt      DateTime @default(now())
+
+  // Relations
+  qualification QualificationRecord @relation(fields: [qualificationId], references: [id])
+  uploadedBy    Person              @relation(fields: [uploadedById], references: [id])
+
+  @@map("scanned_documents")
+}
+
+model Certificate {
+  id              String   @id @default(cuid())
+  certNumber      String   @unique // e.g. CERT-2026-00142
+  qualificationId String   @unique // one cert per qualification
+  personId        String
+  issuedById      String
+  issuedAt        DateTime @default(now())
+  fileUrl         String
+  validUntil      DateTime
+
+  // Relations
+  qualification QualificationRecord @relation(fields: [qualificationId], references: [id])
+  person        Person              @relation("certPerson", fields: [personId], references: [id])
+  issuedBy      Person              @relation("issuer", fields: [issuedById], references: [id])
+
+  @@map("certificates")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────
+
+model Notification {
+  id         String              @id @default(cuid())
+  personId   String
+  type       NotificationType
+  channel    NotificationChannel
+  title      String
+  message    String
+  isRead     Boolean             @default(false)
+  sentAt     DateTime            @default(now())
+  readAt     DateTime?
+
+  // Relations
+  person Person @relation(fields: [personId], references: [id])
+
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────
+// AUDIT TRAIL
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id           String      @id @default(cuid())
+  userId       String
+  action       AuditAction
+  module       String      // e.g. "PERSONNEL", "ASSESSMENT", "QUALIFICATION"
+  recordId     String      // id of the record that was changed
+  recordType   String      // e.g. "Person", "TrainingAssignment"
+  beforeValue  Json?       // snapshot before change
+  afterValue   Json?       // snapshot after change
+  justification String     // mandatory — why this action was taken
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime    @default(now())
+
+  // Relations
+  user Person @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// MISSING RELATION ON DEPARTMENT FOR TECHNIQUE
+// ─────────────────────────────────────────────
+
+// Add this to Department model by adding the relation field
+// We handle this via the Technique → Department relation above
