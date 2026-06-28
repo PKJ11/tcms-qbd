@@ -3,6 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import type { UserRole } from '@/lib/types'
+import { logAuthEvent } from '@/modules/audit-trail'
 
 interface TCMSUser extends User {
   id:                 string
@@ -45,7 +46,7 @@ export const authOptions: NextAuthOptions = {
         )
         if (!valid) return null
 
-        // Update last login
+        // Update last login timestamp
         await prisma.person.update({
           where: { id: user.id },
           data:  { lastLoginAt: new Date() },
@@ -67,7 +68,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        const u             = user as TCMSUser
+        const u                  = user as TCMSUser
         token.id                 = u.id
         token.role               = u.role
         token.unitId             = u.unitId
@@ -87,6 +88,34 @@ export const authOptions: NextAuthOptions = {
         session.user.mustChangePassword = token.mustChangePassword as boolean
       }
       return session
+    },
+  },
+
+  // ── Events — fire after NextAuth actions complete ──────────────────
+  events: {
+    async signIn({ user }) {
+      try {
+        await logAuthEvent({
+          userId: user.id,
+          action: 'LOGIN',
+        })
+      } catch (error) {
+        // Never block login because of audit failure
+        console.error('[AUTH EVENT - signIn audit failed]', error)
+      }
+    },
+
+    async signOut({ token }) {
+      try {
+        if (token?.id) {
+          await logAuthEvent({
+            userId: token.id as string,
+            action: 'LOGOUT',
+          })
+        }
+      } catch (error) {
+        console.error('[AUTH EVENT - signOut audit failed]', error)
+      }
     },
   },
 }
