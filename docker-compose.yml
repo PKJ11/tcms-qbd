@@ -1,0 +1,78 @@
+# ─────────────────────────────────────────────────────────────────
+# TCMS — Docker Compose
+# Development Infrastructure Services
+# ─────────────────────────────────────────────────────────────────
+# This file defines the infrastructure services needed to run TCMS
+# in a development environment.
+#
+# Services defined here:
+#   - minio: S3-compatible object storage for file uploads
+#
+# Future services (add here when needed):
+#   - redis: for background job queues
+#   - mailhog: for email testing in development
+#
+# Usage:
+#   Start:   docker compose up -d
+#   Stop:    docker compose down
+#   Logs:    docker compose logs -f
+#   Status:  docker compose ps
+# ─────────────────────────────────────────────────────────────────
+
+version: '3.8'
+
+services:
+
+  # ── MinIO Object Storage ──────────────────────────────────────
+  minio:
+    # Use our documented Dockerfile instead of pulling image directly
+    # This ensures we always use the exact same configuration
+    build:
+      context:    ./infrastructure/minio
+      dockerfile: Dockerfile
+
+    # Container name — used in docker commands and logs
+    container_name: tcms-minio
+
+    # Environment variables
+    # Values come from .env file in the same directory
+    environment:
+      # Root credentials — like username/password for MinIO
+      MINIO_ROOT_USER:     ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+
+      # Optional: set a display name in the console
+      MINIO_SITE_NAME: TCMS Storage
+
+    # Port mapping — HOST_PORT:CONTAINER_PORT
+    # 9000 → S3 API — your Next.js app talks to this
+    # 9001 → Web Console — open in browser to manage files
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+    # Volume mapping — WHERE FILES ACTUALLY LIVE
+    # ./storage/data on your machine (relative to this file)
+    # maps to /data inside the container
+    # This means files survive container restarts and rebuilds
+    volumes:
+      - ./storage/data:/data
+
+    # Restart policy
+    # unless-stopped = restart automatically unless you run docker compose down
+    restart: unless-stopped
+
+    # Network — all TCMS services communicate on this network
+    networks:
+      - tcms-network
+
+# ── Networks ────────────────────────────────────────────────────
+networks:
+  tcms-network:
+    name: tcms-dev-network
+    driver: bridge
+
+# ── Named Volumes (not used — we use bind mounts above) ─────────
+# We use bind mounts (./storage/data:/data) instead of named volumes
+# because bind mounts store files in a known location on your machine
+# making it easy to backup and inspect files directly
