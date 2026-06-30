@@ -10,6 +10,7 @@ export {
   getPersonsForAssignment,
   getDepartmentsForAssignment,
   getActiveTopicsForAssignment,
+  personHasSubordinates
 } from './actions'
 
 export type {

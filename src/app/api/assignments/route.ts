@@ -4,10 +4,12 @@ import {
   getAssignments,
   getMyAssignments,
   createAssignments,
+  personHasSubordinates,
 } from '@/modules/assignments'
 import type { UserRole } from '@/lib/types'
 
-const CAN_ASSIGN: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_ASSIGN:        UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_VIEW_ALL_ORGS: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -16,25 +18,37 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const view = searchParams.get('view') // 'mine' or 'all'
+  const view = searchParams.get('view')
 
-  // Regular users always see only their own
-  if (session.user.role === 'USER' || view === 'mine') {
+  if (view === 'mine') {
     const assignments = await getMyAssignments(session.user.id)
     return NextResponse.json({ assignments })
   }
 
-  // Admin roles can see all, optionally filtered
-  if (!['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)) {
+  // Org-wide visibility — Training Head, Super Admin, MD
+  if (CAN_VIEW_ALL_ORGS.includes(session.user.role)) {
+    const assignments = await getAssignments({
+      personId: searchParams.get('personId') ?? undefined,
+      topicId:  searchParams.get('topicId')  ?? undefined,
+      status:   searchParams.get('status')   ?? undefined,
+      trigger:  searchParams.get('trigger')  ?? undefined,
+    })
+    return NextResponse.json({ assignments })
+  }
+
+  // Anyone else — check if they actually have subordinates
+  const hasSubordinates = await personHasSubordinates(session.user.id)
+
+  if (!hasSubordinates) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
   const assignments = await getAssignments({
-    personId: searchParams.get('personId') ?? undefined,
-    topicId:  searchParams.get('topicId')  ?? undefined,
-    status:   searchParams.get('status')   ?? undefined,
-    trigger:  searchParams.get('trigger')  ?? undefined,
-    unitId:   session.user.role === 'MANAGER' ? session.user.unitId : undefined,
+    personId:  searchParams.get('personId') ?? undefined,
+    topicId:   searchParams.get('topicId')  ?? undefined,
+    status:    searchParams.get('status')   ?? undefined,
+    trigger:   searchParams.get('trigger')  ?? undefined,
+    managerId: session.user.id, // subordinates of THIS person, regardless of their role label
   })
 
   return NextResponse.json({ assignments })

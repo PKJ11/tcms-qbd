@@ -1,14 +1,17 @@
 import { getSession } from '@/lib/auth'
 import { redirect }   from 'next/navigation'
-import { MyAssignmentsList }   from '@/components/assignments/MyAssignmentsList'
-import { AllAssignmentsList }  from '@/components/assignments/AllAssignmentsList'
+import { personHasSubordinates } from '@/modules/assignments'
+import { AssignmentsTabs } from '@/components/assignments/AssignmentsTabs'
 
 export default async function AssignmentsPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const isAdmin = ['TRAINING_HEAD', 'SUPER_ADMIN'].includes(session.user.role)
-  const canView = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+  const canAssign = ['TRAINING_HEAD', 'SUPER_ADMIN'].includes(session.user.role)
+  const isOrgWide = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+
+  // Check REAL subordinates, not just role label
+  const hasSubordinates = isOrgWide || await personHasSubordinates(session.user.id)
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>
@@ -17,15 +20,16 @@ export default async function AssignmentsPage() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              {isAdmin ? 'Training Assignments' : 'My Training'}
+              Training Assignments
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              {isAdmin
-                ? 'Assign and monitor training across the organisation. URS-TNA-001 to 005.'
+              {hasSubordinates
+                ? `Your training, and ${isOrgWide ? 'organisation-wide monitoring' : 'your direct reports'}.`
                 : 'Your assigned trainings and progress.'}
+              {' '}URS-TNA-001 to 005.
             </p>
           </div>
-          {isAdmin && (
+          {canAssign && (
             <a
               href="/assignments/new"
               className="px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center gap-2"
@@ -40,11 +44,7 @@ export default async function AssignmentsPage() {
           )}
         </div>
 
-        {canView ? (
-          <AllAssignmentsList isManager={session.user.role === 'MANAGER'} />
-        ) : (
-          <MyAssignmentsList />
-        )}
+        <AssignmentsTabs canMonitor={hasSubordinates} isManager={!isOrgWide && hasSubordinates} />
       </div>
     </div>
   )

@@ -48,11 +48,12 @@ async function refreshOverdueStatuses() {
 // ── Get all assignments (admin view) ──────────────────────────────
 
 export async function getAssignments(filters?: {
-  personId?: string
-  topicId?:  string
-  status?:   string
-  trigger?:  string
-  unitId?:   string
+  personId?:  string
+  topicId?:   string
+  status?:    string
+  trigger?:   string
+  unitId?:    string
+  managerId?: string   // ← new — filters to this manager's direct reports
 }) {
   await refreshOverdueStatuses()
 
@@ -63,7 +64,10 @@ export async function getAssignments(filters?: {
   if (filters?.status)   where.status   = filters.status
   if (filters?.trigger)  where.trigger  = filters.trigger
 
-  if (filters?.unitId) {
+  // Manager scope — subordinates only, regardless of unit (per URS role matrix)
+  if (filters?.managerId) {
+    where.person = { managerId: filters.managerId }
+  } else if (filters?.unitId) {
     where.person = { unitId: filters.unitId }
   }
 
@@ -474,4 +478,13 @@ export async function getActiveTopicsForAssignment() {
     select:  { id: true, name: true },
     orderBy: { name: 'asc' },
   })
+}
+
+// ── Check if a person has any direct reports ──────────────────────
+
+export async function personHasSubordinates(personId: string): Promise<boolean> {
+  const count = await prisma.person.count({
+    where: { managerId: personId, isActive: true },
+  })
+  return count > 0
 }
