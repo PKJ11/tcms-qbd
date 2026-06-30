@@ -21,6 +21,7 @@ export default async function BankDetailPage({
   })
   if (!bankRef) redirect('/assessments')
 
+  const bank = await getQuestionBankByTopic(bankRef.topicId)
   if (!bank) redirect('/assessments')
 
   return (
