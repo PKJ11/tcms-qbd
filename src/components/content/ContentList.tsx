@@ -35,8 +35,13 @@ const VERSION_COLORS: Record<string, { bg: string; color: string }> = {
   MINOR: { bg: '#eff6ff', color: '#1d4ed8' },
 }
 
-export function ContentList({ canUpload }: { canUpload: boolean }) {
-  const [materials,     setMaterials]     = useState<Material[]>([])
+export function ContentList({
+  canUpload,
+  topicId,
+}: {
+  canUpload: boolean
+  topicId?:  string
+}) {  const [materials,     setMaterials]     = useState<Material[]>([])
   const [loading,       setLoading]       = useState(true)
   const [search,        setSearch]        = useState('')
   const [statusFilter,  setStatusFilter]  = useState('')
@@ -46,16 +51,17 @@ export function ContentList({ canUpload }: { canUpload: boolean }) {
   const [modalLoading,  setModalLoading]  = useState(false)
 
   const fetchMaterials = useCallback(async () => {
-    setLoading(true)
-    const params = new URLSearchParams({
-      ...(search       ? { search }           : {}),
-      ...(statusFilter ? { status: statusFilter } : {}),
-    })
-    const res  = await fetch(`/api/content?${params}`)
-    const data = await res.json()
-    setMaterials(data.materials ?? [])
-    setLoading(false)
-  }, [search, statusFilter])
+  setLoading(true)
+  const params = new URLSearchParams({
+    ...(search       ? { search }              : {}),
+    ...(statusFilter ? { status: statusFilter } : {}),
+    ...(topicId      ? { topicId }              : {}),  // ← added
+  })
+  const res  = await fetch(`/api/content?${params}`)
+  const data = await res.json()
+  setMaterials(data.materials ?? [])
+  setLoading(false)
+}, [search, statusFilter, topicId])  // ← topicId added to deps
 
   useEffect(() => { fetchMaterials() }, [fetchMaterials])
 

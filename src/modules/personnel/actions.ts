@@ -6,6 +6,7 @@ import { createPersonSchema, updatePersonSchema } from './schema'
 import type { CreatePersonInput, UpdatePersonInput } from './types'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
+import { autoAssignInductionTraining } from '@/modules/assignments'
 import { sendEmail } from '@/lib/email'
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -172,6 +173,21 @@ export async function createPerson(
     // Email failure must not block person creation
     console.error('[EMAIL ERROR] Failed to send welcome email')
   }
+
+  // Auto-assign induction training based on department
+  if (person.department) {
+    try {
+      await autoAssignInductionTraining(
+        person.id,
+        person.department.id,
+        actorId
+      )
+    } catch (error) {
+      // Do not block person creation if auto-assignment fails
+      console.error('[AUTO-ASSIGN ERROR]', error)
+    }
+  }
+
 
   return { person, tempPassword }
 }

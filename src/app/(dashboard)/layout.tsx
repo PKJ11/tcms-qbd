@@ -1,5 +1,7 @@
 import { getSession } from '@/lib/auth'
-import { redirect } from 'next/navigation'
+import { redirect }   from 'next/navigation'
+import { Sidebar }    from '@/components/layout/Sidebar'
+import { TopBar }     from '@/components/layout/TopBar'
 
 export default async function DashboardLayout({
   children,
@@ -9,37 +11,32 @@ export default async function DashboardLayout({
   const session = await getSession()
   if (!session) redirect('/login')
 
-  return (
-    <div className="min-h-screen" style={{ background: '#f4f6f8' }}>
-      {/* Minimal top nav — full nav comes in dashboard chunk */}
-      <nav
-        className="h-14 flex items-center justify-between px-6 border-b"
-        style={{
-          background:   '#fff',
-          borderColor:  '#e5e7eb',
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
-            style={{ background: '#2d6a4f', color: '#fff' }}
-          >
-            QbD
-          </div>
-          <span className="text-sm font-semibold text-gray-800">
-            TCMS
-          </span>
-        </div>
-        <div className="text-xs text-gray-500">
-          {session.user.name} &nbsp;·&nbsp;
-          <span style={{ color: '#2d6a4f' }}>
-            {session.user.role.replace('_', ' ')}
-          </span>
-        </div>
-      </nav>
+  // Force password change
+  // (middleware handles this but belt-and-suspenders)
+  if (session.user.mustChangePassword) {
+    redirect('/change-password')
+  }
 
-      {/* Page content */}
-      <main>{children}</main>
+  return (
+    <div className="flex h-screen overflow-hidden">
+
+      {/* Sidebar — fixed on left */}
+      <Sidebar user={session.user} />
+
+      {/* Main content area */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+
+        {/* Top bar */}
+        <TopBar user={session.user} />
+
+        {/* Scrollable page content */}
+        <main
+          className="flex-1 overflow-y-auto"
+          style={{ background: '#f4f6f8' }}
+        >
+          {children}
+        </main>
+      </div>
     </div>
   )
 }
