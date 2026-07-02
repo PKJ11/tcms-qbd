@@ -10,6 +10,7 @@ import type {
   CreateAssignmentInput,
   BulkAssignmentInput,
 } from './types'
+import { syncRefresherCompletion } from '@/modules/refresher'
 
 // ── Shared select ─────────────────────────────────────────────────
 
@@ -389,14 +390,12 @@ export async function acknowledgeAssignment(
 ) {
   const assignment = await prisma.trainingAssignment.findUnique({
     where:  { id: assignmentId },
-    select: { id: true, personId: true, status: true, topicId: true },
+    select: { id: true, personId: true, status: true, topicId: true, trigger: true },
   })
 
   if (!assignment)                     throw new Error('Assignment not found')
   if (assignment.personId !== actorId) throw new Error('Not authorised')
 
-  // Check if this topic has a question bank — if so, completion
-  // happens via assessment (Chunk 9), not acknowledgement
   const hasQuestionBank = await prisma.questionBank.findUnique({
     where:  { topicId: assignment.topicId },
     select: { id: true, isActive: true },
@@ -414,6 +413,11 @@ export async function acknowledgeAssignment(
       }),
     },
   })
+
+  // Sync linked refresher trigger if this was a refresher assignment
+  if (willComplete && assignment.trigger === 'REFRESHER') {
+    await syncRefresherCompletion(assignment.personId, assignment.topicId)
+  }
 
   await logAuditEvent({
     userId:        actorId,

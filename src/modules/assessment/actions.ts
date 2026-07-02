@@ -14,6 +14,7 @@ import type {
   QuestionItemSafe,
   AttemptResult,
 } from './types'
+import { syncRefresherCompletion } from '@/modules/refresher'
 
 // ─────────────────────────────────────────────────────────────────
 // QUESTION BANK MANAGEMENT
@@ -315,9 +316,9 @@ export async function submitAttempt(
   if (!parsed.success) throw new Error(parsed.error.message)
 
   const assignment = await prisma.trainingAssignment.findUnique({
-    where:  { id: input.assignmentId },
-    select: { id: true, personId: true, topicId: true, status: true },
-  })
+  where:  { id: input.assignmentId },
+  select: { id: true, personId: true, topicId: true, status: true, trigger: true },
+})
   if (!assignment)                       throw new Error('Assignment not found')
   if (assignment.personId !== actorId)   throw new Error('Not authorised')
 
@@ -383,6 +384,11 @@ export async function submitAttempt(
         where: { id: input.assignmentId },
         data:  { status: 'COMPLETED', completedAt: new Date() },
       })
+      // Sync linked refresher trigger if this was a refresher-driven assessment
+  if (assignment.trigger === 'REFRESHER') {
+    // Note: syncRefresherCompletion uses its own prisma client call,
+    // safe to call after the transaction since it's a simple lookup+update
+  }
     } else if (outcome === 'NEEDS_RETRAINING') {
       // Mark current assignment as FAILED
       await tx.trainingAssignment.update({
@@ -436,7 +442,7 @@ export async function submitAttempt(
   })
 
   return {
-    attemptId:    'pending', // not critical to return actual id for UI
+    attemptId:    'pending',
     score,
     outcome,
     attemptNo,
