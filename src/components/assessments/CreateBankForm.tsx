@@ -11,7 +11,7 @@ export function CreateBankForm({ topics }: { topics: Topic[] }) {
 
   const [form, setForm] = useState({
     topicId:             '',
-    passingPercentage:   70,
+    passingPercentage:   80,
     questionsPerAttempt: 10,
     maxAttempts:         3,
   })

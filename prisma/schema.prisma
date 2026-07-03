@@ -25,6 +25,8 @@ enum TrainingTrigger {
   UPGRADE
   RETRAINING
   REFRESHER
+  TECHNICAL
+  EXTERNAL
 }
 
 enum AssignmentStatus {
@@ -51,6 +53,11 @@ enum FileType {
   PDF
   VIDEO
   OTHER
+}
+
+enum AssessmentType {
+  MCQ
+  ORAL
 }
 
 enum AssessmentOutcome {
@@ -186,6 +193,9 @@ model Person {
   unitId             String
   departmentId       String?
   managerId          String?   // self-reference for reporting line
+  flaggedForJobReassignment Boolean  @default(false)
+  flaggedAt                 DateTime?
+  flagReason                String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -306,6 +316,8 @@ model TrainingAssignment {
   topicId      String
   trigger      TrainingTrigger
   status       AssignmentStatus @default(NOT_STARTED)
+  needIdentifiedById String?   // who identified this need
+  needBasis          String?   // basis for identification
   assignedById String
   dueDate      DateTime
   startedAt    DateTime?
@@ -336,12 +348,13 @@ model QuestionBank {
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  assessmentType AssessmentType @default(MCQ)
 
   // Relations
   topic     TrainingTopic       @relation(fields: [topicId], references: [id])
   questions Question[]
   attempts  AssessmentAttempt[]
-
+ 
   @@map("question_banks")
 }
 
