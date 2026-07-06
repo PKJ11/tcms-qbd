@@ -50,6 +50,8 @@ export interface CreateAssignmentInput {
   topicId:   string
   trigger:   TrainingTrigger
   dueDate:   string
+  needIdentifiedById?: string | null
+  needBasis?: string | null
 }
 
 export interface BulkAssignmentInput {
@@ -57,4 +59,6 @@ export interface BulkAssignmentInput {
   topicId:      string
   trigger:      TrainingTrigger
   dueDate:      string
+  needIdentifiedById?: string | null
+  needBasis?: string | null
 }

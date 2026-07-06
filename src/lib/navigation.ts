@@ -17,6 +17,12 @@ export const NAV_ITEMS: NavItem[] = [
     roles: [],  // all roles
   },
   {
+    label: 'Notifications',    // ← add here
+    href:  '/notifications',
+    icon:  'bell',
+    roles: [],
+  },
+  {
     label: 'Personnel',
     href:  '/personnel',
     icon:  'users',

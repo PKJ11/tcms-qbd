@@ -10,6 +10,7 @@ export {
   getAttemptHistory,
   getTopicsWithoutBank,
   getAllQuestionBanks,
+  submitOralAttempt, 
 } from './actions'
 
 export type {

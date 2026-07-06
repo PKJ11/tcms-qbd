@@ -14,6 +14,9 @@ export const createAssignmentSchema = z.object({
   dueDate: z
     .string()
     .min(1, 'Due date is required'),
+
+  needIdentifiedById: z.string().optional().nullable(),
+  needBasis: z.string().optional().nullable(),
 })
 
 export const bulkAssignmentSchema = z.object({
@@ -30,4 +33,7 @@ export const bulkAssignmentSchema = z.object({
   dueDate: z
     .string()
     .min(1, 'Due date is required'),
+
+  needIdentifiedById: z.string().optional().nullable(),
+  needBasis: z.string().optional().nullable(),
 })

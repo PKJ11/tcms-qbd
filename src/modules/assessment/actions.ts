@@ -420,6 +420,46 @@ export async function submitAttempt(
           message:  `You did not pass the assessment after ${bank.maxAttempts} attempts. A new retraining assignment has been created.`,
         },
       })
+
+      // Check total retraining cycles for this person+topic
+      // If 3 or more complete retraining cycles — flag for job reassignment
+      const totalRetrain = await tx.trainingAssignment.count({
+        where: {
+          personId: actorId,
+          topicId:  assignment.topicId,
+          trigger:  'RETRAINING',
+          status:   { in: ['FAILED', 'COMPLETED'] },
+        },
+      })
+
+      if (totalRetrain >= 3) {
+        await tx.person.update({
+          where: { id: actorId },
+          data:  {
+            flaggedForJobReassignment: true,
+            flaggedAt:                  new Date(),
+            flagReason:                 `Failed to achieve competency on topic after ${totalRetrain} retraining cycles. Job reassignment review required per SOP QbD-QA-SOP-007.`,
+          },
+        })
+
+        // Notify Training Head
+        const trainingHeads = await tx.person.findMany({
+          where:  { role: 'TRAINING_HEAD', isActive: true },
+          select: { id: true },
+        })
+
+        if (trainingHeads.length > 0) {
+          await tx.notification.createMany({
+            data: trainingHeads.map((th) => ({
+              personId: th.id,
+              type:     'RETRAINING' as const,
+              channel:  'IN_APP'     as const,
+              title:    'Job reassignment review required',
+              message:  `An analyst has failed ${totalRetrain} retraining cycles and requires a job reassignment review per SOP QbD-QA-SOP-007.`,
+            })),
+          })
+        }
+      }
     } else {
       // FAIL but attempts remain — keep assignment IN_PROGRESS
       await tx.trainingAssignment.update({
@@ -505,4 +545,137 @@ export async function getAllQuestionBanks() {
     },
     orderBy: { topic: { name: 'asc' } },
   })
+}
+
+// ── Oral assessment — trainer manually records outcome ─────────────
+
+export async function submitOralAttempt(
+  input: {
+    assignmentId: string
+    bankId:       string
+    outcome:      'PASS' | 'FAIL'
+    notes?:       string
+  },
+  actorId: string
+): Promise<AttemptResult> {
+  // Verify actor is a Trainer/Training Head/Super Admin
+  const actor = await prisma.person.findUnique({
+    where:  { id: actorId },
+    select: { role: true, name: true },
+  })
+  const allowedRoles = ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN']
+  if (!actor || !allowedRoles.includes(actor.role)) {
+    throw new Error('Only Trainers can record oral assessment outcomes')
+  }
+
+  const assignment = await prisma.trainingAssignment.findUnique({
+    where:  { id: input.assignmentId },
+    select: { id: true, personId: true, topicId: true, status: true, trigger: true },
+  })
+  if (!assignment) throw new Error('Assignment not found')
+
+  const bank = await prisma.questionBank.findUnique({
+    where:  { id: input.bankId },
+    select: { id: true, maxAttempts: true, passingPercentage: true },
+  })
+  if (!bank) throw new Error('Assessment bank not found')
+
+  const previousAttempts = await prisma.assessmentAttempt.count({
+    where: { personId: assignment.personId, bankId: input.bankId, assignmentId: input.assignmentId },
+  })
+
+  if (previousAttempts >= bank.maxAttempts) {
+    throw new Error('Maximum attempts exceeded')
+  }
+
+  const attemptNo = previousAttempts + 1
+  const passed    = input.outcome === 'PASS'
+  const score     = passed ? 100 : 0
+
+  let outcome: 'PASS' | 'FAIL' | 'NEEDS_RETRAINING'
+  if (passed) {
+    outcome = 'PASS'
+  } else if (attemptNo >= bank.maxAttempts) {
+    outcome = 'NEEDS_RETRAINING'
+  } else {
+    outcome = 'FAIL'
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.assessmentAttempt.create({
+      data: {
+        personId:     assignment.personId,
+        bankId:       input.bankId,
+        assignmentId: input.assignmentId,
+        attemptNo,
+        score,
+        outcome,
+        answers:      { oral: true, recordedBy: actorId, notes: input.notes ?? '' },
+        startedAt:    new Date(),
+        submittedAt:  new Date(),
+      },
+    })
+
+    if (outcome === 'PASS') {
+      await tx.trainingAssignment.update({
+        where: { id: input.assignmentId },
+        data:  { status: 'COMPLETED', completedAt: new Date() },
+      })
+    } else if (outcome === 'NEEDS_RETRAINING') {
+      await tx.trainingAssignment.update({
+        where: { id: input.assignmentId },
+        data:  { status: 'FAILED' },
+      })
+
+      const dueDate = new Date()
+      dueDate.setDate(dueDate.getDate() + 14)
+
+      await tx.trainingAssignment.create({
+        data: {
+          personId:     assignment.personId,
+          topicId:      assignment.topicId,
+          trigger:      'RETRAINING',
+          status:       'NOT_STARTED',
+          assignedById: actorId,
+          dueDate,
+        },
+      })
+
+      await tx.notification.create({
+        data: {
+          personId: assignment.personId,
+          type:     'RETRAINING',
+          channel:  'IN_APP',
+          title:    'Retraining required',
+          message:  `You did not pass the oral assessment after ${bank.maxAttempts} attempts. A retraining assignment has been created.`,
+        },
+      })
+    }
+  })
+
+  if (outcome === 'PASS' && assignment.trigger === 'REFRESHER') {
+    const { syncRefresherCompletion } = await import('@/modules/refresher')
+    await syncRefresherCompletion(assignment.personId, assignment.topicId)
+  }
+
+  await logAuditEvent({
+    userId:        actorId,
+    action:        'CREATE',
+    module:        'ASSESSMENT',
+    recordId:      input.assignmentId,
+    recordType:    'AssessmentAttempt',
+    beforeValue:   null,
+    afterValue:    { attemptNo, outcome, recordedBy: actor.name, type: 'ORAL' },
+    justification: `Oral assessment attempt ${attemptNo} recorded by trainer — outcome: ${outcome}`,
+  })
+
+  return {
+    attemptId:    'oral',
+    score,
+    outcome,
+    attemptNo,
+    maxAttempts:  bank.maxAttempts,
+    correctCount: passed ? 1 : 0,
+    totalCount:   1,
+  }
 }

@@ -11,7 +11,7 @@ interface Department {
   _count: { persons: number }
 }
 interface Person {
-  id: string; name: string; employeeId: string; designation: string
+  id: string; name: string; employeeId: string; designation: string; role?: string
   department: { id: string; name: string } | null
 }
 
@@ -21,10 +21,36 @@ interface Props {
 }
 
 const TRIGGERS = [
-  { value: 'INDUCTION',  label: 'Induction',    description: 'New joiner training' },
-  { value: 'UPGRADE',    label: 'Role upgrade', description: 'Responsibility change' },
-  { value: 'RETRAINING', label: 'Retraining',   description: 'Performance or deviation driven' },
-  { value: 'REFRESHER',  label: 'Refresher',    description: 'Scheduled periodic refresh' },
+  {
+    value:       'INDUCTION',
+    label:       'Induction',
+    description: 'New joiner training — auto-assigned on joining',
+  },
+  {
+    value:       'UPGRADE',
+    label:       'Role upgrade',
+    description: 'Person\'s responsibilities have changed',
+  },
+  {
+    value:       'RETRAINING',
+    label:       'Retraining',
+    description: 'Performance or deviation-driven retraining',
+  },
+  {
+    value:       'REFRESHER',
+    label:       'Refresher',
+    description: 'Scheduled periodic refresh',
+  },
+  {
+    value:       'TECHNICAL',
+    label:       'Technical',
+    description: 'Skill upgrade or SOP revision-driven training',
+  },
+  {
+    value:       'EXTERNAL',
+    label:       'External training',
+    description: 'Director-approved external programme',
+  },
 ]
 
 export function AssignTrainingForm({ topics, departments }: Props) {
@@ -37,9 +63,12 @@ export function AssignTrainingForm({ topics, departments }: Props) {
     trigger:      'INDUCTION',
     dueDate:      '',
     departmentId: '',
+    needIdentifiedById:  '',  // ← new
+    needBasis:           '',  // ← new
   })
 
   const [persons,         setPersons]         = useState<Person[]>([])
+  const [managers,        setManagers]        = useState<Person[]>([])
   const [selectedPersons, setSelectedPersons] = useState<string[]>([])
   const [loadingPersons,  setLoadingPersons]  = useState(false)
 
@@ -49,6 +78,17 @@ export function AssignTrainingForm({ topics, departments }: Props) {
   const [success,   setSuccess]   = useState<string | null>(null)
 
   // Fetch persons when switching to individual mode
+  useEffect(() => {
+    async function fetchManagers() {
+      const res  = await fetch('/api/personnel?isActive=true')
+      const data = await res.json()
+      const people = (data.persons ?? []) as Person[]
+      setManagers(people.filter((p) => ['MANAGER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'TRAINER'].includes(p.role ?? '')))
+    }
+
+    fetchManagers()
+  }, [])
+
   useEffect(() => {
     if (mode !== 'individual') return
 
@@ -72,6 +112,14 @@ export function AssignTrainingForm({ topics, departments }: Props) {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+  }
+
+  const focusOn = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    e.target.style.borderColor = '#2d6a4f'
+  }
+
+  const focusOff = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    e.target.style.borderColor = '#d1d5db'
   }
 
   function handleSubmitClick(e: React.FormEvent) {
@@ -107,6 +155,8 @@ export function AssignTrainingForm({ topics, departments }: Props) {
           trigger:      form.trigger,
           dueDate:      form.dueDate,
           justification,
+          needIdentifiedById: form.needIdentifiedById || undefined,
+          needBasis:          form.needBasis          || undefined,
         }
       : {
           personIds: selectedPersons,
@@ -114,6 +164,8 @@ export function AssignTrainingForm({ topics, departments }: Props) {
           trigger:   form.trigger,
           dueDate:   form.dueDate,
           justification,
+          needIdentifiedById: form.needIdentifiedById || undefined,
+          needBasis:          form.needBasis          || undefined,
         }
 
     const res  = await fetch(endpoint, {
@@ -226,6 +278,54 @@ export function AssignTrainingForm({ topics, departments }: Props) {
                 onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
                 onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
               />
+            </div>
+          </div>
+
+          {/* Training Need Identification — per SOP Format 007-04 */}
+          <div
+            className="p-4 rounded-xl border"
+            style={{ background: '#fafafa', borderColor: '#e5e7eb' }}
+          >
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Training Need Identification (Format QbD/QA/F/007-04)
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Need identified by
+                </label>
+                <select
+                  name="needIdentifiedById"
+                  value={form.needIdentifiedById}
+                  onChange={handleChange}
+                  className={inputClass}
+                  style={inputStyle}
+                  onFocus={focusOn}
+                  onBlur={focusOff}
+                >
+                  <option value="">Select person (optional)</option>
+                  {managers.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} — {m.designation}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Basis of identification
+                </label>
+                <input
+                  name="needBasis"
+                  value={form.needBasis}
+                  onChange={handleChange}
+                  placeholder="e.g. Job description review, skill gap assessment"
+                  className={inputClass}
+                  style={inputStyle}
+                  onFocus={focusOn}
+                  onBlur={focusOff}
+                />
+              </div>
             </div>
           </div>
 

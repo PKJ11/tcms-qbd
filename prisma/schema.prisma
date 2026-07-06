@@ -139,6 +139,31 @@ enum RefresherStatus {
   OVERDUE
 }
 
+// ─── Validation Support ──────────────────────────────────────────
+
+enum TestPhase {
+  IQ   // Installation Qualification
+  OQ   // Operational Qualification
+  PQ   // Performance Qualification
+  RT   // Regression Test
+}
+
+enum TestStatus {
+  NOT_EXECUTED
+  PASS
+  FAIL
+  BLOCKED
+}
+
+enum ValidationStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETE
+  LOCKED
+}
+
+
+
 // ─────────────────────────────────────────────
 // FOUNDATION MODELS
 // ─────────────────────────────────────────────
@@ -198,6 +223,9 @@ model Person {
   flagReason                String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+  validationRunsExecuted   ValidationRun[]  @relation("valRunExecutor")
+  validationRunsApproved   ValidationRun[]  @relation("valRunApprover")
+  testResultsExecuted      TestResult[]     @relation("testResultExecutor")
 
   // Relations
   unit                    Unit                  @relation(fields: [unitId], references: [id])
@@ -221,10 +249,12 @@ model Person {
   approvedContent         MaterialVersion[]     @relation("contentApprover")
   createdTopics           TrainingTopic[]
   createdAssignments      TrainingAssignment[]  @relation("assignedBy")
+  trainerCertificates         TrainerCertificate[] @relation("trainerCertPerson")
+  issuedTrainerCertificates   TrainerCertificate[] @relation("trainerCertIssuer")
+  revokedTrainerCertificates  TrainerCertificate[] @relation("trainerCertRevoker")
 
   @@map("persons")
 }
-
 
 // ─────────────────────────────────────────────
 // TRAINING TOPIC + CONTENT
@@ -280,6 +310,25 @@ model TrainingMaterial {
   @@map("training_materials")
 }
 
+model TrainerCertificate {
+  id          String   @id @default(cuid())
+  personId    String
+  issuedById  String
+  certNumber  String   @unique
+  basis       String   // e.g. "5+ years industry experience in HPLC"
+  isActive    Boolean  @default(true)
+  issuedAt    DateTime @default(now())
+  revokedAt   DateTime?
+  revokedById String?
+  revokedReason String?
+
+  person      Person   @relation("trainerCertPerson", fields: [personId], references: [id])
+  issuedBy    Person   @relation("trainerCertIssuer", fields: [issuedById], references: [id])
+  revokedBy   Person?  @relation("trainerCertRevoker", fields: [revokedById], references: [id])
+
+  @@map("trainer_certificates")
+}
+
 model MaterialVersion {
   id           String      @id @default(cuid())
   materialId   String
@@ -311,22 +360,21 @@ model MaterialVersion {
 // ─────────────────────────────────────────────
 
 model TrainingAssignment {
-  id           String           @id @default(cuid())
-  personId     String
-  topicId      String
-  trigger      TrainingTrigger
-  status       AssignmentStatus @default(NOT_STARTED)
-  needIdentifiedById String?   // who identified this need
-  needBasis          String?   // basis for identification
-  assignedById String
-  dueDate      DateTime
-  startedAt    DateTime?
-  completedAt  DateTime?
-  acknowledged Boolean          @default(false) // for minor version ack
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id                 String           @id @default(cuid())
+  personId           String
+  topicId            String
+  trigger            TrainingTrigger
+  status             AssignmentStatus @default(NOT_STARTED)
+  assignedById       String
+  dueDate            DateTime
+  startedAt          DateTime?
+  completedAt        DateTime?
+  acknowledged       Boolean          @default(false)
+  needIdentifiedById String?          // ← new — who identified this need
+  needBasis          String?          // ← new — basis for identification
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
-  // Relations
   person     Person              @relation(fields: [personId], references: [id])
   topic      TrainingTopic       @relation(fields: [topicId], references: [id])
   assignedBy Person              @relation("assignedBy", fields: [assignedById], references: [id])
@@ -572,6 +620,71 @@ model AuditLog {
   user Person @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// VALIDATION SUPPORT
+// ─────────────────────────────────────────────
+
+
+
+model ValidationRun {
+  id          String           @id @default(cuid())
+  phase       TestPhase
+  version     String           // e.g. "v0.1.0"
+  environment String           // DEV | VALIDATION | PROD
+  status      ValidationStatus @default(PLANNED)
+  startedAt   DateTime?
+  completedAt DateTime?
+  executedById String?
+  approvedById String?
+  approvedAt  DateTime?
+  notes       String?
+  createdAt   DateTime         @default(now())
+
+  executedBy  Person?  @relation("valRunExecutor", fields: [executedById], references: [id])
+  approvedBy  Person?  @relation("valRunApprover", fields: [approvedById], references: [id])
+  testResults TestResult[]
+
+  @@map("validation_runs")
+}
+
+model TestCase {
+  id          String  @id @default(cuid())
+  ursId       String  // e.g. "URS-PER-001"
+  module      String  // e.g. "PERSONNEL"
+  phase       TestPhase
+  title       String
+  description String
+  steps       String  // JSON array of step strings
+  expected    String  // expected result
+  priority    String  @default("M") // M | H | D
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  results TestResult[]
+
+  @@map("test_cases")
+}
+
+model TestResult {
+  id             String     @id @default(cuid())
+  runId          String
+  testCaseId     String
+  status         TestStatus @default(NOT_EXECUTED)
+  actualResult   String?
+  defectNotes    String?
+  executedById   String?
+  executedAt     DateTime?
+  screenshotUrls String[]   // stored in MinIO
+  createdAt      DateTime   @default(now())
+
+  run          ValidationRun @relation(fields: [runId],       references: [id])
+  testCase     TestCase      @relation(fields: [testCaseId],  references: [id])
+  executedBy   Person?       @relation("testResultExecutor", fields: [executedById], references: [id])
+
+  @@unique([runId, testCaseId])
+  @@map("test_results")
 }
 
 // ─────────────────────────────────────────────

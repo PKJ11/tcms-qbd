@@ -208,12 +208,14 @@ export async function createAssignments(
   // Create assignments
   const created = await prisma.trainingAssignment.createMany({
     data: newPersons.map((p) => ({
-      personId:     p.id,
-      topicId:      input.topicId,
-      trigger:      input.trigger,
-      status:       'NOT_STARTED' as const,
-      assignedById: actorId,
-      dueDate:      new Date(input.dueDate),
+      personId:           p.id,
+      topicId:            input.topicId,
+      trigger:            input.trigger,
+      status:             'NOT_STARTED' as const,
+      assignedById:       actorId,
+      dueDate:            new Date(input.dueDate),
+      needIdentifiedById: input.needIdentifiedById?.trim() || null,
+      needBasis:          input.needBasis?.trim() || null,
     })),
   })
 
