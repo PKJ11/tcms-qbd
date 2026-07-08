@@ -6,28 +6,37 @@ import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail]         = useState('')
-  const [password, setPassword]   = useState('')
-  const [showPass, setShowPass]   = useState(false)
-  const [remember, setRemember]   = useState(false)
-  const [loading, setLoading]     = useState(false)
-  const [error, setError]         = useState<string | null>(null)
+
+  const [form, setForm] = useState({
+    employeeId: '',
+    password:   '',
+  })
+  const [showPass, setShowPass] = useState(false)
+  const [remember, setRemember] = useState(false)
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setError('')
     setLoading(true)
-    setError(null)
+
+    if (!form.employeeId.trim() || !form.password) {
+      setError('Employee ID and password are required')
+      setLoading(false)
+      return
+    }
 
     const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
+      employeeId: form.employeeId.trim().toUpperCase(),
+      password:   form.password,
+      redirect:   false,
     })
 
     setLoading(false)
 
     if (result?.error) {
-      setError('Invalid email or password. Please try again.')
+      setError('Invalid Employee ID or password. Please check your credentials.')
       return
     }
 
@@ -137,34 +146,35 @@ export default function LoginPage() {
               Sign in to TCMS
             </h2>
             <p className="text-sm text-gray-500">
-              Welcome back. Please enter your details to continue.
+              Use your Employee ID and password to continue.
             </p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-            {/* Email */}
+            {/* Employee ID */}
             <div>
               <label
-                htmlFor="email"
+                htmlFor="employeeId"
                 className="block text-sm font-medium text-gray-700 mb-1.5"
               >
-                Email Address
+                Employee ID
               </label>
               <input
-                id="email"
-                type="email"
-                autoComplete="email"
+                id="employeeId"
+                type="text"
+                autoComplete="username"
+                autoFocus
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
+                value={form.employeeId}
+                onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
+                placeholder="e.g. EMP-001"
                 className="w-full px-4 py-3 rounded-lg border text-sm outline-none transition-all"
                 style={{
-                  borderColor:     '#d1d5db',
-                  background:      '#fff',
-                  color:           '#111827',
+                  borderColor: '#d1d5db',
+                  background:  '#fff',
+                  color:       '#111827',
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = '#2d6a4f'
@@ -191,8 +201,8 @@ export default function LoginPage() {
                   type={showPass ? 'text' : 'password'}
                   autoComplete="current-password"
                   required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
                   placeholder="••••••••••"
                   className="w-full px-4 py-3 rounded-lg border text-sm outline-none transition-all pr-12"
                   style={{
@@ -256,9 +266,9 @@ export default function LoginPage() {
               <div
                 className="text-sm px-4 py-3 rounded-lg border"
                 style={{
-                  background:   '#fef2f2',
-                  borderColor:  '#fecaca',
-                  color:        '#dc2626',
+                  background:  '#fef2f2',
+                  borderColor: '#fecaca',
+                  color:       '#dc2626',
                 }}
               >
                 {error}
@@ -310,9 +320,9 @@ export default function LoginPage() {
             <div
               className="flex items-start gap-2 px-4 py-3 rounded-lg text-xs"
               style={{
-                background:  '#f0fdf4',
-                color:       '#166534',
-                border:      '1px solid #bbf7d0',
+                background: '#f0fdf4',
+                color:      '#166534',
+                border:     '1px solid #bbf7d0',
               }}
             >
               <svg
@@ -324,8 +334,7 @@ export default function LoginPage() {
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
               </svg>
               <span>
-                For data integrity, every sign-in and action is recorded
-                in a tamper-evident audit trail.
+                Every login is recorded in a tamper-evident audit trail per 21 CFR Part 11.
               </span>
             </div>
 

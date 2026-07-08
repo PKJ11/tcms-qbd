@@ -1,5 +1,4 @@
-import 'next-auth'
-import 'next-auth/jwt'
+import type { DefaultSession } from 'next-auth'
 
 export type UserRole =
   | 'USER'
@@ -9,28 +8,35 @@ export type UserRole =
   | 'SUPER_ADMIN'
   | 'MD'
 
+export interface TCMSUser {
+  id:                 string
+  employeeId:         string   // ← primary auth identifier
+  name:               string
+  email:              string   // still in session but may be empty string
+  role:               string
+  mustChangePassword: boolean
+  unitId:             string
+  unitName:           string
+  department:         string
+}
+
 declare module 'next-auth' {
   interface Session {
-    user: {
-      id:                 string
-      name:               string
-      email:              string
-      role:               UserRole
-      unitId:             string
-      unitName:           string
-      department:         string | null
-      mustChangePassword: boolean
-    }
+    user: TCMSUser
   }
+  interface User extends TCMSUser {}
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
     id:                 string
-    role:               UserRole
+    employeeId:         string
+    name:               string
+    email:              string
+    role:               string
+    mustChangePassword: boolean
     unitId:             string
     unitName:           string
-    department:         string | null
-    mustChangePassword: boolean
+    department:         string
   }
 }

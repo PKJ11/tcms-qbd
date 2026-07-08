@@ -1,123 +1,146 @@
-import { NextAuthOptions, getServerSession, User } from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
-import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
-import type { UserRole } from '@/lib/types'
-import { logAuthEvent } from '@/modules/audit-trail'
-
-interface TCMSUser extends User {
-  id:                 string
-  role:               UserRole
-  unitId:             string
-  unitName:           string
-  department:         string | null
-  mustChangePassword: boolean
-}
+import NextAuth, { type NextAuthOptions } from 'next-auth'
+import CredentialsProvider                from 'next-auth/providers/credentials'
+import { prisma }                         from '@/lib/prisma'
+import bcrypt                             from 'bcryptjs'
+import type { TCMSUser }                  from '@/lib/types'
 
 export const authOptions: NextAuthOptions = {
-  session: {
-    strategy: 'jwt',
-    maxAge:   8 * 60 * 60,
-  },
-  pages: {
-    signIn: '/login',
-  },
+  session:  { strategy: 'jwt', maxAge: 8 * 60 * 60 },
+  pages:    { signIn: '/login' },
+
   providers: [
     CredentialsProvider({
       name: 'credentials',
       credentials: {
-        email:    { label: 'Email',    type: 'email'    },
-        password: { label: 'Password', type: 'password' },
+        // Changed from email to employeeId
+        employeeId: { label: 'Employee ID', type: 'text'     },
+        password:   { label: 'Password',    type: 'password' },
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null
 
-        const user = await prisma.person.findUnique({
-          where:   { email: credentials.email },
-          include: { unit: true, department: true },
+      async authorize(credentials) {
+        if (!credentials?.employeeId || !credentials?.password) {
+          return null
+        }
+
+        // Look up by employeeId — NOT email
+        const person = await prisma.person.findUnique({
+          where:  { employeeId: credentials.employeeId.trim().toUpperCase() },
+          select: {
+            id:                 true,
+            employeeId:         true,
+            name:               true,
+            email:              true,  // still select it — used for display
+            role:               true,
+            passwordHash:       true,
+            mustChangePassword: true,
+            isActive:           true,
+            unitId:             true,
+            departmentId:       true,
+            unit:               { select: { name: true } },
+            department:         { select: { name: true } },
+          },
         })
 
-        if (!user || !user.passwordHash) return null
-        if (!user.isActive) return null
+        // Person not found
+        if (!person) return null
 
+        // Account deactivated
+        if (!person.isActive) return null
+
+        // No password set
+        if (!person.passwordHash) return null
+
+        // Verify password
         const valid = await bcrypt.compare(
           credentials.password,
-          user.passwordHash
+          person.passwordHash
         )
         if (!valid) return null
 
-        // Update last login timestamp
-        await prisma.person.update({
-          where: { id: user.id },
-          data:  { lastLoginAt: new Date() },
-        })
+        // Return user object — used in JWT callback
+        const user: TCMSUser = {
+          id:                 person.id,
+          employeeId:         person.employeeId,
+          name:               person.name,
+          email:              person.email ?? '',  // empty string if no email
+          role:               person.role,
+          mustChangePassword: person.mustChangePassword,
+          unitId:             person.unitId ?? '',
+          unitName:           person.unit?.name ?? '',
+          department:         person.department?.name ?? '',
+        }
 
-        return {
-          id:                 user.id,
-          name:               user.name,
-          email:              user.email,
-          role:               user.role,
-          unitId:             user.unitId,
-          unitName:           user.unit.name,
-          department:         user.department?.name ?? null,
-          mustChangePassword: user.mustChangePassword,
-        } as TCMSUser
+        return user
       },
     }),
   ],
+
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        const u                  = user as TCMSUser
+        const u = user as TCMSUser
         token.id                 = u.id
+        token.employeeId         = u.employeeId
+        token.name               = u.name
+        token.email              = u.email
         token.role               = u.role
+        token.mustChangePassword = u.mustChangePassword
         token.unitId             = u.unitId
         token.unitName           = u.unitName
         token.department         = u.department
-        token.mustChangePassword = u.mustChangePassword
       }
       return token
     },
+
     async session({ session, token }) {
-      if (token) {
-        session.user.id                 = token.id         as string
-        session.user.role               = token.role        as UserRole
-        session.user.unitId             = token.unitId      as string
-        session.user.unitName           = token.unitName    as string
-        session.user.department         = token.department  as string | null
-        session.user.mustChangePassword = token.mustChangePassword as boolean
+      session.user = {
+        id:                 token.id                 as string,
+        employeeId:         token.employeeId         as string,
+        name:               token.name               as string,
+        email:              token.email              as string,
+        role:               token.role               as string,
+        mustChangePassword: token.mustChangePassword as boolean,
+        unitId:             token.unitId             as string,
+        unitName:           token.unitName           as string,
+        department:         token.department         as string,
       }
       return session
     },
   },
 
-  // ── Events — fire after NextAuth actions complete ──────────────────
   events: {
     async signIn({ user }) {
+      // Audit log on successful login
       try {
-        await logAuthEvent({
-          userId: user.id,
-          action: 'LOGIN',
+        const u = user as TCMSUser
+        await prisma.auditLog.create({
+          data: {
+            userId:     u.id,
+            action:     'LOGIN',
+            module:     'AUTH',
+            recordId:   u.id,
+            recordType: 'Person',
+            justification: 'System-generated: user login',
+            afterValue: {
+              employeeId: u.employeeId,
+              role:       u.role,
+              timestamp:  new Date().toISOString(),
+            },
+          },
         })
-      } catch (error) {
-        // Never block login because of audit failure
-        console.error('[AUTH EVENT - signIn audit failed]', error)
-      }
-    },
-
-    async signOut({ token }) {
-      try {
-        if (token?.id) {
-          await logAuthEvent({
-            userId: token.id as string,
-            action: 'LOGOUT',
-          })
-        }
-      } catch (error) {
-        console.error('[AUTH EVENT - signOut audit failed]', error)
+      } catch {
+        // Never block login due to audit log failure
       }
     },
   },
 }
 
-export const getSession = () => getServerSession(authOptions)
+export default NextAuth(authOptions)
+
+// ── Server-side session helper ────────────────────────────────────
+
+import { getServerSession } from 'next-auth'
+
+export async function getSession() {
+  return getServerSession(authOptions)
+}

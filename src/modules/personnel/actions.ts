@@ -85,109 +85,122 @@ export async function createPerson(
   justification: string,
   actorId: string
 ) {
-  // Validate
   const parsed = createPersonSchema.safeParse(input)
-  if (!parsed.success) {
-    throw new Error(parsed.error.message)
-  }
+  if (!parsed.success) throw new Error(parsed.error.message)
 
-  // Check duplicates
-  const existing = await prisma.person.findFirst({
-    where: {
-      OR: [{ email: input.email }, { employeeId: input.employeeId }],
-    },
+  // employeeId must be unique
+  const existingEmpId = await prisma.person.findUnique({
+    where: { employeeId: input.employeeId.trim().toUpperCase() },
   })
-
-  if (existing) {
-    throw new Error(
-      existing.email === input.email
-        ? 'Email already exists'
-        : 'Employee ID already exists'
-    )
+  if (existingEmpId) {
+    throw new Error(`Employee ID ${input.employeeId} is already in use`)
   }
 
-  // Generate temp password
+  // Email uniqueness check — ONLY if email is provided
+  if (input.email && input.email.trim()) {
+    const existingEmail = await prisma.person.findFirst({
+      where: { email: input.email.trim().toLowerCase() },
+    })
+    if (existingEmail) {
+      throw new Error('An account with this email address already exists')
+    }
+  }
+
   const tempPassword = generateTempPassword()
   const passwordHash = await bcrypt.hash(tempPassword, 12)
 
-  // Create person
+  function buildWelcomeEmailHtml(
+  name: string,
+  employeeId: string,
+  tempPassword: string
+): string {
+  return `
+    <div style="font-family:sans-serif;max-width:480px;margin:auto">
+      <h2 style="color:#2d6a4f">Welcome to TCMS</h2>
+      <p>Dear ${name},</p>
+      <p>Your account has been created on the Training &amp; Competency Management System.</p>
+      <table style="background:#f9fafb;border-radius:8px;padding:16px;width:100%">
+        <tr>
+          <td><strong>Employee ID:</strong></td>
+          <td style="font-family:monospace;font-size:16px">${employeeId}</td>
+        </tr>
+        <tr>
+          <td><strong>Temporary password:</strong></td>
+          <td style="font-family:monospace;font-size:16px">${tempPassword}</td>
+        </tr>
+      </table>
+      <p style="color:#6b7280;font-size:13px;margin-top:16px">
+        You will be required to change this password on first login.
+      </p>
+    </div>
+  `
+}
+
   const person = await prisma.person.create({
     data: {
-      employeeId: input.employeeId,
-      name: input.name,
-      email: input.email,
+      employeeId:         input.employeeId.trim().toUpperCase(),
+      name:               input.name,
+      email:              input.email?.trim().toLowerCase() || null,  // null if empty
+      designation:        input.designation,
+      role:               input.role,
+      unitId:             input.unitId,
+      departmentId:       input.departmentId      || null,
+      managerId:          input.managerId         || null,
+      joiningDate:        input.joiningDate ? new Date(input.joiningDate) : new Date(),
       passwordHash,
       mustChangePassword: true,
-      role: input.role,
-      designation: input.designation,
-      joiningDate: new Date(input.joiningDate),
-      unitId: input.unitId,
-      departmentId: input.departmentId?.trim() || null,
-      managerId: input.managerId?.trim() || null,
     },
-    select: PERSON_SELECT,
+    select: {
+      id:         true,
+      employeeId: true,
+      name:       true,
+      email:      true,
+      department: { select: { id: true, name: true } },
+    },
   })
 
-  // Audit log
+  // Send email ONLY if email address provided
+  if (person.email) {
+    try {
+      await sendEmail({
+        to:      person.email,
+        subject: 'Your TCMS account has been created',
+        html:    buildWelcomeEmailHtml(
+          person.name,
+          person.employeeId,
+          tempPassword
+        ),
+      })
+    } catch (error) {
+      console.error('[EMAIL ERROR]', error)
+      // Do not block person creation if email fails
+    }
+  }
+
+  // Log audit
   await logAuditEvent({
-    userId: actorId,
-    action: 'CREATE',
-    module: 'PERSONNEL',
-    recordId: person.id,
-    recordType: 'Person',
-    beforeValue: null,
-    afterValue: {
+    userId:        actorId,
+    action:        'CREATE',
+    module:        'PERSONNEL',
+    recordId:      person.id,
+    recordType:    'Person',
+    beforeValue:   null,
+    afterValue:    {
       employeeId: person.employeeId,
-      name: person.name,
-      email: person.email,
-      role: person.role,
-      designation: person.designation,
+      name:       person.name,
+      email:      person.email ?? 'not provided',
     },
     justification,
   })
 
-  // Send welcome email with temp password
-  try {
-    await sendEmail({
-      to: person.email,
-      subject: 'Your TCMS account has been created',
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto">
-          <h2 style="color:#2d6a4f">Welcome to TCMS</h2>
-          <p>Dear ${person.name},</p>
-          <p>Your Training & Competency Management System account has been created.</p>
-          <table style="background:#f9fafb;border-radius:8px;padding:16px;width:100%">
-            <tr><td><strong>Email:</strong></td><td>${person.email}</td></tr>
-            <tr><td><strong>Temporary password:</strong></td><td style="font-family:monospace;font-size:16px">${tempPassword}</td></tr>
-          </table>
-          <p style="color:#6b7280;font-size:13px;margin-top:16px">
-            You will be required to change this password on first login.
-          </p>
-          <p style="color:#6b7280;font-size:12px">
-            TCMS · QbD Research & Development Lab Pvt. Ltd.
-          </p>
-        </div>
-      `,
-    })
-  } catch {
-    // Email failure must not block person creation
-    console.error('[EMAIL ERROR] Failed to send welcome email')
-  }
-
-  // Auto-assign induction training based on department
+  // Auto-assign induction training
   if (person.department) {
     try {
-      await autoAssignInductionTraining(
-        person.id,
-        person.department.id,
-        actorId
-      )
+      await autoAssignInductionTraining(person.id, person.department.id, actorId)
     } catch (error) {
-      // Do not block person creation if auto-assignment fails
       console.error('[AUTO-ASSIGN ERROR]', error)
     }
   }
-
 
   return { person, tempPassword }
 }
@@ -321,30 +334,32 @@ export async function resetPersonPassword(
     justification,
   })
 
-  // Email new temp password
-  try {
-    await sendEmail({
-      to: person.email,
-      subject: 'Your TCMS password has been reset',
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto">
-          <h2 style="color:#2d6a4f">Password Reset</h2>
-          <p>Dear ${person.name},</p>
-          <p>Your TCMS password has been reset by an administrator.</p>
-          <table style="background:#f9fafb;border-radius:8px;padding:16px;width:100%">
-            <tr>
-              <td><strong>New temporary password:</strong></td>
-              <td style="font-family:monospace;font-size:16px">${tempPassword}</td>
-            </tr>
-          </table>
-          <p style="color:#6b7280;font-size:13px;margin-top:16px">
-            You will be required to change this password on next login.
-          </p>
-        </div>
-      `,
-    })
-  } catch {
-    console.error('[EMAIL ERROR] Failed to send password reset email')
+  // Email new temp password — only if an email address is on file
+  if (person.email) {
+    try {
+      await sendEmail({
+        to: person.email,
+        subject: 'Your TCMS password has been reset',
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:auto">
+            <h2 style="color:#2d6a4f">Password Reset</h2>
+            <p>Dear ${person.name},</p>
+            <p>Your TCMS password has been reset by an administrator.</p>
+            <table style="background:#f9fafb;border-radius:8px;padding:16px;width:100%">
+              <tr>
+                <td><strong>New temporary password:</strong></td>
+                <td style="font-family:monospace;font-size:16px">${tempPassword}</td>
+              </tr>
+            </table>
+            <p style="color:#6b7280;font-size:13px;margin-top:16px">
+              You will be required to change this password on next login.
+            </p>
+          </div>
+        `,
+      })
+    } catch {
+      console.error('[EMAIL ERROR] Failed to send password reset email')
+    }
   }
 
   return tempPassword

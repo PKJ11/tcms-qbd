@@ -207,7 +207,7 @@ model Person {
   id                 String    @id @default(cuid())
   employeeId         String    @unique
   name               String
-  email              String    @unique
+  email              String?    @unique
   passwordHash       String
   mustChangePassword Boolean   @default(true)
   role               UserRole  @default(USER)
