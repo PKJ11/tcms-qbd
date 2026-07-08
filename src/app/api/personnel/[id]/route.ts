@@ -8,7 +8,7 @@ import {
 } from '@/modules/personnel'
 import type { UserRole } from '@/lib/types'
 
-const CAN_MODIFY: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_MODIFY: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
 
 export async function GET(
   req: NextRequest,

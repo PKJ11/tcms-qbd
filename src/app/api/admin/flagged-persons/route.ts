@@ -3,7 +3,7 @@ import { getSession }    from '@/lib/auth'
 import { prisma }        from '@/lib/prisma'
 import type { UserRole } from '@/lib/types'
 
-const CAN_VIEW: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_VIEW: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
 
 export async function GET() {
   const session = await getSession()

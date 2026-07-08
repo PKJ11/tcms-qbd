@@ -7,8 +7,8 @@ import {
 import { getSubordinateIds, isSubordinate } from '@/lib/subordinates'
 import type { UserRole }  from '@/lib/types'
 
-const CAN_CREATE: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
-const CAN_MANAGE: UserRole[] = ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_CREATE: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
+const CAN_MANAGE: UserRole[] = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR']
 const SUB_SCOPE:  UserRole[] = ['MANAGER', 'TRAINER']
 
 export async function GET(req: NextRequest) {
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const isOrgWide        = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+  const isOrgWide        = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'].includes(session.user.role)
   const isSubScope       = SUB_SCOPE.includes(session.user.role as UserRole)
 
   let subordinateIds: string[] | undefined

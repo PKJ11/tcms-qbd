@@ -4,7 +4,7 @@ import { getMaterials, uploadMaterial } from '@/modules/content'
 import type { UserRole } from '@/lib/types'
 import type { CreateMaterialInput, FileType, VersionType } from '@/modules/content'
 
-const CAN_UPLOAD: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_UPLOAD: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()

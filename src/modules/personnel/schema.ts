@@ -26,7 +26,7 @@ export const createPersonSchema = z.object({
 
   role: z.enum([
     'USER', 'MANAGER', 'TRAINER',
-    'TRAINING_HEAD', 'SUPER_ADMIN', 'MD',
+    'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER',
   ]),
 
   unitId:       z.string().min(1, 'Unit is required'),
@@ -47,8 +47,8 @@ export const updatePersonSchema = z.object({
     'MANAGER',
     'TRAINER',
     'TRAINING_HEAD',
-    'SUPER_ADMIN',
-    'MD',
+    'ADMINISTRATOR',
+    'REVIEWER',
   ]).optional(),
 
   designation: z

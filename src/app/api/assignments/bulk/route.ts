@@ -3,7 +3,7 @@ import { getSession } from '@/lib/auth'
 import { bulkAssignByDepartment } from '@/modules/assignments'
 import type { UserRole } from '@/lib/types'
 
-const CAN_ASSIGN: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_ASSIGN: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
 
 export async function POST(req: NextRequest) {
   const session = await getSession()

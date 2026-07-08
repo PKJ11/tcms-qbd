@@ -5,7 +5,7 @@ import { formatDate }  from '@/lib/utils'
 import {
   getTrainingHeadStats,
   getManagerStats,
-  getMDStats,
+  getReviewerStats,
 } from '@/modules/reports'
 import type { UserRole } from '@/lib/types'
 
@@ -351,8 +351,8 @@ async function UserDashboard({ userId, userName }: { userId: string; userName: s
   )
 }
 
-async function MDDashboard() {
-  const stats = await getMDStats()
+async function ReviewerDashboard() {
+  const stats = await getReviewerStats()
 
   const units = await prisma.unit.findMany({
     where:   { isActive: true },
@@ -425,14 +425,14 @@ export default async function DashboardPage() {
       </div>
 
       {/* Role-based dashboard content */}
-      {['TRAINING_HEAD', 'SUPER_ADMIN'].includes(user.role) && (
+      {['TRAINING_HEAD', 'ADMINISTRATOR'].includes(user.role) && (
         <TrainingHeadDashboard userId={user.id} />
       )}
       {user.role === 'MANAGER' && (
         <ManagerDashboard userId={user.id} userName={user.name} />
       )}
-      {user.role === 'MD' && (
-        <MDDashboard />
+      {user.role === 'REVIEWER' && (
+        <ReviewerDashboard />
       )}
       {['USER', 'TRAINER'].includes(user.role) && (
         <UserDashboard userId={user.id} userName={user.name} />

@@ -8,12 +8,12 @@ export default async function QualificationsPage() {
   if (!session) redirect('/login')
 
   // All these roles can now access qualifications
-  const allowed = ['USER', 'MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
+  const allowed = ['USER', 'MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER']
   if (!allowed.includes(session.user.role)) redirect('/unauthorised')
 
-  const canManage  = ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN'].includes(session.user.role)
-  const canCreate  = ['TRAINING_HEAD', 'SUPER_ADMIN'].includes(session.user.role)
-  const isOrgWide  = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+  const canManage  = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
+  const canCreate  = ['TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
+  const isOrgWide  = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'].includes(session.user.role)
   const isSubScope = ['MANAGER', 'TRAINER'].includes(session.user.role)
 
   // Pre-fetch subordinate count for banner

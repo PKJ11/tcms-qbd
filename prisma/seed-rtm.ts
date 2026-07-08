@@ -11,7 +11,7 @@ const TEST_CASES = [
     title:       'Create new person record',
     description: 'Verify the system can create a person with all required fields',
     steps:       JSON.stringify([
-      'Login as Super Admin',
+      'Login as ADMINISTRATOR',
       'Navigate to /personnel/new',
       'Fill in all required fields: Employee ID, Name, Email, Role, Designation, Joining Date, Unit',
       'Click Create person',

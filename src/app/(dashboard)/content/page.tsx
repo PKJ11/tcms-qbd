@@ -11,7 +11,7 @@ export default async function ContentPage({
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const canUpload = ['TRAINING_HEAD', 'SUPER_ADMIN'].includes(session.user.role)
+  const canUpload = ['TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
 
   // If filtering by topic, fetch the topic name for display
   let filteredTopic: { id: string; name: string } | null = null

@@ -346,10 +346,10 @@ export async function signQualification(
 
   // Role check — only the correct role can sign each step
   const roleMatches: Record<string, string[]> = {
-    TRAINER:       ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN'],
-    QA:            ['TRAINING_HEAD', 'SUPER_ADMIN'],
-    QA_MANAGER:    ['TRAINING_HEAD', 'SUPER_ADMIN'],
-    TRAINING_HEAD: ['TRAINING_HEAD', 'SUPER_ADMIN'],
+    TRAINER:       ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR'],
+    QA:            ['TRAINING_HEAD', 'ADMINISTRATOR'],
+    QA_MANAGER:    ['TRAINING_HEAD', 'ADMINISTRATOR'],
+    TRAINING_HEAD: ['TRAINING_HEAD', 'ADMINISTRATOR'],
   }
   const allowedRoles = roleMatches[nextStep.requiredRole] ?? []
   if (!allowedRoles.includes(actor.role)) {

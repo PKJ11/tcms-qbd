@@ -7,7 +7,7 @@ export default async function NewBankPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN']
+  const allowed = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR']
   if (!allowed.includes(session.user.role)) redirect('/unauthorised')
 
   const topics = await getTopicsWithoutBank()

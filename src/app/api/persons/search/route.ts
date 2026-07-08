@@ -7,8 +7,8 @@ import type { UserRole } from '@/lib/types'
 // the personnel filter on that screen.
 const ALLOWED_ROLES: UserRole[] = [
   'TRAINING_HEAD',
-  'SUPER_ADMIN',
-  'MD',
+  'ADMINISTRATOR',
+  'REVIEWER',
 ]
 
 export async function GET(req: NextRequest) {

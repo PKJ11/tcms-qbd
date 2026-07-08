@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts",
+    "seed": "ts-node --project prisma/tsconfig.seed.json prisma/seed.ts",
     "seed:rtm": "ts-node --project prisma/tsconfig.seed.json prisma/seed-rtm.ts"
   },
   "prisma": {

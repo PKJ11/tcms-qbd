@@ -4,7 +4,7 @@ import { uploadScannedDocument } from '@/modules/qualification'
 import { prisma } from '@/lib/prisma'
 import type { UserRole } from '@/lib/types'
 
-const CAN_UPLOAD: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN', 'TRAINER']
+const CAN_UPLOAD: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR', 'TRAINER']
 
 export async function GET(
   _req: NextRequest,

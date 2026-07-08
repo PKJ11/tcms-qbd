@@ -7,7 +7,7 @@ export default async function NewPersonPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINING_HEAD', 'SUPER_ADMIN']
+  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR']
   if (!allowed.includes(session.user.role)) redirect('/unauthorised')
 
   const { units, departments } = await getUnitsAndDepartments()

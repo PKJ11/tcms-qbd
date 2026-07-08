@@ -8,7 +8,7 @@ import {
 import type { UserRole } from '@/lib/types'
 
 // Now includes MANAGER and TRAINER
-const CAN_VIEW: UserRole[] = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
+const CAN_VIEW: UserRole[] = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const format           = searchParams.get('format')
-  const isOrgWide        = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+  const isOrgWide        = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'].includes(session.user.role)
 
   let subordinateIds: string[] | undefined
 

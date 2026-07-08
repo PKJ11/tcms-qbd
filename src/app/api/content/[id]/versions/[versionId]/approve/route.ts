@@ -3,7 +3,7 @@ import { getSession } from '@/lib/auth'
 import { approveMaterialVersion } from '@/modules/content'
 import type { UserRole } from '@/lib/types'
 
-const CAN_APPROVE: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_APPROVE: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
 
 export async function POST(
   req: NextRequest,

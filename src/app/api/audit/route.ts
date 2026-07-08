@@ -6,8 +6,8 @@ import type { UserRole } from '@/lib/types'
 // Only Training Head and above can read audit logs
 const ALLOWED_ROLES: UserRole[] = [
   'TRAINING_HEAD',
-  'SUPER_ADMIN',
-  'MD',
+  'ADMINISTRATOR',
+  'REVIEWER',
 ]
 
 export async function GET(req: NextRequest) {

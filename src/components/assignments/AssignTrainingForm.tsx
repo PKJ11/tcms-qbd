@@ -83,7 +83,7 @@ export function AssignTrainingForm({ topics, departments }: Props) {
       const res  = await fetch('/api/personnel?isActive=true')
       const data = await res.json()
       const people = (data.persons ?? []) as Person[]
-      setManagers(people.filter((p) => ['MANAGER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'TRAINER'].includes(p.role ?? '')))
+      setManagers(people.filter((p) => ['MANAGER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'TRAINER'].includes(p.role ?? '')))
     }
 
     fetchManagers()

@@ -3,7 +3,7 @@ import { getSession } from '@/lib/auth'
 import { getPersons, createPerson } from '@/modules/personnel'
 import type { UserRole } from '@/lib/types'
 
-const CAN_CREATE: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_CREATE: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()

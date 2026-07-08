@@ -18,8 +18,8 @@ const ROLES = [
   { value: 'MANAGER',       label: 'Manager'       },
   { value: 'TRAINER',       label: 'Trainer'       },
   { value: 'TRAINING_HEAD', label: 'Training Head' },
-  { value: 'SUPER_ADMIN',   label: 'Super Admin'   },
-  { value: 'MD',            label: 'MD'            },
+  { value: 'ADMINISTRATOR',   label: 'ADMINISTRATOR'   },
+  { value: 'REVIEWER',            label: 'REVIEWER'            },
 ]
 
 export function CreatePersonForm({ units, departments }: Props) {
@@ -63,8 +63,8 @@ export function CreatePersonForm({ units, departments }: Props) {
       const res  = await fetch(`/api/personnel?${params}`)
       const data = await res.json()
 
-      // Only MANAGER, TRAINING_HEAD, SUPER_ADMIN can be managers
-      const managerRoles = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
+      // Only MANAGER, TRAINING_HEAD, ADMINISTRATOR can be managers
+      const managerRoles = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER']
       const filtered = (data.persons ?? []).filter(
         (p: { role: string }) => managerRoles.includes(p.role)
       )

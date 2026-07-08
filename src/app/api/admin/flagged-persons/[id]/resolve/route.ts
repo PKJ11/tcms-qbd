@@ -4,7 +4,7 @@ import { prisma }          from '@/lib/prisma'
 import { logAuditEvent }   from '@/modules/audit-trail'
 import type { UserRole }   from '@/lib/types'
 
-const CAN_RESOLVE: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_RESOLVE: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
 
 export async function POST(
   req: NextRequest,

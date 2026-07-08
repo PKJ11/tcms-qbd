@@ -7,7 +7,7 @@ export default async function AuditTrailPage() {
 
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
+  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER']
   if (!allowed.includes(session.user.role)) redirect('/unauthorised')
 
   return (

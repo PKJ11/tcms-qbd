@@ -7,8 +7,8 @@ export default async function NewQualificationPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  // TRAINING_HEAD and SUPER_ADMIN can create qualifications
-  const allowed = ['TRAINING_HEAD', 'SUPER_ADMIN']
+  // TRAINING_HEAD and ADMINISTRATOR can create qualifications
+  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR']
   if (!allowed.includes(session.user.role)) {
     redirect('/unauthorised')
   }

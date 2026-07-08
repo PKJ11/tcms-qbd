@@ -36,19 +36,19 @@ async function main() {
 
   console.log('✅ Departments created')
 
-  // ─── Super Admin ─────────────────────────────
-  const superAdminHash = await bcrypt.hash('Admin@1234', 12)
+  // ─── ADMINISTRATOR ─────────────────────────────
+  const ADMINISTRATORHash = await bcrypt.hash('Admin@1234', 12)
 
-  const superAdmin = await prisma.person.upsert({
+  const ADMINISTRATOR = await prisma.person.upsert({
     where:  { email: 'admin@tcms.internal' },
     update: {},
     create: {
       employeeId:         'EMP-001',
-      name:               'Super Admin',
+      name:               'ADMINISTRATOR',
       email:              'admin@tcms.internal',
-      passwordHash:       superAdminHash,
+      passwordHash:       ADMINISTRATORHash,
       mustChangePassword: false,
-      role:               UserRole.SUPER_ADMIN,
+      role:               UserRole.ADMINISTRATOR,
       designation:        'System Administrator',
       joiningDate:        new Date('2024-01-01'),
       unitId:             unit1.id,
@@ -56,7 +56,7 @@ async function main() {
     },
   })
 
-  console.log('✅ Super Admin created')
+  console.log('✅ ADMINISTRATOR created')
   console.log('   Email:    admin@tcms.internal')
   console.log('   Password: Admin@1234')
 

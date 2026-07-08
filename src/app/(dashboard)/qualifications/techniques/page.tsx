@@ -7,11 +7,11 @@ export default async function TechniquesPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN']
+  const allowed = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR']
   if (!allowed.includes(session.user.role)) redirect('/unauthorised')
 
   const techniques = await getAllTechniques()
-  const canCreate  = ['TRAINING_HEAD', 'SUPER_ADMIN'].includes(session.user.role)
+  const canCreate  = ['TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>

@@ -3,7 +3,7 @@ import { getSession }           from '@/lib/auth'
 import { getValidationRuns, createValidationRun } from '@/modules/validation'
 import type { UserRole }        from '@/lib/types'
 
-const CAN_MANAGE: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_MANAGE: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
 
 export async function GET() {
   const session = await getSession()

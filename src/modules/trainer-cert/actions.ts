@@ -57,12 +57,12 @@ export async function issueTrainerCertificate(
   justification: string,
   actorId:       string
 ) {
-  // Only Training Head / Super Admin can issue
+  // Only Training Head / ADMINISTRATOR can issue
   const actor = await prisma.person.findUnique({
     where:  { id: actorId },
     select: { role: true },
   })
-  if (!actor || !['TRAINING_HEAD', 'SUPER_ADMIN'].includes(actor.role)) {
+  if (!actor || !['TRAINING_HEAD', 'ADMINISTRATOR'].includes(actor.role)) {
     throw new Error('Only Training Head / Head QA can issue Trainer Certificates')
   }
 

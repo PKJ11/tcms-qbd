@@ -1,8 +1,8 @@
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('USER', 'MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD');
+CREATE TYPE "UserRole" AS ENUM ('USER', 'MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER');
 
 -- CreateEnum
-CREATE TYPE "TrainingTrigger" AS ENUM ('INDUCTION', 'UPGRADE', 'RETRAINING', 'REFRESHER');
+CREATE TYPE "TrainingTrigger" AS ENUM ('INDUCTION', 'UPGRADE', 'RETRAINING', 'REFRESHER', 'TECHNICAL', 'EXTERNAL');
 
 -- CreateEnum
 CREATE TYPE "AssignmentStatus" AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE', 'FAILED');
@@ -15,6 +15,9 @@ CREATE TYPE "VersionType" AS ENUM ('MAJOR', 'MINOR');
 
 -- CreateEnum
 CREATE TYPE "FileType" AS ENUM ('PPT', 'PDF', 'VIDEO', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "AssessmentType" AS ENUM ('MCQ', 'ORAL');
 
 -- CreateEnum
 CREATE TYPE "AssessmentOutcome" AS ENUM ('PASS', 'FAIL', 'NEEDS_RETRAINING');
@@ -49,6 +52,15 @@ CREATE TYPE "RefresherTriggerType" AS ENUM ('PLANNED', 'DEVIATION', 'INCIDENT');
 -- CreateEnum
 CREATE TYPE "RefresherStatus" AS ENUM ('PENDING', 'COMPLETED', 'OVERDUE');
 
+-- CreateEnum
+CREATE TYPE "TestPhase" AS ENUM ('IQ', 'OQ', 'PQ', 'RT');
+
+-- CreateEnum
+CREATE TYPE "TestStatus" AS ENUM ('NOT_EXECUTED', 'PASS', 'FAIL', 'BLOCKED');
+
+-- CreateEnum
+CREATE TYPE "ValidationStatus" AS ENUM ('PLANNED', 'IN_PROGRESS', 'COMPLETE', 'LOCKED');
+
 -- CreateTable
 CREATE TABLE "units" (
     "id" TEXT NOT NULL,
@@ -79,7 +91,7 @@ CREATE TABLE "persons" (
     "id" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "email" TEXT NOT NULL,
+    "email" TEXT,
     "passwordHash" TEXT NOT NULL,
     "mustChangePassword" BOOLEAN NOT NULL DEFAULT true,
     "role" "UserRole" NOT NULL DEFAULT 'USER',
@@ -90,6 +102,15 @@ CREATE TABLE "persons" (
     "unitId" TEXT NOT NULL,
     "departmentId" TEXT,
     "managerId" TEXT,
+    "flaggedForJobReassignment" BOOLEAN NOT NULL DEFAULT false,
+    "flaggedAt" TIMESTAMP(3),
+    "flagReason" TEXT,
+    "flagTopicId" TEXT,
+    "flagCycleCount" INTEGER,
+    "resolvedAt" TIMESTAMP(3),
+    "resolvedById" TEXT,
+    "resolutionAction" TEXT,
+    "resolutionNotes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -133,6 +154,22 @@ CREATE TABLE "training_materials" (
 );
 
 -- CreateTable
+CREATE TABLE "trainer_certificates" (
+    "id" TEXT NOT NULL,
+    "personId" TEXT NOT NULL,
+    "issuedById" TEXT NOT NULL,
+    "certNumber" TEXT NOT NULL,
+    "basis" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "issuedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "revokedAt" TIMESTAMP(3),
+    "revokedById" TEXT,
+    "revokedReason" TEXT,
+
+    CONSTRAINT "trainer_certificates_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "material_versions" (
     "id" TEXT NOT NULL,
     "materialId" TEXT NOT NULL,
@@ -165,6 +202,8 @@ CREATE TABLE "training_assignments" (
     "startedAt" TIMESTAMP(3),
     "completedAt" TIMESTAMP(3),
     "acknowledged" BOOLEAN NOT NULL DEFAULT false,
+    "needIdentifiedById" TEXT,
+    "needBasis" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -181,6 +220,7 @@ CREATE TABLE "question_banks" (
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "assessmentType" "AssessmentType" NOT NULL DEFAULT 'MCQ',
 
     CONSTRAINT "question_banks_pkey" PRIMARY KEY ("id")
 );
@@ -347,6 +387,57 @@ CREATE TABLE "audit_logs" (
     CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "validation_runs" (
+    "id" TEXT NOT NULL,
+    "phase" "TestPhase" NOT NULL,
+    "version" TEXT NOT NULL,
+    "environment" TEXT NOT NULL,
+    "status" "ValidationStatus" NOT NULL DEFAULT 'PLANNED',
+    "startedAt" TIMESTAMP(3),
+    "completedAt" TIMESTAMP(3),
+    "executedById" TEXT,
+    "approvedById" TEXT,
+    "approvedAt" TIMESTAMP(3),
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "validation_runs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "test_cases" (
+    "id" TEXT NOT NULL,
+    "ursId" TEXT NOT NULL,
+    "module" TEXT NOT NULL,
+    "phase" "TestPhase" NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "steps" TEXT NOT NULL,
+    "expected" TEXT NOT NULL,
+    "priority" TEXT NOT NULL DEFAULT 'M',
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "test_cases_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "test_results" (
+    "id" TEXT NOT NULL,
+    "runId" TEXT NOT NULL,
+    "testCaseId" TEXT NOT NULL,
+    "status" "TestStatus" NOT NULL DEFAULT 'NOT_EXECUTED',
+    "actualResult" TEXT,
+    "defectNotes" TEXT,
+    "executedById" TEXT,
+    "executedAt" TIMESTAMP(3),
+    "screenshotUrls" TEXT[],
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "test_results_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "units_name_key" ON "units"("name");
 
@@ -366,6 +457,9 @@ CREATE UNIQUE INDEX "persons_email_key" ON "persons"("email");
 CREATE UNIQUE INDEX "topic_departments_topicId_departmentId_key" ON "topic_departments"("topicId", "departmentId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "trainer_certificates_certNumber_key" ON "trainer_certificates"("certNumber");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "material_versions_materialId_versionNo_key" ON "material_versions"("materialId", "versionNo");
 
 -- CreateIndex
@@ -382,6 +476,9 @@ CREATE UNIQUE INDEX "certificates_certNumber_key" ON "certificates"("certNumber"
 
 -- CreateIndex
 CREATE UNIQUE INDEX "certificates_qualificationId_key" ON "certificates"("qualificationId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "test_results_runId_testCaseId_key" ON "test_results"("runId", "testCaseId");
 
 -- AddForeignKey
 ALTER TABLE "departments" ADD CONSTRAINT "departments_unitId_fkey" FOREIGN KEY ("unitId") REFERENCES "units"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -406,6 +503,15 @@ ALTER TABLE "topic_departments" ADD CONSTRAINT "topic_departments_departmentId_f
 
 -- AddForeignKey
 ALTER TABLE "training_materials" ADD CONSTRAINT "training_materials_topicId_fkey" FOREIGN KEY ("topicId") REFERENCES "training_topics"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "trainer_certificates" ADD CONSTRAINT "trainer_certificates_personId_fkey" FOREIGN KEY ("personId") REFERENCES "persons"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "trainer_certificates" ADD CONSTRAINT "trainer_certificates_issuedById_fkey" FOREIGN KEY ("issuedById") REFERENCES "persons"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "trainer_certificates" ADD CONSTRAINT "trainer_certificates_revokedById_fkey" FOREIGN KEY ("revokedById") REFERENCES "persons"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "material_versions" ADD CONSTRAINT "material_versions_materialId_fkey" FOREIGN KEY ("materialId") REFERENCES "training_materials"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -493,3 +599,18 @@ ALTER TABLE "notifications" ADD CONSTRAINT "notifications_personId_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_userId_fkey" FOREIGN KEY ("userId") REFERENCES "persons"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "validation_runs" ADD CONSTRAINT "validation_runs_executedById_fkey" FOREIGN KEY ("executedById") REFERENCES "persons"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "validation_runs" ADD CONSTRAINT "validation_runs_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "persons"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "test_results" ADD CONSTRAINT "test_results_runId_fkey" FOREIGN KEY ("runId") REFERENCES "validation_runs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "test_results" ADD CONSTRAINT "test_results_testCaseId_fkey" FOREIGN KEY ("testCaseId") REFERENCES "test_cases"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "test_results" ADD CONSTRAINT "test_results_executedById_fkey" FOREIGN KEY ("executedById") REFERENCES "persons"("id") ON DELETE SET NULL ON UPDATE CASCADE;

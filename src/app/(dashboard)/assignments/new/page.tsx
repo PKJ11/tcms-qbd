@@ -10,7 +10,7 @@ export default async function NewAssignmentPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINING_HEAD', 'SUPER_ADMIN']
+  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR']
   if (!allowed.includes(session.user.role)) redirect('/unauthorised')
 
   const [topics, departments] = await Promise.all([

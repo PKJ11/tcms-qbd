@@ -16,8 +16,8 @@ enum UserRole {
   MANAGER
   TRAINER
   TRAINING_HEAD
-  SUPER_ADMIN
-  MD
+  ADMINISTRATOR
+  REVIEWER
 }
 
 enum TrainingTrigger {

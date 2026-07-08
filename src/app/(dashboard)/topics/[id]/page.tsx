@@ -19,7 +19,7 @@ export default async function TopicDetailPage({
 
   if (!topic) redirect('/topics')
 
-  const canEdit = ['TRAINING_HEAD', 'SUPER_ADMIN'].includes(session.user.role)
+  const canEdit = ['TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>

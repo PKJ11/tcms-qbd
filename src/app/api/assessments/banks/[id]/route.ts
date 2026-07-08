@@ -4,7 +4,7 @@ import { getQuestionBankByTopic, updateQuestionBank } from '@/modules/assessment
 import { prisma } from '@/lib/prisma'
 import type { UserRole } from '@/lib/types'
 
-const CAN_MANAGE: UserRole[] = ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_MANAGE: UserRole[] = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR']
 
 export async function GET(
   _req: NextRequest,

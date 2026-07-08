@@ -595,12 +595,12 @@ export async function submitOralAttempt(
   },
   actorId: string
 ): Promise<AttemptResult> {
-  // Verify actor is a Trainer/Training Head/Super Admin
+  // Verify actor is a Trainer/Training Head/ADMINISTRATOR
   const actor = await prisma.person.findUnique({
     where:  { id: actorId },
     select: { role: true, name: true },
   })
-  const allowedRoles = ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN']
+  const allowedRoles = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR']
   if (!actor || !allowedRoles.includes(actor.role)) {
     throw new Error('Only Trainers can record oral assessment outcomes')
   }

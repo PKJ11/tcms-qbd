@@ -7,12 +7,12 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
   MANAGER:       2,
   TRAINER:       3,
   TRAINING_HEAD: 4,
-  SUPER_ADMIN:   5,
-  MD:            6,
+  ADMINISTRATOR: 5,
+  REVIEWER:      6,
 }
 
 const ROUTE_MIN_ROLES: Record<string, UserRole> = {
-  '/admin':       'SUPER_ADMIN',
+  '/admin':       'ADMINISTRATOR',
   '/reports':     'MANAGER',
   '/audit-trail': 'TRAINING_HEAD',
   '/content':     'TRAINING_HEAD',

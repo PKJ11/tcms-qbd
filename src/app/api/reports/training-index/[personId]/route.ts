@@ -15,7 +15,7 @@ export async function GET(
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  const isOrgWide    = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+  const isOrgWide    = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'].includes(session.user.role)
   const isSubManager = ['MANAGER', 'TRAINER'].includes(session.user.role)
 
   // Users can only view their own training index

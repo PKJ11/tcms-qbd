@@ -7,8 +7,8 @@ export default async function AssignmentsPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const canAssign = ['TRAINING_HEAD', 'SUPER_ADMIN'].includes(session.user.role)
-  const isOrgWide = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+  const canAssign = ['TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
+  const isOrgWide = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'].includes(session.user.role)
 
   // Check REAL subordinates, not just role label
   const hasSubordinates = isOrgWide || await personHasSubordinates(session.user.id)

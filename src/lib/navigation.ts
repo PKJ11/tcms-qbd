@@ -26,19 +26,19 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Personnel',
     href:  '/personnel',
     icon:  'users',
-    roles: ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD'],
+    roles: ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
   },
   {
     label: 'Training Topics',
     href:  '/topics',
     icon:  'book-open',
-    roles: ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD'],
+    roles: ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
   },
   {
     label: 'Materials',
     href:  '/content',
     icon:  'file-text',
-    roles: ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD'],
+    roles: ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
   },
   {
     label: 'Assignments',
@@ -56,31 +56,31 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Qualifications',
     href:  '/qualifications',
     icon:  'award',
-    roles: ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD'],
+    roles: ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
   },
   {
     label: 'Refresher',
     href:  '/refresher',
     icon:  'refresh-cw',
-    roles: ['TRAINING_HEAD', 'SUPER_ADMIN'],
+    roles: ['TRAINING_HEAD', 'ADMINISTRATOR'],
   },
   {
     label: 'Reports',
     href:  '/reports',
     icon:  'bar-chart-2',
-    roles: ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD'],
+    roles: ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
   },
   {
     label: 'Audit Trail',
     href:  '/audit-trail',
     icon:  'shield',
-    roles: ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'],
+    roles: ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
   },
   {
     label: 'Admin',
     href:  '/admin',
     icon:  'settings',
-    roles: ['SUPER_ADMIN'],
+    roles: ['ADMINISTRATOR'],
   },
 ]
 
@@ -95,8 +95,8 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   MANAGER:       'Manager',
   TRAINER:       'Trainer',
   TRAINING_HEAD: 'Training Head',
-  SUPER_ADMIN:   'Super Admin',
-  MD:            'Managing Director',
+  ADMINISTRATOR: 'Administrator',
+  REVIEWER:      'Reviewer',
 }
 
 export const ROLE_COLORS: Record<UserRole, { bg: string; color: string }> = {
@@ -104,6 +104,6 @@ export const ROLE_COLORS: Record<UserRole, { bg: string; color: string }> = {
   MANAGER:       { bg: '#eff6ff', color: '#1d4ed8' },
   TRAINER:       { bg: '#f5f3ff', color: '#6d28d9' },
   TRAINING_HEAD: { bg: '#fff7ed', color: '#c2410c' },
-  SUPER_ADMIN:   { bg: '#fef2f2', color: '#dc2626' },
-  MD:            { bg: '#fefce8', color: '#854d0e' },
+  ADMINISTRATOR: { bg: '#fef2f2', color: '#dc2626' },
+  REVIEWER:      { bg: '#fefce8', color: '#854d0e' },
 }

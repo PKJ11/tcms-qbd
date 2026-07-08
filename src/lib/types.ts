@@ -5,8 +5,8 @@ export type UserRole =
   | 'MANAGER'
   | 'TRAINER'
   | 'TRAINING_HEAD'
-  | 'SUPER_ADMIN'
-  | 'MD'
+  | 'ADMINISTRATOR'
+  | 'REVIEWER'
 
 export interface TCMSUser {
   id:                 string

@@ -7,7 +7,7 @@ import {
 } from '@/modules/reports'
 import type { UserRole } from '@/lib/types'
 
-const CAN_VIEW: UserRole[] = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
+const CAN_VIEW: UserRole[] = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const format           = searchParams.get('format')
 
   // Determine scope
-  const isOrgWide = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+  const isOrgWide = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'].includes(session.user.role)
 
   let subordinateIds: string[] | undefined
 

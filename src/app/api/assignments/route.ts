@@ -8,8 +8,8 @@ import {
 } from '@/modules/assignments'
 import type { UserRole } from '@/lib/types'
 
-const CAN_ASSIGN:        UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
-const CAN_VIEW_ALL_ORGS: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
+const CAN_ASSIGN:        UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
+const CAN_VIEW_ALL_ORGS: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ assignments })
   }
 
-  // Org-wide visibility — Training Head, Super Admin, MD
+  // Org-wide visibility — Training Head, ADMINISTRATOR, MD
   if (CAN_VIEW_ALL_ORGS.includes(session.user.role as UserRole)) {
     const assignments = await getAssignments({
       personId: searchParams.get('personId') ?? undefined,

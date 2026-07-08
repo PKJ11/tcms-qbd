@@ -3,7 +3,7 @@ import { getSession }            from '@/lib/auth'
 import {
   getTrainingHeadStats,
   getManagerStats,
-  getMDStats,
+  getReviewerStats,
 } from '@/modules/reports'
 
 export async function GET() {
@@ -14,12 +14,12 @@ export async function GET() {
 
   const { role, id: userId } = session.user
 
-  if (role === 'MD') {
-    const stats = await getMDStats()
-    return NextResponse.json({ stats, type: 'md' })
+  if (role === 'REVIEWER') {
+    const stats = await getReviewerStats()
+    return NextResponse.json({ stats, type: 'reviewer' })
   }
 
-  if (['TRAINING_HEAD', 'SUPER_ADMIN'].includes(role)) {
+  if (['TRAINING_HEAD', 'ADMINISTRATOR'].includes(role)) {
     const stats = await getTrainingHeadStats()
     return NextResponse.json({ stats, type: 'training_head' })
   }

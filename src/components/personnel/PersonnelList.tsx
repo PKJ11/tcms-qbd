@@ -24,7 +24,7 @@ const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   MANAGER:       { bg: '#eff6ff', color: '#1d4ed8' },
   TRAINER:       { bg: '#f5f3ff', color: '#6d28d9' },
   TRAINING_HEAD: { bg: '#fff7ed', color: '#c2410c' },
-  SUPER_ADMIN:   { bg: '#fef2f2', color: '#dc2626' },
+  ADMINISTRATOR:   { bg: '#fef2f2', color: '#dc2626' },
   MD:            { bg: '#fefce8', color: '#854d0e' },
 }
 
@@ -109,7 +109,7 @@ export function PersonnelList({ canCreate }: { canCreate: boolean }) {
           style={{ borderColor: '#e5e7eb' }}
         >
           <option value="">All roles</option>
-          {['USER','MANAGER','TRAINER','TRAINING_HEAD','SUPER_ADMIN','MD']
+          {['USER','MANAGER','TRAINER','TRAINING_HEAD','ADMINISTRATOR','REVIEWER']
             .map((r) => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
         </select>
 

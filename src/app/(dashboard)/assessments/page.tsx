@@ -6,7 +6,7 @@ export default async function AssessmentsPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const canManage = ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN'].includes(session.user.role)
+  const canManage = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>

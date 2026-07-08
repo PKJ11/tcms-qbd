@@ -8,11 +8,11 @@ export default async function ReportsPage() {
   if (!session) redirect('/login')
 
   // All these roles can now access reports
-  const allowed = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
+  const allowed = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER']
   console.log('ReportsPage: user role', session.user.role);
   if (!allowed.includes(session.user.role)) redirect('/unauthorised')
 
-  const isOrgWide    = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+  const isOrgWide    = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'].includes(session.user.role)
   const isSubManager = ['MANAGER', 'TRAINER'].includes(session.user.role)
 
   // For MANAGER/TRAINER — pre-fetch their subordinates to pass down

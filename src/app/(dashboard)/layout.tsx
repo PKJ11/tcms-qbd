@@ -16,12 +16,14 @@ export default async function DashboardLayout({
   if (session.user.mustChangePassword) {
     redirect('/change-password')
   }
+  console.log("HIIii")
+  console.log("user :", session.user)
 
   return (
     <div className="flex h-screen overflow-hidden">
 
       {/* Sidebar — fixed on left */}
-      <Sidebar user={session.user} />
+      <Sidebar user={session.user as any} />
 
       {/* Main content area */}
       <div className="flex flex-col flex-1 overflow-hidden">

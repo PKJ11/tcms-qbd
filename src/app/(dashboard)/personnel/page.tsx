@@ -6,7 +6,7 @@ export default async function PersonnelPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const canCreate = ['TRAINING_HEAD', 'SUPER_ADMIN'].includes(session.user.role)
+  const canCreate = ['TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>
