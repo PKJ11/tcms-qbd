@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const isOrgWide        = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
-  const isSubScope       = SUB_SCOPE.includes(session.user.role)
+  const isSubScope       = SUB_SCOPE.includes(session.user.role as UserRole)
 
   let subordinateIds: string[] | undefined
 
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_CREATE.includes(session.user.role)) {
+  if (!CAN_CREATE.includes( session.user.role as UserRole)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

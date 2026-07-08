@@ -11,13 +11,13 @@ export async function GET(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_VIEW.includes(session.user.role)) {
+  if (!CAN_VIEW.includes(session.user.role as UserRole)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
   const { searchParams } = new URL(req.url)
-  const isOrgWide        = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
-  const isSubScope       = ['MANAGER', 'TRAINER'].includes(session.user.role)
+  const isOrgWide        = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role as UserRole)
+  const isSubScope       = ['MANAGER', 'TRAINER'].includes(session.user.role as UserRole)
 
   let subordinateIds: string[] | undefined
 

@@ -10,6 +10,7 @@ import {
   ROLE_COLORS,
 } from '@/lib/navigation'
 import type { UserRole } from '@/lib/types'
+import { useAutoLogoutAudit } from '@/hooks/useAutoLogoutAudit'
 
 interface Props {
   user: {
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function Sidebar({ user }: Props) {
+  useAutoLogoutAudit()
   const pathname          = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -36,8 +38,17 @@ export function Sidebar({ user }: Props) {
   }
 
   async function handleLogout() {
-    await signOut({ callbackUrl: '/login' })
+  try {
+    await fetch('/api/auth/logout-audit', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ type: 'manual' }),
+    })
+  } catch {
+    // never block logout due to audit failure
   }
+  await signOut({ callbackUrl: '/login' })
+}
 
   const sidebarContent = (
     <div
