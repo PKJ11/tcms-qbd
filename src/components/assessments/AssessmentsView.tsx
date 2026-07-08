@@ -31,40 +31,48 @@ export function AssessmentsView({ canManage }: { canManage: boolean }) {
 // ── USER VIEW — pending assessments from their assignments ────────
 
 function TakeAssessmentView() {
-  const [pending, setPending] = useState<MyAssignmentForAssessment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [active,  setActive]  = useState<MyAssignmentForAssessment | null>(null)
+  const [pending,  setPending]  = useState<MyAssignmentForAssessment[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [active,   setActive]   = useState<MyAssignmentForAssessment | null>(null)
 
   const fetchPending = useCallback(async () => {
     setLoading(true)
+
+    // Step 1 — get all non-completed assignments
     const res  = await fetch('/api/assignments?view=mine')
     const data = await res.json()
+    const assignments = (data.assignments ?? []).filter(
+      (a: { status: string }) => a.status !== 'COMPLETED'
+    )
 
-    const assignments = data.assignments ?? []
     const withBanks: MyAssignmentForAssessment[] = []
 
     for (const a of assignments) {
-      if (a.status === 'COMPLETED') continue
-
+      // Step 2 — check if this topic has an active question bank
       const bankRes  = await fetch(`/api/assessments/topic/${a.topic.id}`)
       const bankData = await bankRes.json()
 
-      if (bankData.bank?.isActive) {
-        const attemptsRes = await fetch(
-          `/api/assessments/attempts?assignmentId=${a.id}`
-        )
-        const attemptsData = await attemptsRes.json()
+      if (!bankData.bank?.isActive) continue
 
-        withBanks.push({
-          id:           a.id,
-          topic:        a.topic,
-          status:       a.status,
-          hasBank:      true,
-          bankId:       bankData.bank.id,
-          attemptsUsed: attemptsData.attempts?.length ?? 0,
-          maxAttempts:  bankData.bank.maxAttempts,
-        })
-      }
+      const bank = bankData.bank
+
+      // Step 3 — count attempts for THIS assignment + THIS bank only
+      // Both filters are required to get the correct count
+      const attemptsRes = await fetch(
+        `/api/assessments/attempts?assignmentId=${a.id}&bankId=${bank.id}`
+      )
+      const attemptsData = await attemptsRes.json()
+      const attemptsUsed = attemptsData.attempts?.length ?? 0
+
+      withBanks.push({
+        id:           a.id,
+        topic:        a.topic,
+        status:       a.status,
+        hasBank:      true,
+        bankId:       bank.id,
+        attemptsUsed,
+        maxAttempts:  bank.maxAttempts,
+      })
     }
 
     setPending(withBanks)
@@ -103,26 +111,29 @@ function TakeAssessmentView() {
           {pending.map((p) => {
             const remaining = p.maxAttempts - p.attemptsUsed
             const exhausted = remaining <= 0
+
             return (
               <div
                 key={p.id}
                 className="bg-white rounded-xl border p-5 flex items-center justify-between"
-                style={{ borderColor: '#e5e7eb' }}
+                style={{ borderColor: exhausted ? '#fecaca' : '#e5e7eb' }}
               >
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900">
                     {p.topic.name}
                   </h3>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    Attempt {p.attemptsUsed + 1} of {p.maxAttempts}
-                    {exhausted && ' — attempts exhausted'}
+                    {exhausted
+                      ? `All ${p.maxAttempts} attempts used — contact your Training Coordinator`
+                      : `Attempt ${p.attemptsUsed + 1} of ${p.maxAttempts}`
+                    }
                   </p>
                 </div>
                 <button
-                  onClick={() => setActive(p)}
+                  onClick={() => !exhausted && setActive(p)}
                   disabled={exhausted}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40"
-                  style={{ background: '#2d6a4f' }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: exhausted ? '#9ca3af' : '#2d6a4f' }}
                 >
                   {exhausted ? 'No attempts left' : 'Start assessment'}
                 </button>

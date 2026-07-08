@@ -51,6 +51,8 @@ interface Props {
   canManage:     boolean
   canCreate:     boolean
   currentUserId: string
+  isOrgWide:     boolean    // ← new
+  isSubScope:    boolean    // ← new
 }
 
 // ── Toast component ───────────────────────────────────────────────
@@ -99,7 +101,8 @@ function Toast({ message, type, onClose }: {
 
 // ── Main list component ───────────────────────────────────────────
 
-export function QualificationsList({ canManage, canCreate, currentUserId }: Props) {
+export function QualificationsList({ canManage, canCreate, currentUserId ,isOrgWide,
+  isSubScope, }: Props) {
   const [qualifications, setQualifications] = useState<Qualification[]>([])
   const [loading,         setLoading]        = useState(true)
   const [statusFilter,    setStatusFilter]   = useState('')
@@ -205,8 +208,18 @@ export function QualificationsList({ canManage, canCreate, currentUserId }: Prop
           <option value="REVOKED">Revoked</option>
         </select>
 
-        <div className="ml-auto text-sm text-gray-400 self-center">
-          {qualifications.length} record{qualifications.length !== 1 ? 's' : ''}
+        <div className="ml-auto flex items-center gap-3">
+          {isSubScope && (
+            <span
+              className="px-2 py-0.5 rounded text-xs font-semibold"
+              style={{ background: '#eff6ff', color: '#1d4ed8' }}
+            >
+              Direct reports only
+            </span>
+          )}
+          <span className="text-sm text-gray-400">
+            {qualifications.length} record{qualifications.length !== 1 ? 's' : ''}
+          </span>
         </div>
       </div>
 

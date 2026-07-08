@@ -1,9 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getSession }          from '@/lib/auth'
-import { getOverdueReport, convertToCSV } from '@/modules/reports'
-import type { UserRole }       from '@/lib/types'
+import { NextRequest, NextResponse }   from 'next/server'
+import { getSession }                  from '@/lib/auth'
+import {
+  getOverdueReport,
+  getSubordinateIds,
+  convertToCSV,
+} from '@/modules/reports'
+import type { UserRole } from '@/lib/types'
 
-const CAN_VIEW: UserRole[] = ['MANAGER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
+const CAN_VIEW: UserRole[] = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -15,17 +19,29 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const format = searchParams.get('format')
+  const format           = searchParams.get('format')
+  const isOrgWide        = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+
+  let subordinateIds: string[] | undefined
+
+  if (!isOrgWide) {
+    subordinateIds = await getSubordinateIds(session.user.id)
+    if (subordinateIds.length === 0) {
+      return NextResponse.json({ rows: [] })
+    }
+  }
 
   const rows = await getOverdueReport({
-    unitId:       session.user.role === 'MANAGER'
-      ? session.user.unitId
-      : searchParams.get('unitId') ?? undefined,
-    departmentId: searchParams.get('departmentId') ?? undefined,
+    unitId:         isOrgWide ? (searchParams.get('unitId')       ?? undefined) : undefined,
+    departmentId:   isOrgWide ? (searchParams.get('departmentId') ?? undefined) : undefined,
+    subordinateIds: subordinateIds,
   })
 
   if (format === 'csv') {
-    const headers = ['Employee ID', 'Name', 'Department', 'Unit', 'Manager', 'Topic', 'Trigger', 'Due date', 'Days overdue']
+    const headers = [
+      'Employee ID', 'Name', 'Department', 'Unit',
+      'Manager', 'Topic', 'Trigger', 'Due date', 'Days overdue',
+    ]
     const csvRows = rows.map((r) => [
       r.person.employeeId,
       r.person.name,

@@ -22,7 +22,7 @@ const STATUS_CELL: Record<string, { bg: string; color: string; label: string }> 
   NOT_ASSIGNED: { bg: '#f9fafb', color: '#9ca3af', label: '—'         },
 }
 
-export function TrainingMatrixReport() {
+export function TrainingMatrixReport({ isOrgWide }: { isOrgWide: boolean }) {
   const [matrix,  setMatrix]  = useState<MatrixRow[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -63,13 +63,19 @@ export function TrainingMatrixReport() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-sm font-semibold text-gray-700">
-            Training Matrix
-          </h2>
+          <h2 className="text-sm font-semibold text-gray-700">Training Matrix</h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            {matrix.length} person{matrix.length !== 1 ? 's' : ''} ·
-            {topics.length} topic{topics.length !== 1 ? 's' : ''} ·
+            {matrix.length} person{matrix.length !== 1 ? 's' : ''} ·{' '}
+            {(matrix[0]?.topics ?? []).length} topic{(matrix[0]?.topics ?? []).length !== 1 ? 's' : ''} ·{' '}
             Format QbD/QA/F/007-13
+            {!isOrgWide && (
+              <span
+                className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold"
+                style={{ background: '#eff6ff', color: '#1d4ed8' }}
+              >
+                Direct reports only
+              </span>
+            )}
           </p>
         </div>
         <button

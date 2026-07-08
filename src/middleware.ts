@@ -13,7 +13,7 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
 
 const ROUTE_MIN_ROLES: Record<string, UserRole> = {
   '/admin':       'SUPER_ADMIN',
-  '/reports':     'TRAINING_HEAD',
+  '/reports':     'MANAGER',
   '/audit-trail': 'TRAINING_HEAD',
   '/content':     'TRAINING_HEAD',
   '/topics':      'TRAINING_HEAD',

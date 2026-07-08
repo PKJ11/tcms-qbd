@@ -221,6 +221,12 @@ model Person {
   flaggedForJobReassignment Boolean  @default(false)
   flaggedAt                 DateTime?
   flagReason                String?
+  flagTopicId            String?   // ← NEW: which topic caused the flag
+  flagCycleCount         Int?      // ← NEW: how many cycles failed
+  resolvedAt             DateTime? // ← NEW: when Training Head resolved
+  resolvedById           String?   // ← NEW: who resolved
+  resolutionAction       String?   // ← NEW: 'REASSIGNED' | 'OVERRIDE'
+  resolutionNotes        String?   // ← NEW: what was decided
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   validationRunsExecuted   ValidationRun[]  @relation("valRunExecutor")

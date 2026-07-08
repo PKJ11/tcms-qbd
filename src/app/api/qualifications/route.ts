@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
-import { getQualifications, createQualification } from '@/modules/qualification'
-import type { UserRole } from '@/lib/types'
+import { getSession }     from '@/lib/auth'
+import {
+  getQualifications,
+  createQualification,
+} from '@/modules/qualification'
+import { getSubordinateIds, isSubordinate } from '@/lib/subordinates'
+import type { UserRole }  from '@/lib/types'
 
 const CAN_CREATE: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
+const CAN_MANAGE: UserRole[] = ['TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN']
+const SUB_SCOPE:  UserRole[] = ['MANAGER', 'TRAINER']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -12,16 +18,35 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
+  const isOrgWide        = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+  const isSubScope       = SUB_SCOPE.includes(session.user.role)
 
-  // Regular users see only their own
-  const personId = session.user.role === 'USER'
-    ? session.user.id
-    : searchParams.get('personId') ?? undefined
+  let subordinateIds: string[] | undefined
+
+  if (session.user.role === 'USER') {
+    // Regular users see only their own qualifications
+    const qualifications = await getQualifications({
+      personId: session.user.id,
+    })
+    return NextResponse.json({ qualifications })
+  }
+
+  if (isSubScope) {
+    // MANAGER and TRAINER see their direct reports only
+    subordinateIds = await getSubordinateIds(session.user.id)
+
+    if (subordinateIds.length === 0) {
+      return NextResponse.json({ qualifications: [] })
+    }
+  }
 
   const qualifications = await getQualifications({
-    personId,
-    techniqueId: searchParams.get('techniqueId') ?? undefined,
-    status:      searchParams.get('status')      ?? undefined,
+    personId:       isOrgWide
+      ? (searchParams.get('personId') ?? undefined)
+      : undefined,
+    techniqueId:    searchParams.get('techniqueId') ?? undefined,
+    status:         searchParams.get('status')      ?? undefined,
+    subordinateIds: subordinateIds,
   })
 
   return NextResponse.json({ qualifications })

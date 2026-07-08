@@ -68,7 +68,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Reports',
     href:  '/reports',
     icon:  'bar-chart-2',
-    roles: ['MANAGER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD'],
+    roles: ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD'],
   },
   {
     label: 'Audit Trail',

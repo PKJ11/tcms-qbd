@@ -6,6 +6,7 @@ export {
   getTrainingHeadStats,
   getManagerStats,
   getMDStats,
+  getSubordinateIds,
 } from './actions'
 
 // ← imported from utils, not actions

@@ -8,7 +8,12 @@ import type {
   QualificationStatusRow,
 } from './types'
 import type { QualStatus } from '@prisma/client'
+// At top of src/modules/reports/actions.ts
+import { getSubordinateIds as _getSubordinateIds } from '@/lib/subordinates'
 
+export async function getSubordinateIds(managerId: string): Promise<string[]> {
+  return _getSubordinateIds(managerId)
+}
 // ─────────────────────────────────────────────────────────────────
 // TRAINING MATRIX — URS-RPT-001
 // ─────────────────────────────────────────────────────────────────
@@ -17,12 +22,18 @@ export async function getTrainingMatrix(filters?: {
   unitId?:       string
   departmentId?: string
   topicId?:      string
+  subordinateIds?: string[]
 }): Promise<TrainingMatrixRow[]> {
   const persons = await prisma.person.findMany({
     where: {
       isActive: true,
-      ...(filters?.unitId       && { unitId:       filters.unitId       }),
-      ...(filters?.departmentId && { departmentId: filters.departmentId }),
+      ...(filters?.subordinateIds && filters.subordinateIds.length > 0
+        ? { id: { in: filters.subordinateIds } }
+        : {
+            ...(filters?.unitId       && { unitId:       filters.unitId       }),
+            ...(filters?.departmentId && { departmentId: filters.departmentId }),
+          }
+      ),
     },
     select: {
       id:          true,
@@ -152,6 +163,7 @@ export async function getTrainingIndex(
 export async function getOverdueReport(filters?: {
   unitId?:       string
   departmentId?: string
+  subordinateIds?: string[]
 }): Promise<OverdueReportRow[]> {
   const now = new Date()
 
@@ -161,8 +173,13 @@ export async function getOverdueReport(filters?: {
       dueDate: { lt: now },
       person:  {
         isActive: true,
-        ...(filters?.unitId       && { unitId:       filters.unitId       }),
-        ...(filters?.departmentId && { departmentId: filters.departmentId }),
+        ...(filters?.subordinateIds && filters.subordinateIds.length > 0
+          ? { id: { in: filters.subordinateIds } }
+          : {
+              ...(filters?.unitId       && { unitId:       filters.unitId       }),
+              ...(filters?.departmentId && { departmentId: filters.departmentId }),
+            }
+        ),
       },
     },
     select: {
@@ -205,6 +222,20 @@ export async function getOverdueReport(filters?: {
   }))
 }
 
+
+// ─────────────────────────────────────────────────────────────────
+// HELPER — get subordinate IDs for a manager or trainer
+// Returns empty array if person has no subordinates
+// ─────────────────────────────────────────────────────────────────
+
+// export async function getSubordinateIds(managerId: string): Promise<string[]> {
+//   const subordinates = await prisma.person.findMany({
+//     where:  { managerId, isActive: true },
+//     select: { id: true },
+//   })
+//   return subordinates.map((s) => s.id)
+// }
+
 // ─────────────────────────────────────────────────────────────────
 // QUALIFICATION STATUS BOARD — URS-RPT-004
 // ─────────────────────────────────────────────────────────────────
@@ -212,6 +243,7 @@ export async function getOverdueReport(filters?: {
 export async function getQualificationStatusBoard(filters?: {
   departmentId?: string
   status?:       string
+  subordinateIds?: string[]
 }): Promise<QualificationStatusRow[]> {
   const now = new Date()
 
@@ -223,7 +255,12 @@ export async function getQualificationStatusBoard(filters?: {
       ...(statusFilter && { status: statusFilter }),
       person: {
         isActive: true,
-        ...(filters?.departmentId && { departmentId: filters.departmentId }),
+        ...(filters?.subordinateIds && filters.subordinateIds.length > 0
+          ? { id: { in: filters.subordinateIds } }
+          : {
+              ...(filters?.departmentId && { departmentId: filters.departmentId }),
+            }
+        ),
       },
     },
     select: {

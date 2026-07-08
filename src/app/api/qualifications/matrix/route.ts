@@ -1,18 +1,37 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
-import { getCompetencyMatrix } from '@/modules/qualification'
+import { NextRequest, NextResponse }   from 'next/server'
+import { getSession }                  from '@/lib/auth'
+import { getCompetencyMatrix }         from '@/modules/qualification'
+import { getSubordinateIds }           from '@/lib/subordinates'
+import type { UserRole }               from '@/lib/types'
+
+const CAN_VIEW: UserRole[] = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
+  if (!CAN_VIEW.includes(session.user.role)) {
+    return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
+  }
 
   const { searchParams } = new URL(req.url)
+  const isOrgWide        = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+  const isSubScope       = ['MANAGER', 'TRAINER'].includes(session.user.role)
+
+  let subordinateIds: string[] | undefined
+
+  if (isSubScope) {
+    subordinateIds = await getSubordinateIds(session.user.id)
+    if (subordinateIds.length === 0) {
+      return NextResponse.json({ persons: [], techniques: [] })
+    }
+  }
 
   const matrix = await getCompetencyMatrix({
-    departmentId: searchParams.get('departmentId') ?? undefined,
-    unitId:       searchParams.get('unitId')       ?? undefined,
+    departmentId:   isOrgWide ? (searchParams.get('departmentId') ?? undefined) : undefined,
+    unitId:         isOrgWide ? (searchParams.get('unitId')       ?? undefined) : undefined,
+    subordinateIds: subordinateIds,
   })
 
   return NextResponse.json(matrix)

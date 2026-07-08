@@ -21,6 +21,11 @@ interface Technique {
   code: string
 }
 
+interface Props {
+  isOrgWide:  boolean
+  isSubScope: boolean
+}
+
 const CELL_STYLES: Record<string, { bg: string; color: string; label: string }> = {
   APPROVED:    { bg: '#f0fdf4', color: '#166534', label: 'Qualified'   },
   EXPIRED:     { bg: '#fef2f2', color: '#dc2626', label: 'Expired'     },
@@ -29,7 +34,7 @@ const CELL_STYLES: Record<string, { bg: string; color: string; label: string }> 
   NONE:        { bg: '#f9fafb', color: '#9ca3af', label: '—'           },
 }
 
-export function CompetencyMatrix() {
+export function CompetencyMatrix({ isOrgWide, isSubScope }: Props) {
   const [persons,    setPersons]    = useState<Person[]>([])
   const [techniques, setTechniques] = useState<Technique[]>([])
   const [loading,    setLoading]    = useState(true)
@@ -58,7 +63,9 @@ export function CompetencyMatrix() {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-2">
         <p className="text-sm text-gray-400">
-          {techniques.length === 0
+          {persons.length === 0 && isSubScope
+            ? 'No direct reports found in the system.'
+            : techniques.length === 0
             ? 'No techniques configured yet. Add techniques to see the matrix.'
             : 'No active personnel found.'}
         </p>
@@ -68,6 +75,21 @@ export function CompetencyMatrix() {
 
   return (
     <div>
+       <div className="flex items-center justify-between mb-4">
+        <div className="text-xs text-gray-500">
+          {persons.length} analyst{persons.length !== 1 ? 's' : ''} ·{' '}
+          {techniques.length} technique{techniques.length !== 1 ? 's' : ''}
+          {isSubScope && (
+            <span
+              className="ml-2 px-1.5 py-0.5 rounded font-semibold"
+              style={{ background: '#eff6ff', color: '#1d4ed8' }}
+            >
+              Direct reports only
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Legend */}
       <div className="flex flex-wrap gap-3 mb-4">
         {Object.entries(CELL_STYLES).filter(([k]) => k !== 'NONE').map(([, style]) => (

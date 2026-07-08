@@ -158,9 +158,10 @@ export async function createTechnique(
 // ─────────────────────────────────────────────────────────────────
 
 export async function getQualifications(filters?: {
-  personId?:    string
-  techniqueId?: string
-  status?:      string
+  personId?:      string
+  techniqueId?:   string
+  status?:        string
+  subordinateIds?: string[]   // ← new
 }) {
   // Auto-expire overdue qualifications
   await prisma.qualificationRecord.updateMany({
@@ -172,7 +173,14 @@ export async function getQualifications(filters?: {
   })
 
   const where: Record<string, unknown> = {}
-  if (filters?.personId)    where.personId    = filters.personId
+
+  if (filters?.personId) {
+    where.personId = filters.personId
+  } else if (filters?.subordinateIds && filters.subordinateIds.length > 0) {
+    // Scope to subordinates only
+    where.personId = { in: filters.subordinateIds }
+  }
+
   if (filters?.techniqueId) where.techniqueId = filters.techniqueId
   if (filters?.status)      where.status      = filters.status
 
@@ -575,8 +583,9 @@ export async function getCertificateUrl(certId: string): Promise<string> {
 // ── Get competency matrix ─────────────────────────────────────────
 
 export async function getCompetencyMatrix(filters?: {
-  departmentId?: string
-  unitId?:       string
+  departmentId?:  string
+  unitId?:        string
+  subordinateIds?: string[]   // ← new
 }) {
   await prisma.qualificationRecord.updateMany({
     where: {
@@ -589,14 +598,20 @@ export async function getCompetencyMatrix(filters?: {
   const persons = await prisma.person.findMany({
     where: {
       isActive: true,
-      ...(filters?.departmentId && { departmentId: filters.departmentId }),
-      ...(filters?.unitId       && { unitId:       filters.unitId       }),
+      // Subordinate scoping takes priority over unit/dept filters
+      ...(filters?.subordinateIds && filters.subordinateIds.length > 0
+        ? { id: { in: filters.subordinateIds } }
+        : {
+            ...(filters?.departmentId && { departmentId: filters.departmentId }),
+            ...(filters?.unitId       && { unitId:       filters.unitId       }),
+          }
+      ),
     },
     select: {
-      id:         true,
-      name:       true,
-      employeeId: true,
-      department: { select: { name: true } },
+      id:          true,
+      name:        true,
+      employeeId:  true,
+      department:  { select: { name: true } },
       qualificationRecords: {
         select: {
           id:          true,

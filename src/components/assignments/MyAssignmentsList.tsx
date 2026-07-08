@@ -34,11 +34,11 @@ interface Assignment {
 }
 
 const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-  NOT_STARTED: { bg: '#f9fafb', color: '#6b7280', label: 'Not started'  },
-  IN_PROGRESS: { bg: '#eff6ff', color: '#1d4ed8', label: 'In progress'  },
-  COMPLETED:   { bg: '#f0fdf4', color: '#166534', label: 'Completed'    },
-  OVERDUE:     { bg: '#fef2f2', color: '#dc2626', label: 'Overdue'      },
-  FAILED:      { bg: '#fef2f2', color: '#dc2626', label: 'Failed'       },
+  NOT_STARTED:  { bg: '#f9fafb', color: '#6b7280', label: 'Not started'  },
+  IN_PROGRESS:  { bg: '#eff6ff', color: '#1d4ed8', label: 'In progress'  },
+  COMPLETED:    { bg: '#f0fdf4', color: '#166534', label: 'Completed'     },
+  OVERDUE:      { bg: '#fef2f2', color: '#dc2626', label: 'Overdue'       },
+  FAILED:       { bg: '#fff7ed', color: '#c2410c', label: 'Under review'  }, // ← changed label
 }
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -184,6 +184,24 @@ export function MyAssignmentsList() {
                     </button>
                   </div>
                 </div>
+
+                {/* Under review notice — shown when assignment is FAILED */}
+                {a.status === 'FAILED' && (
+                  <div
+                    className="mx-5 mt-5 px-4 py-3 rounded-lg border text-xs"
+                    style={{ background: '#fff7ed', borderColor: '#fed7aa', color: '#92400e' }}
+                  >
+                    <div className="font-semibold mb-0.5">
+                      ⚠️ Training under coordinator review
+                    </div>
+                    <div>
+                      You have been unable to achieve competency on this topic after the
+                      maximum number of retraining cycles. Your Training Coordinator has
+                      been notified and will contact you regarding next steps.
+                      Please speak with your manager in the meantime.
+                    </div>
+                  </div>
+                )}
 
                 {/* Expanded — materials */}
                 {isExpanded && (

@@ -22,7 +22,7 @@ const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   REVOKED:     { bg: '#f9fafb', color: '#6b7280' },
 }
 
-export function QualificationStatusReport() {
+export function QualificationStatusReport({ isOrgWide }: { isOrgWide: boolean }) {
   const [rows,    setRows]    = useState<QualRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filter,  setFilter]  = useState('')
@@ -50,6 +50,14 @@ export function QualificationStatusReport() {
           <h2 className="text-sm font-semibold text-gray-700">Qualification Status Board</h2>
           <p className="text-xs text-gray-400 mt-0.5">
             {rows.length} record{rows.length !== 1 ? 's' : ''} · URS-RPT-004
+            {!isOrgWide && (
+              <span
+                className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold"
+                style={{ background: '#eff6ff', color: '#1d4ed8' }}
+              >
+                Direct reports only
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">

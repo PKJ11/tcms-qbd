@@ -1,9 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getSession }          from '@/lib/auth'
-import { getQualificationStatusBoard, convertToCSV } from '@/modules/reports'
-import type { UserRole }       from '@/lib/types'
+import { NextRequest, NextResponse }   from 'next/server'
+import { getSession }                  from '@/lib/auth'
+import {
+  getQualificationStatusBoard,
+  getSubordinateIds,
+  convertToCSV,
+} from '@/modules/reports'
+import type { UserRole } from '@/lib/types'
 
-const CAN_VIEW: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
+// Now includes MANAGER and TRAINER
+const CAN_VIEW: UserRole[] = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -15,15 +20,30 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const format = searchParams.get('format')
+  const format           = searchParams.get('format')
+  const isOrgWide        = ['TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(session.user.role)
+
+  let subordinateIds: string[] | undefined
+
+  if (!isOrgWide) {
+    subordinateIds = await getSubordinateIds(session.user.id)
+    if (subordinateIds.length === 0) {
+      return NextResponse.json({ rows: [] })
+    }
+  }
 
   const rows = await getQualificationStatusBoard({
-    departmentId: searchParams.get('departmentId') ?? undefined,
-    status:       searchParams.get('status')       ?? undefined,
+    departmentId:   isOrgWide ? (searchParams.get('departmentId') ?? undefined) : undefined,
+    status:         searchParams.get('status') ?? undefined,
+    subordinateIds: subordinateIds,
   })
 
   if (format === 'csv') {
-    const headers = ['Employee ID', 'Name', 'Department', 'Technique', 'Status', 'Outcome', 'Approved date', 'Expiry date', 'Days to expiry', 'Certificate no.']
+    const headers = [
+      'Employee ID', 'Name', 'Department', 'Technique',
+      'Status', 'Outcome', 'Approved date', 'Expiry date',
+      'Days to expiry', 'Certificate no.',
+    ]
     const csvRows = rows.map((r) => [
       r.person.employeeId,
       r.person.name,

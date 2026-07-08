@@ -14,7 +14,7 @@ interface OverdueRow {
   }
 }
 
-export function OverdueReport() {
+export function OverdueReport({ isOrgWide }: { isOrgWide: boolean }) {
   const [rows,    setRows]    = useState<OverdueRow[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -39,6 +39,14 @@ export function OverdueReport() {
           <h2 className="text-sm font-semibold text-gray-700">Overdue Training Report</h2>
           <p className="text-xs text-gray-400 mt-0.5">
             {rows.length} overdue assignment{rows.length !== 1 ? 's' : ''} · URS-RPT-003
+            {!isOrgWide && (
+              <span
+                className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold"
+                style={{ background: '#eff6ff', color: '#1d4ed8' }}
+              >
+                Direct reports only
+              </span>
+            )}
           </p>
         </div>
         <button

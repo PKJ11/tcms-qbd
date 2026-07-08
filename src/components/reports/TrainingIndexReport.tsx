@@ -32,28 +32,38 @@ const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
 }
 
 interface Props {
-  userId: string
-  role:   string
+  userId:          string
+  role:            string
+  isOrgWide:       boolean
+  subordinateIds:  string[]
 }
 
-export function TrainingIndexReport({ userId, role }: Props) {
+export function TrainingIndexReport({ userId, role, isOrgWide, subordinateIds }: Props) {
   const [persons,   setPersons]   = useState<Person[]>([])
   const [selectedId, setSelectedId] = useState(userId)
   const [entries,   setEntries]   = useState<IndexEntry[]>([])
   const [loading,   setLoading]   = useState(true)
 
-  const canViewOthers = ['MANAGER', 'TRAINING_HEAD', 'SUPER_ADMIN', 'MD'].includes(role)
+  const canViewOthers = isOrgWide || ['MANAGER', 'TRAINER'].includes(role)
 
   // Load persons for dropdown (admin only)
   useEffect(() => {
     if (!canViewOthers) return
+
     async function fetchPersons() {
       const res  = await fetch('/api/personnel?isActive=true')
       const data = await res.json()
-      setPersons(data.persons ?? [])
+      const all  = data.persons ?? []
+
+      // For MANAGER/TRAINER — filter to subordinates only
+      const filtered = isOrgWide
+        ? all
+        : all.filter((p: Person) => subordinateIds.includes(p.id))
+
+      setPersons(filtered)
     }
     fetchPersons()
-  }, [canViewOthers])
+  }, [canViewOthers, isOrgWide, subordinateIds])
 
   const fetchIndex = useCallback(async () => {
     if (!selectedId) return
@@ -78,26 +88,38 @@ export function TrainingIndexReport({ userId, role }: Props) {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-sm font-semibold text-gray-700">
-            Training Index
-          </h2>
+          <h2 className="text-sm font-semibold text-gray-700">Training Index</h2>
           <p className="text-xs text-gray-400 mt-0.5">
             Per-person training record. Format QbD/QA/F/007-09 · URS-RPT-002
+            {!isOrgWide && (
+              <span
+                className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold"
+                style={{ background: '#eff6ff', color: '#1d4ed8' }}
+              >
+                Direct reports only
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {canViewOthers && (
+          {canViewOthers && persons.length > 0 && (
             <select
               value={selectedId}
               onChange={(e) => setSelectedId(e.target.value)}
               className="px-3 py-2 rounded-lg border text-sm outline-none"
               style={{ borderColor: '#e5e7eb' }}
             >
-              {persons.map((p:any) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {p.employeeId}
-                </option>
-              ))}
+              {/* Only show self + subordinates for MANAGER/TRAINER */}
+              {!isOrgWide && (
+                <option value={userId}>My own training index</option>
+              )}
+              {persons
+                .filter((p) => p.id !== userId || isOrgWide)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — {p.employeeId}
+                  </option>
+                ))}
             </select>
           )}
           <button
