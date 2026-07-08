@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ refreshers })
   }
 
-  if (!CAN_TRIGGER.includes(session.user.role)) {
+  if (!CAN_TRIGGER.includes(session.user.role as UserRole)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_TRIGGER.includes(session.user.role)) {
+  if (!CAN_TRIGGER.includes(session.user.role as UserRole)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

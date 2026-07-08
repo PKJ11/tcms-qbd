@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { formatDateTime } from '@/lib/utils'
 
 interface AuditLog {
@@ -29,6 +29,12 @@ interface Pagination {
   totalPages: number
 }
 
+interface PersonOption {
+  id:         string
+  name:       string
+  employeeId: string
+}
+
 const ACTION_COLORS: Record<string, { bg: string; color: string }> = {
   CREATE:   { bg: '#f0fdf4', color: '#166534' },
   UPDATE:   { bg: '#eff6ff', color: '#1d4ed8' },
@@ -43,6 +49,17 @@ const ACTION_COLORS: Record<string, { bg: string; color: string }> = {
   REVOKE:   { bg: '#fef2f2', color: '#dc2626' },
 }
 
+// Simple debounce hook — delays updating the "settled" value until
+// the input has stopped changing for `delay` ms.
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
+
 export function AuditTrailViewer() {
   const [logs,       setLogs]       = useState<AuditLog[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
@@ -52,6 +69,66 @@ export function AuditTrailViewer() {
   const [action,     setAction]     = useState('')
   const [expanded,   setExpanded]   = useState<string | null>(null)
 
+  // ── Justification search ──────────────────────────────────────
+  const [searchInput, setSearchInput] = useState('')
+  const search = useDebouncedValue(searchInput, 400)
+
+  // ── Personnel filter ──────────────────────────────────────────
+  const [personQuery, setPersonQuery]     = useState('')
+  const debouncedPersonQuery              = useDebouncedValue(personQuery, 300)
+  const [personOptions, setPersonOptions] = useState<PersonOption[]>([])
+  const [personDropdownOpen, setPersonDropdownOpen] = useState(false)
+  const [selectedPerson, setSelectedPerson] = useState<PersonOption | null>(null)
+  const personBoxRef = useRef<HTMLDivElement>(null)
+
+  // ── Date/time range filter ────────────────────────────────────
+  const [dateFrom, setDateFrom] = useState('') // datetime-local string
+  const [dateTo,   setDateTo]   = useState('')
+
+  // Close person dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (personBoxRef.current && !personBoxRef.current.contains(e.target as Node)) {
+        setPersonDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  // Fetch person suggestions as the user types (only if no person selected yet,
+  // or they've changed the text away from the selected person's label)
+  useEffect(() => {
+    if (!debouncedPersonQuery.trim()) {
+      setPersonOptions([])
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res  = await fetch(`/api/persons/search?q=${encodeURIComponent(debouncedPersonQuery)}`)
+        const data = await res.json()
+        if (!cancelled) setPersonOptions(data.persons ?? [])
+      } catch {
+        if (!cancelled) setPersonOptions([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [debouncedPersonQuery])
+
+  function selectPerson(p: PersonOption) {
+    setSelectedPerson(p)
+    setPersonQuery(`${p.name} (${p.employeeId})`)
+    setPersonDropdownOpen(false)
+    setPage(1)
+  }
+
+  function clearPerson() {
+    setSelectedPerson(null)
+    setPersonQuery('')
+    setPersonOptions([])
+  }
+
   const fetchLogs = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams({
@@ -59,6 +136,10 @@ export function AuditTrailViewer() {
       limit: '20',
       ...(module ? { module } : {}),
       ...(action ? { action } : {}),
+      ...(search.trim() ? { search: search.trim() } : {}),
+      ...(selectedPerson ? { personId: selectedPerson.id } : {}),
+      ...(dateFrom ? { dateFrom: new Date(dateFrom).toISOString() } : {}),
+      ...(dateTo   ? { dateTo:   new Date(dateTo).toISOString()   } : {}),
     })
 
     const res  = await fetch(`/api/audit?${params}`)
@@ -66,63 +147,168 @@ export function AuditTrailViewer() {
     setLogs(data.logs ?? [])
     setPagination(data.pagination ?? null)
     setLoading(false)
-  }, [page, module, action])
+  }, [page, module, action, search, selectedPerson, dateFrom, dateTo])
 
   useEffect(() => { fetchLogs() }, [fetchLogs])
+
+  function clearAllFilters() {
+    setModule('')
+    setAction('')
+    setSearchInput('')
+    clearPerson()
+    setDateFrom('')
+    setDateTo('')
+    setPage(1)
+  }
+
+  const hasActiveFilters =
+    module || action || search || selectedPerson || dateFrom || dateTo
 
   return (
     <div>
       {/* Filters */}
       <div
-        className="bg-white rounded-xl border p-4 mb-4 flex flex-wrap gap-3"
+        className="bg-white rounded-xl border p-4 mb-4 flex flex-col gap-3"
         style={{ borderColor: '#e5e7eb' }}
       >
-        <select
-          value={module}
-          onChange={(e) => { setModule(e.target.value); setPage(1) }}
-          className="px-3 py-2 rounded-lg border text-sm outline-none"
-          style={{ borderColor: '#e5e7eb' }}
-        >
-          <option value="">All modules</option>
-          {[
-            'AUTH','PERSONNEL','TRAINING_TOPIC',
-            'TRAINING_ASSIGNMENT','CONTENT',
-            'ASSESSMENT','QUALIFICATION',
-            'REFRESHER','ADMIN','SYSTEM',
-          ].map((m) => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </select>
-
-        <select
-          value={action}
-          onChange={(e) => { setAction(e.target.value); setPage(1) }}
-          className="px-3 py-2 rounded-lg border text-sm outline-none"
-          style={{ borderColor: '#e5e7eb' }}
-        >
-          <option value="">All actions</option>
-          {[
-            'CREATE','UPDATE','DELETE','LOGIN',
-            'LOGOUT','APPROVE','REJECT','UPLOAD',
-            'GENERATE','ASSIGN','REVOKE',
-          ].map((a) => (
-            <option key={a} value={a}>{a}</option>
-          ))}
-        </select>
-
-        <button
-          onClick={() => { setModule(''); setAction(''); setPage(1) }}
-          className="px-3 py-2 rounded-lg border text-sm transition-colors"
-          style={{ borderColor: '#e5e7eb', color: '#6b7280' }}
-        >
-          Clear filters
-        </button>
-
-        {pagination && (
-          <div className="ml-auto text-sm text-gray-400 self-center">
-            {pagination.total} total entries
+        {/* Row 1 — justification search + person search */}
+        <div className="flex flex-wrap gap-3">
+          {/* Justification text search */}
+          <div className="flex-1 min-w-[220px]">
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => { setSearchInput(e.target.value); setPage(1) }}
+              placeholder="Search justification text..."
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+              style={{ borderColor: '#e5e7eb' }}
+            />
           </div>
-        )}
+
+          {/* Personnel search / filter */}
+          <div className="relative flex-1 min-w-[220px]" ref={personBoxRef}>
+            <input
+              type="text"
+              value={personQuery}
+              onChange={(e) => {
+                setPersonQuery(e.target.value)
+                setSelectedPerson(null)
+                setPersonDropdownOpen(true)
+                setPage(1)
+              }}
+              onFocus={() => setPersonDropdownOpen(true)}
+              placeholder="Search person by name or employee ID..."
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+              style={{ borderColor: '#e5e7eb' }}
+            />
+            {selectedPerson && (
+              <button
+                onClick={clearPerson}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+              >
+                ✕
+              </button>
+            )}
+
+            {personDropdownOpen && personQuery.trim() && !selectedPerson && (
+              <div
+                className="absolute z-20 mt-1 w-full bg-white rounded-lg border shadow-lg max-h-56 overflow-y-auto"
+                style={{ borderColor: '#e5e7eb' }}
+              >
+                {personOptions.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-gray-400">
+                    No matching personnel
+                  </div>
+                ) : (
+                  personOptions.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => selectPerson(p)}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center justify-between"
+                    >
+                      <span className="font-medium text-gray-900">{p.name}</span>
+                      <span className="text-gray-400 font-mono">{p.employeeId}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2 — module / action / date range / clear */}
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={module}
+            onChange={(e) => { setModule(e.target.value); setPage(1) }}
+            className="px-3 py-2 rounded-lg border text-sm outline-none"
+            style={{ borderColor: '#e5e7eb' }}
+          >
+            <option value="">All modules</option>
+            {[
+              'AUTH','PERSONNEL','TRAINING_TOPIC',
+              'TRAINING_ASSIGNMENT','CONTENT',
+              'ASSESSMENT','QUALIFICATION',
+              'REFRESHER','ADMIN','SYSTEM',
+            ].map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+
+          <select
+            value={action}
+            onChange={(e) => { setAction(e.target.value); setPage(1) }}
+            className="px-3 py-2 rounded-lg border text-sm outline-none"
+            style={{ borderColor: '#e5e7eb' }}
+          >
+            <option value="">All actions</option>
+            {[
+              'CREATE','UPDATE','DELETE','LOGIN',
+              'LOGOUT','APPROVE','REJECT','UPLOAD',
+              'GENERATE','ASSIGN','REVOKE',
+            ].map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+
+          {/* Date range */}
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-gray-500">From</label>
+            <input
+              type="datetime-local"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
+              className="px-2 py-1.5 rounded-lg border text-xs outline-none"
+              style={{ borderColor: '#e5e7eb' }}
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-gray-500">To</label>
+            <input
+              type="datetime-local"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
+              className="px-2 py-1.5 rounded-lg border text-xs outline-none"
+              style={{ borderColor: '#e5e7eb' }}
+            />
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              className="px-3 py-2 rounded-lg border text-sm transition-colors"
+              style={{ borderColor: '#e5e7eb', color: '#6b7280' }}
+            >
+              Clear filters
+            </button>
+          )}
+
+          {pagination && (
+            <div className="ml-auto text-sm text-gray-400 self-center">
+              {pagination.total} total entries
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Table */}

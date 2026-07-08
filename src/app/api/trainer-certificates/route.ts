@@ -17,7 +17,7 @@ export async function GET() {
 
   const [certificates, eligible] = await Promise.all([
     getTrainerCertificates(),
-    CAN_MANAGE.includes(session.user.role) ? getEligibleTrainers() : Promise.resolve([]),
+    CAN_MANAGE.includes(session.user.role as UserRole) ? getEligibleTrainers() : Promise.resolve([]),
   ])
 
   return NextResponse.json({ certificates, eligible })
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_MANAGE.includes(session.user.role)) {
+  if (!CAN_MANAGE.includes(session.user.role as UserRole)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

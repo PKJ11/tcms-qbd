@@ -35,7 +35,7 @@ export async function PATCH(
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  if (!CAN_MODIFY.includes(session.user.role)) {
+  if (!CAN_MODIFY.includes(session.user.role as UserRole)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

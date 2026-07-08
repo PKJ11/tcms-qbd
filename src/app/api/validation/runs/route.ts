@@ -8,7 +8,7 @@ const CAN_MANAGE: UserRole[] = ['TRAINING_HEAD', 'SUPER_ADMIN']
 export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
-  if (!CAN_MANAGE.includes(session.user.role)) return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
+  if (!CAN_MANAGE.includes(session.user.role as UserRole)) return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
 
   const runs = await getValidationRuns()
   return NextResponse.json({ runs })
@@ -17,7 +17,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
-  if (!CAN_MANAGE.includes(session.user.role)) return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
+  if (!CAN_MANAGE.includes(session.user.role as UserRole)) return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
   try {

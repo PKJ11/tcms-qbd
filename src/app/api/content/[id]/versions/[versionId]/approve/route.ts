@@ -15,7 +15,7 @@ export async function POST(
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  if (!CAN_APPROVE.includes(session.user.role)) {
+  if (!CAN_APPROVE.includes(session.user.role as UserRole)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

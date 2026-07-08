@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Org-wide visibility — Training Head, Super Admin, MD
-  if (CAN_VIEW_ALL_ORGS.includes(session.user.role)) {
+  if (CAN_VIEW_ALL_ORGS.includes(session.user.role as UserRole)) {
     const assignments = await getAssignments({
       personId: searchParams.get('personId') ?? undefined,
       topicId:  searchParams.get('topicId')  ?? undefined,
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  if (!CAN_ASSIGN.includes(session.user.role)) {
+  if (!CAN_ASSIGN.includes(session.user.role as UserRole)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

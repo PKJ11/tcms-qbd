@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  if (!ALLOWED_ROLES.includes(session.user.role)) {
+  if (!ALLOWED_ROLES.includes(session.user.role as UserRole)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
   const limit     = parseInt(searchParams.get('limit')  ?? '50')
   const module    = searchParams.get('module')    ?? undefined
   const action    = searchParams.get('action')    ?? undefined
-  const userId    = searchParams.get('userId')    ?? undefined
+  const personId  = searchParams.get('personId')  ?? undefined
+  const search    = searchParams.get('search')    ?? undefined
   const dateFrom  = searchParams.get('dateFrom')  ?? undefined
   const dateTo    = searchParams.get('dateTo')    ?? undefined
 
@@ -37,7 +38,10 @@ export async function GET(req: NextRequest) {
   const where: Record<string, unknown> = {}
   if (module)   where.module   = module
   if (action)   where.action   = action
-  if (userId)   where.userId   = userId
+  if (personId) where.userId   = personId
+  if (search) {
+    where.justification = { contains: search, mode: 'insensitive' }
+  }
   if (dateFrom || dateTo) {
     where.createdAt = {
       ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
