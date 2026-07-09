@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/utils'
 interface OverdueRow {
   person: {
     id: string; name: string; employeeId: string
-    department: string | null; unit: string; manager: string | null
+    department: string | null;  manager: string | null
   }
   assignment: {
     id: string; topicName: string; trigger: string

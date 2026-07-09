@@ -14,8 +14,8 @@ interface Person {
   isActive:    boolean
   joiningDate: string
   lastLoginAt: string | null
-  unit:        { id: string; name: string }
   department:  { id: string; name: string } | null
+  section:     { id: string; name: string } | null
   manager:     { id: string; name: string } | null
 }
 
@@ -28,7 +28,13 @@ const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   MD:            { bg: '#fefce8', color: '#854d0e' },
 }
 
-export function PersonnelList({ canCreate }: { canCreate: boolean }) {
+export function PersonnelList({
+  canCreate,
+  sectionId,
+}: {
+  canCreate: boolean
+  sectionId?: string
+}) {
   const [persons,  setPersons]  = useState<Person[]>([])
   const [loading,  setLoading]  = useState(true)
   const [search,   setSearch]   = useState('')
@@ -45,12 +51,13 @@ export function PersonnelList({ canCreate }: { canCreate: boolean }) {
       isActive: showInactive ? 'false' : 'true',
       ...(search     ? { search }     : {}),
       ...(roleFilter ? { role: roleFilter } : {}),
+      ...(sectionId  ? { sectionId }  : {}),
     })
     const res  = await fetch(`/api/personnel?${params}`)
     const data = await res.json()
     setPersons(data.persons ?? [])
     setLoading(false)
-  }, [search, roleFilter, showInactive])
+  }, [search, roleFilter, showInactive, sectionId])
 
   useEffect(() => { fetchPersons() }, [fetchPersons])
 
@@ -160,7 +167,7 @@ export function PersonnelList({ canCreate }: { canCreate: boolean }) {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['Employee','Email','Role','Unit / Dept','Joined','Last login',''].map((h) => (
+                {['Employee','Email','Role','Department / Section','Joined','Last login',''].map((h) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
@@ -214,11 +221,11 @@ export function PersonnelList({ canCreate }: { canCreate: boolean }) {
                       </span>
                     </td>
 
-                    {/* Unit / Dept */}
+                    {/* Department / Section */}
                     <td className="px-4 py-3 text-xs text-gray-500">
-                      <div>{p.unit.name}</div>
+                      <div>{p.department?.name ?? '—'}</div>
                       <div className="text-gray-400">
-                        {p.department?.name ?? '—'}
+                        {p.section?.name ?? '—'}
                       </div>
                     </td>
 

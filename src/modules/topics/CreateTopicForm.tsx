@@ -5,10 +5,8 @@ import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
 
 interface Department {
-  id:         string
-  name:       string
-  unitId:     string
-  unit:       { id: string; name: string }
+  id:   string
+  name: string
 }
 
 interface Props {
@@ -24,17 +22,6 @@ export function CreateTopicForm({ departments }: Props) {
   const [modalOpen,     setModalOpen]     = useState(false)
   const [loading,       setLoading]       = useState(false)
   const [error,         setError]         = useState<string | null>(null)
-
-  // Group departments by unit for display
-  const deptsByUnit = departments.reduce<Record<string, {
-    unit: { id: string; name: string }
-    depts: Department[]
-  }>>((acc, dept) => {
-    const key = dept.unit.id
-    if (!acc[key]) acc[key] = { unit: dept.unit, depts: [] }
-    acc[key].depts.push(dept)
-    return acc
-  }, {})
 
   function toggleDept(id: string) {
     setSelectedDepts((prev) =>
@@ -140,43 +127,28 @@ export function CreateTopicForm({ departments }: Props) {
               Select all departments that require this training topic. URS-TOP-002.
             </p>
 
-            <div className="flex flex-col gap-4">
-              {Object.values(deptsByUnit).map(({ unit, depts }) => (
-                <div key={unit.id}>
-                  {/* Unit label */}
-                  <div
-                    className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 pb-1"
-                    style={{ borderBottom: '1px solid #f3f4f6' }}
+            <div className="flex flex-wrap gap-2">
+              {departments.map((dept) => {
+                const selected = selectedDepts.includes(dept.id)
+                return (
+                  <button
+                    key={dept.id}
+                    type="button"
+                    onClick={() => toggleDept(dept.id)}
+                    className="px-3 py-1.5 rounded-lg border text-xs font-medium transition-all"
+                    style={{
+                      background:   selected ? '#2d6a4f' : '#fff',
+                      color:        selected ? '#fff'    : '#374151',
+                      borderColor:  selected ? '#2d6a4f' : '#e5e7eb',
+                    }}
                   >
-                    {unit.name}
-                  </div>
-
-                  {/* Department checkboxes */}
-                  <div className="flex flex-wrap gap-2">
-                    {depts.map((dept) => {
-                      const selected = selectedDepts.includes(dept.id)
-                      return (
-                        <button
-                          key={dept.id}
-                          type="button"
-                          onClick={() => toggleDept(dept.id)}
-                          className="px-3 py-1.5 rounded-lg border text-xs font-medium transition-all"
-                          style={{
-                            background:   selected ? '#2d6a4f' : '#fff',
-                            color:        selected ? '#fff'    : '#374151',
-                            borderColor:  selected ? '#2d6a4f' : '#e5e7eb',
-                          }}
-                        >
-                          {selected && (
-                            <span className="mr-1">✓</span>
-                          )}
-                          {dept.name}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
+                    {selected && (
+                      <span className="mr-1">✓</span>
+                    )}
+                    {dept.name}
+                  </button>
+                )
+              })}
             </div>
 
             {selectedDepts.length > 0 && (

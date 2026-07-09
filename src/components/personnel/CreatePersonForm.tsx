@@ -4,12 +4,11 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
 
-interface Unit       { id: string; name: string }
-interface Department { id: string; name: string; unitId: string }
+interface Section    { id: string; name: string; code: string }
+interface Department { id: string; name: string; code: string; sections: Section[] }
 interface Manager    { id: string; name: string; designation: string }
 
 interface Props {
-  units:       Unit[]
   departments: Department[]
 }
 
@@ -18,11 +17,11 @@ const ROLES = [
   { value: 'MANAGER',       label: 'Manager'       },
   { value: 'TRAINER',       label: 'Trainer'       },
   { value: 'TRAINING_HEAD', label: 'Training Head' },
-  { value: 'ADMINISTRATOR',   label: 'ADMINISTRATOR'   },
-  { value: 'REVIEWER',            label: 'REVIEWER'            },
+  { value: 'ADMINISTRATOR', label: 'Administrator' },
+  { value: 'REVIEWER',      label: 'Reviewer'      },
 ]
 
-export function CreatePersonForm({ units, departments }: Props) {
+export function CreatePersonForm({ departments }: Props) {
   const router = useRouter()
 
   const [form, setForm] = useState({
@@ -32,38 +31,34 @@ export function CreatePersonForm({ units, departments }: Props) {
     role:         'USER',
     designation:  '',
     joiningDate:  '',
-    unitId:       '',
     departmentId: '',
+    sectionId:    '',
     managerId:    '',
   })
 
-  const [managers,   setManagers]   = useState<Manager[]>([])
-  const [modalOpen,  setModalOpen]  = useState(false)
-  const [loading,    setLoading]    = useState(false)
-  const [error,      setError]      = useState<string | null>(null)
-  const [success,    setSuccess]    = useState<string | null>(null)
+  const [sections,  setSections]  = useState<Section[]>([])
+  const [managers,  setManagers]  = useState<Manager[]>([])
+  const [modalOpen, setModalOpen] = useState(false)
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState<string | null>(null)
+  const [success,   setSuccess]   = useState<string | null>(null)
 
-  // Filter departments by selected unit
-  const filteredDepts = departments.filter(
-    (d) => d.unitId === form.unitId
-  )
-
-  // Fetch potential managers when unit changes
+  // Fetch potential managers when department changes
   useEffect(() => {
-    if (!form.unitId) {
+    if (!form.departmentId) {
       setManagers([])
       return
     }
 
     async function fetchManagers() {
       const params = new URLSearchParams({
-        unitId:   form.unitId,
-        isActive: 'true',
+        departmentId: form.departmentId,
+        isActive:     'true',
       })
       const res  = await fetch(`/api/personnel?${params}`)
       const data = await res.json()
 
-      // Only MANAGER, TRAINING_HEAD, ADMINISTRATOR can be managers
+      // Only MANAGER, TRAINER, TRAINING_HEAD, ADMINISTRATOR, REVIEWER can be managers
       const managerRoles = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER']
       const filtered = (data.persons ?? []).filter(
         (p: { role: string }) => managerRoles.includes(p.role)
@@ -72,7 +67,7 @@ export function CreatePersonForm({ units, departments }: Props) {
     }
 
     fetchManagers()
-  }, [form.unitId])
+  }, [form.departmentId])
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -81,9 +76,24 @@ export function CreatePersonForm({ units, departments }: Props) {
     setForm((prev) => ({
       ...prev,
       [name]: value,
-      // Reset department and manager when unit changes
-      ...(name === 'unitId' ? { departmentId: '', managerId: '' } : {}),
+      // Reset section and manager when department changes
+      ...(name === 'departmentId' ? { sectionId: '', managerId: '' } : {}),
     }))
+  }
+
+  // When department changes — update sections dropdown
+  function handleDepartmentChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const deptId = e.target.value
+    const dept   = departments.find((d) => d.id === deptId)
+
+    setForm((prev) => ({
+      ...prev,
+      departmentId: deptId,
+      sectionId:    '',
+      managerId:    '',
+    }))
+
+    setSections(dept?.sections ?? [])
   }
 
   function handleSubmitClick(e: React.FormEvent) {
@@ -91,7 +101,7 @@ export function CreatePersonForm({ units, departments }: Props) {
     setError(null)
 
     if (!form.employeeId || !form.name || !form.email ||
-        !form.designation || !form.joiningDate || !form.unitId) {
+        !form.designation || !form.joiningDate || !form.departmentId) {
       setError('Please fill in all required fields.')
       return
     }
@@ -246,48 +256,55 @@ export function CreatePersonForm({ units, departments }: Props) {
             </div>
           </div>
 
-          {/* Row 4 — Unit + Department */}
+          {/* Row 4 — Department + Section */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Unit <span className="text-red-500">*</span>
+                Department <span className="text-red-500">*</span>
               </label>
               <select
-                name="unitId"
-                value={form.unitId}
-                onChange={handleChange}
+                name="departmentId"
+                value={form.departmentId}
+                onChange={handleDepartmentChange}
                 className={inputClass}
                 style={inputStyle}
                 onFocus={focusOn}
                 onBlur={focusOff}
               >
-                <option value="">Select unit</option>
-                {units.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
+                <option value="">Select department</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Department
+                Section
+                <span className="text-gray-400 font-normal ml-1">(optional)</span>
               </label>
               <select
-                name="departmentId"
-                value={form.departmentId}
+                name="sectionId"
+                value={form.sectionId}
                 onChange={handleChange}
-                disabled={!form.unitId}
+                disabled={sections.length === 0}
                 className={inputClass}
                 style={{
                   ...inputStyle,
-                  opacity: form.unitId ? 1 : 0.5,
-                  cursor:  form.unitId ? 'auto' : 'not-allowed',
+                  opacity: sections.length === 0 ? 0.5 : 1,
+                  cursor:  sections.length === 0 ? 'not-allowed' : 'auto',
                 }}
                 onFocus={focusOn}
                 onBlur={focusOff}
               >
-                <option value="">Select department</option>
-                {filteredDepts.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                <option value="">
+                  {!form.departmentId
+                    ? 'Select a department first'
+                    : sections.length === 0
+                    ? 'This department has no sections'
+                    : 'No specific section'}
+                </option>
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
             </div>
@@ -303,21 +320,21 @@ export function CreatePersonForm({ units, departments }: Props) {
               name="managerId"
               value={form.managerId}
               onChange={handleChange}
-              disabled={!form.unitId}
+              disabled={!form.departmentId}
               className={inputClass}
               style={{
                 ...inputStyle,
-                opacity: form.unitId ? 1 : 0.5,
-                cursor:  form.unitId ? 'auto' : 'not-allowed',
+                opacity: form.departmentId ? 1 : 0.5,
+                cursor:  form.departmentId ? 'auto' : 'not-allowed',
               }}
               onFocus={focusOn}
               onBlur={focusOff}
             >
               <option value="">
-                {!form.unitId
-                  ? 'Select a unit first'
+                {!form.departmentId
+                  ? 'Select a department first'
                   : managers.length === 0
-                  ? 'No managers available in this unit'
+                  ? 'No managers available in this department'
                   : 'Select reporting manager'}
               </option>
               {managers.map((m) => (

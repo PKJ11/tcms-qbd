@@ -14,7 +14,7 @@ export interface TechniqueItem {
   department: {
     id:   string
     name: string
-    unit: { id: string; name: string }
+    
   }
   _count: {
     qualifications: number

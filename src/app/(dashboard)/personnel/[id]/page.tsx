@@ -75,7 +75,7 @@ export default async function PersonDetailPage({
             {[
               { label: 'Email',       value: person.email             },
               { label: 'Role',        value: person.role.replace('_',' ') },
-              { label: 'Unit',        value: person.unit.name         },
+
               { label: 'Department',  value: person.department?.name ?? '—' },
               { label: 'Manager',     value: person.manager?.name    ?? '—' },
               { label: 'Joined',      value: formatDate(person.joiningDate) },

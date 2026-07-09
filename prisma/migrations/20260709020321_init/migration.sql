@@ -62,28 +62,28 @@ CREATE TYPE "TestStatus" AS ENUM ('NOT_EXECUTED', 'PASS', 'FAIL', 'BLOCKED');
 CREATE TYPE "ValidationStatus" AS ENUM ('PLANNED', 'IN_PROGRESS', 'COMPLETE', 'LOCKED');
 
 -- CreateTable
-CREATE TABLE "units" (
-    "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "code" TEXT NOT NULL,
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "units_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "departments" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "code" TEXT NOT NULL,
-    "unitId" TEXT NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "departments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sections" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "departmentId" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "sections_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -99,8 +99,8 @@ CREATE TABLE "persons" (
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "joiningDate" TIMESTAMP(3) NOT NULL,
     "lastLoginAt" TIMESTAMP(3),
-    "unitId" TEXT NOT NULL,
     "departmentId" TEXT,
+    "sectionId" TEXT,
     "managerId" TEXT,
     "flaggedForJobReassignment" BOOLEAN NOT NULL DEFAULT false,
     "flaggedAt" TIMESTAMP(3),
@@ -214,13 +214,13 @@ CREATE TABLE "training_assignments" (
 CREATE TABLE "question_banks" (
     "id" TEXT NOT NULL,
     "topicId" TEXT NOT NULL,
-    "passingPercentage" DOUBLE PRECISION NOT NULL DEFAULT 70,
+    "passingPercentage" DOUBLE PRECISION NOT NULL DEFAULT 80,
     "questionsPerAttempt" INTEGER NOT NULL DEFAULT 10,
     "maxAttempts" INTEGER NOT NULL DEFAULT 3,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "assessmentType" "AssessmentType" NOT NULL DEFAULT 'MCQ',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "assessmentType" "AssessmentType" NOT NULL DEFAULT 'MCQ',
 
     CONSTRAINT "question_banks_pkey" PRIMARY KEY ("id")
 );
@@ -439,13 +439,13 @@ CREATE TABLE "test_results" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "units_name_key" ON "units"("name");
+CREATE UNIQUE INDEX "departments_name_key" ON "departments"("name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "units_code_key" ON "units"("code");
+CREATE UNIQUE INDEX "departments_code_key" ON "departments"("code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "departments_unitId_code_key" ON "departments"("unitId", "code");
+CREATE UNIQUE INDEX "sections_departmentId_code_key" ON "sections"("departmentId", "code");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "persons_employeeId_key" ON "persons"("employeeId");
@@ -481,13 +481,13 @@ CREATE UNIQUE INDEX "certificates_qualificationId_key" ON "certificates"("qualif
 CREATE UNIQUE INDEX "test_results_runId_testCaseId_key" ON "test_results"("runId", "testCaseId");
 
 -- AddForeignKey
-ALTER TABLE "departments" ADD CONSTRAINT "departments_unitId_fkey" FOREIGN KEY ("unitId") REFERENCES "units"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "persons" ADD CONSTRAINT "persons_unitId_fkey" FOREIGN KEY ("unitId") REFERENCES "units"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "sections" ADD CONSTRAINT "sections_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "persons" ADD CONSTRAINT "persons_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "persons" ADD CONSTRAINT "persons_sectionId_fkey" FOREIGN KEY ("sectionId") REFERENCES "sections"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "persons" ADD CONSTRAINT "persons_managerId_fkey" FOREIGN KEY ("managerId") REFERENCES "persons"("id") ON DELETE SET NULL ON UPDATE CASCADE;

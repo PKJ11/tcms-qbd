@@ -7,6 +7,7 @@ import type { CreateMaterialInput, FileType, VersionType } from '@/modules/conte
 const CAN_UPLOAD: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
 
 export async function GET(req: NextRequest) {
+  console.log("Entered in the uploadmaterial function")
   const session = await getSession()
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })

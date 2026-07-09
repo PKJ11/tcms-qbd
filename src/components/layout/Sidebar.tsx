@@ -17,7 +17,7 @@ interface Props {
     name:       string
     email:      string
     role:       UserRole
-    unitName:   string
+    
     department: string | null
   }
 }

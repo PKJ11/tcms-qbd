@@ -139,13 +139,11 @@ enum RefresherStatus {
   OVERDUE
 }
 
-// ─── Validation Support ──────────────────────────────────────────
-
 enum TestPhase {
-  IQ   // Installation Qualification
-  OQ   // Operational Qualification
-  PQ   // Performance Qualification
-  RT   // Regression Test
+  IQ
+  OQ
+  PQ
+  RT
 }
 
 enum TestStatus {
@@ -162,102 +160,99 @@ enum ValidationStatus {
   LOCKED
 }
 
-
-
 // ─────────────────────────────────────────────
 // FOUNDATION MODELS
 // ─────────────────────────────────────────────
 
-model Unit {
-  id          String   @id @default(cuid())
-  name        String   @unique // e.g. "Unit 1", "Unit 2"
-  code        String   @unique // e.g. "U1", "U2"
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  departments Department[]
-  persons     Person[]
-
-  @@map("units")
-}
-
 model Department {
   id        String   @id @default(cuid())
-  name      String   // e.g. "QC", "R&D", "Production"
-  code      String   // e.g. "QC", "RD"
-  unitId    String
+  name      String   @unique
+  code      String   @unique
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  unit    Unit     @relation(fields: [unitId], references: [id])
-  persons Person[]
+  sections         Section[]
+  persons          Person[]
+  techniques       Technique[]
   topicDepartments TopicDepartment[]
-  techniques Technique[]
 
-
-  @@unique([unitId, code])
   @@map("departments")
 }
 
-model Person {
-  id                 String    @id @default(cuid())
-  employeeId         String    @unique
-  name               String
-  email              String?    @unique
-  passwordHash       String
-  mustChangePassword Boolean   @default(true)
-  role               UserRole  @default(USER)
-  designation        String    // job title e.g. "Senior Analyst"
-  isActive           Boolean   @default(true)
-  joiningDate        DateTime
-  lastLoginAt        DateTime?
-  unitId             String
-  departmentId       String?
-  managerId          String?   // self-reference for reporting line
-  flaggedForJobReassignment Boolean  @default(false)
-  flaggedAt                 DateTime?
-  flagReason                String?
-  flagTopicId            String?   // ← NEW: which topic caused the flag
-  flagCycleCount         Int?      // ← NEW: how many cycles failed
-  resolvedAt             DateTime? // ← NEW: when Training Head resolved
-  resolvedById           String?   // ← NEW: who resolved
-  resolutionAction       String?   // ← NEW: 'REASSIGNED' | 'OVERRIDE'
-  resolutionNotes        String?   // ← NEW: what was decided
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  validationRunsExecuted   ValidationRun[]  @relation("valRunExecutor")
-  validationRunsApproved   ValidationRun[]  @relation("valRunApprover")
-  testResultsExecuted      TestResult[]     @relation("testResultExecutor")
+model Section {
+  id           String   @id @default(cuid())
+  name         String
+  code         String
+  departmentId String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
-  unit                    Unit                  @relation(fields: [unitId], references: [id])
-  department              Department?           @relation(fields: [departmentId], references: [id])
-  manager                 Person?               @relation("manages", fields: [managerId], references: [id])
-  subordinates            Person[]              @relation("manages")
-  trainingAssignments     TrainingAssignment[]
-  assessmentAttempts      AssessmentAttempt[]
-  qualificationRecords    QualificationRecord[] @relation("qualifiedPerson")
+  department Department @relation(fields: [departmentId], references: [id])
+  persons    Person[]
+
+  @@unique([departmentId, code])
+  @@map("sections")
+}
+
+model Person {
+  id                     String    @id @default(cuid())
+  employeeId             String    @unique
+  name                   String
+  email                  String?   @unique
+  passwordHash           String
+  mustChangePassword     Boolean   @default(true)
+  role                   UserRole  @default(USER)
+  designation            String
+  isActive               Boolean   @default(true)
+  joiningDate            DateTime
+  lastLoginAt            DateTime?
+  departmentId           String?
+  sectionId              String?   // optional — not all depts have sections
+  managerId              String?
+  flaggedForJobReassignment Boolean  @default(false)
+  flaggedAt              DateTime?
+  flagReason             String?
+  flagTopicId            String?
+  flagCycleCount         Int?
+  resolvedAt             DateTime?
+  resolvedById           String?
+  resolutionAction       String?
+  resolutionNotes        String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  // Relations
+  department               Department?           @relation(fields: [departmentId], references: [id])
+  section                  Section?              @relation(fields: [sectionId], references: [id])
+  manager                  Person?               @relation("manages", fields: [managerId], references: [id])
+  subordinates             Person[]              @relation("manages")
+  trainingAssignments      TrainingAssignment[]
+  assessmentAttempts       AssessmentAttempt[]
+  qualificationRecords     QualificationRecord[] @relation("qualifiedPerson")
   supervisedQualifications QualificationRecord[] @relation("supervisor")
   initiatedQualifications  QualificationRecord[] @relation("initiator")
-  signatoryEntries        SignatoryEntry[]
-  uploadedDocuments       ScannedDocument[]
-  issuedCertificates      Certificate[]         @relation("issuer")
-  personCertificates      Certificate[]         @relation("certPerson")
-  notifications           Notification[]
-  auditLogs               AuditLog[]
-  refresherRaisedBy       RefresherTrigger[]    @relation("raisedBy")
-  refresherPersons        RefresherTrigger[]    @relation("refresherPerson")
-  uploadedContent         MaterialVersion[]     @relation("contentUploader")
-  approvedContent         MaterialVersion[]     @relation("contentApprover")
-  createdTopics           TrainingTopic[]
-  createdAssignments      TrainingAssignment[]  @relation("assignedBy")
-  trainerCertificates         TrainerCertificate[] @relation("trainerCertPerson")
-  issuedTrainerCertificates   TrainerCertificate[] @relation("trainerCertIssuer")
-  revokedTrainerCertificates  TrainerCertificate[] @relation("trainerCertRevoker")
+  signatoryEntries         SignatoryEntry[]
+  uploadedDocuments        ScannedDocument[]
+  issuedCertificates       Certificate[]         @relation("issuer")
+  personCertificates       Certificate[]         @relation("certPerson")
+  notifications            Notification[]
+  auditLogs                AuditLog[]
+  refresherRaisedBy        RefresherTrigger[]    @relation("raisedBy")
+  refresherPersons         RefresherTrigger[]    @relation("refresherPerson")
+  uploadedContent          MaterialVersion[]     @relation("contentUploader")
+  approvedContent          MaterialVersion[]     @relation("contentApprover")
+  createdTopics            TrainingTopic[]
+  createdAssignments       TrainingAssignment[]  @relation("assignedBy")
+  trainerCertificates      TrainerCertificate[]  @relation("trainerCertPerson")
+  issuedTrainerCertificates  TrainerCertificate[] @relation("trainerCertIssuer")
+  revokedTrainerCertificates TrainerCertificate[] @relation("trainerCertRevoker")
+  validationRunsExecuted   ValidationRun[]       @relation("valRunExecutor")
+  validationRunsApproved   ValidationRun[]       @relation("valRunApprover")
+  testResultsExecuted      TestResult[]          @relation("testResultExecutor")
 
   @@map("persons")
 }
@@ -275,7 +270,6 @@ model TrainingTopic {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relations
   createdBy        Person            @relation(fields: [createdById], references: [id])
   topicDepartments TopicDepartment[]
   materials        TrainingMaterial[]
@@ -286,7 +280,7 @@ model TrainingTopic {
   @@map("training_topics")
 }
 
-// Junction table — topic maps to many departments
+// Topic → Department mapping (for induction auto-assign)
 model TopicDepartment {
   id           String   @id @default(cuid())
   topicId      String
@@ -309,7 +303,6 @@ model TrainingMaterial {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  // Relations
   topic    TrainingTopic     @relation(fields: [topicId], references: [id])
   versions MaterialVersion[]
 
@@ -317,43 +310,42 @@ model TrainingMaterial {
 }
 
 model TrainerCertificate {
-  id          String   @id @default(cuid())
-  personId    String
-  issuedById  String
-  certNumber  String   @unique
-  basis       String   // e.g. "5+ years industry experience in HPLC"
-  isActive    Boolean  @default(true)
-  issuedAt    DateTime @default(now())
-  revokedAt   DateTime?
-  revokedById String?
+  id            String    @id @default(cuid())
+  personId      String
+  issuedById    String
+  certNumber    String    @unique
+  basis         String
+  isActive      Boolean   @default(true)
+  issuedAt      DateTime  @default(now())
+  revokedAt     DateTime?
+  revokedById   String?
   revokedReason String?
 
-  person      Person   @relation("trainerCertPerson", fields: [personId], references: [id])
-  issuedBy    Person   @relation("trainerCertIssuer", fields: [issuedById], references: [id])
-  revokedBy   Person?  @relation("trainerCertRevoker", fields: [revokedById], references: [id])
+  person    Person  @relation("trainerCertPerson",  fields: [personId],   references: [id])
+  issuedBy  Person  @relation("trainerCertIssuer",  fields: [issuedById], references: [id])
+  revokedBy Person? @relation("trainerCertRevoker", fields: [revokedById], references: [id])
 
   @@map("trainer_certificates")
 }
 
 model MaterialVersion {
-  id           String      @id @default(cuid())
-  materialId   String
-  versionNo    Int         // e.g. 1, 2, 3
-  versionLabel String      // e.g. "1.0", "1.1", "2.0"
-  versionType  VersionType // MAJOR | MINOR
-  fileUrl      String      // path in storage
-  fileName     String
-  fileType     FileType
+  id            String        @id @default(cuid())
+  materialId    String
+  versionNo     Int
+  versionLabel  String
+  versionType   VersionType
+  fileUrl       String
+  fileName      String
+  fileType      FileType
   changeSummary String
   effectiveDate DateTime
-  status       ContentStatus @default(DRAFT)
-  uploadedById String
-  approvedById String?
-  approvedAt   DateTime?
-  createdAt    DateTime    @default(now())
+  status        ContentStatus @default(DRAFT)
+  uploadedById  String
+  approvedById  String?
+  approvedAt    DateTime?
+  createdAt     DateTime      @default(now())
 
-  // Relations
-  material   TrainingMaterial @relation(fields: [materialId], references: [id])
+  material   TrainingMaterial @relation(fields: [materialId],  references: [id])
   uploadedBy Person           @relation("contentUploader", fields: [uploadedById], references: [id])
   approvedBy Person?          @relation("contentApprover", fields: [approvedById], references: [id])
 
@@ -376,13 +368,13 @@ model TrainingAssignment {
   startedAt          DateTime?
   completedAt        DateTime?
   acknowledged       Boolean          @default(false)
-  needIdentifiedById String?          // ← new — who identified this need
-  needBasis          String?          // ← new — basis for identification
+  needIdentifiedById String?
+  needBasis          String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
-  person     Person              @relation(fields: [personId], references: [id])
-  topic      TrainingTopic       @relation(fields: [topicId], references: [id])
+  person     Person              @relation(fields: [personId],     references: [id])
+  topic      TrainingTopic       @relation(fields: [topicId],      references: [id])
   assignedBy Person              @relation("assignedBy", fields: [assignedById], references: [id])
   attempts   AssessmentAttempt[]
 
@@ -394,38 +386,36 @@ model TrainingAssignment {
 // ─────────────────────────────────────────────
 
 model QuestionBank {
-  id                 String   @id @default(cuid())
-  topicId            String   @unique
-  passingPercentage  Float    @default(70)
-  questionsPerAttempt Int     @default(10)
-  maxAttempts        Int      @default(3)
-  isActive           Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  assessmentType AssessmentType @default(MCQ)
+  id                  String         @id @default(cuid())
+  topicId             String         @unique
+  passingPercentage   Float          @default(80)
+  questionsPerAttempt Int            @default(10)
+  maxAttempts         Int            @default(3)
+  isActive            Boolean        @default(true)
+  assessmentType      AssessmentType @default(MCQ)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
-  // Relations
   topic     TrainingTopic       @relation(fields: [topicId], references: [id])
   questions Question[]
   attempts  AssessmentAttempt[]
- 
+
   @@map("question_banks")
 }
 
 model Question {
-  id           String   @id @default(cuid())
-  bankId       String
-  questionText String
-  optionA      String
-  optionB      String
-  optionC      String
-  optionD      String
-  correctAnswer String  // "A" | "B" | "C" | "D"
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(cuid())
+  bankId        String
+  questionText  String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctAnswer String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  // Relations
   bank QuestionBank @relation(fields: [bankId], references: [id])
 
   @@map("questions")
@@ -436,17 +426,16 @@ model AssessmentAttempt {
   personId     String
   bankId       String
   assignmentId String
-  attemptNo    Int               // 1st, 2nd, 3rd attempt
-  score        Float             // percentage
+  attemptNo    Int
+  score        Float
   outcome      AssessmentOutcome
-  answers      Json              // { questionId: "A", questionId: "B" ... }
+  answers      Json
   startedAt    DateTime
   submittedAt  DateTime
   createdAt    DateTime          @default(now())
 
-  // Relations
-  person     Person             @relation(fields: [personId], references: [id])
-  bank       QuestionBank       @relation(fields: [bankId], references: [id])
+  person     Person             @relation(fields: [personId],     references: [id])
+  bank       QuestionBank       @relation(fields: [bankId],       references: [id])
   assignment TrainingAssignment @relation(fields: [assignmentId], references: [id])
 
   @@map("assessment_attempts")
@@ -460,39 +449,37 @@ model RefresherTrigger {
   id            String               @id @default(cuid())
   personId      String
   topicId       String
-  triggerType   RefresherTriggerType // PLANNED | DEVIATION | INCIDENT
+  triggerType   RefresherTriggerType
   status        RefresherStatus      @default(PENDING)
-  justification String               // mandatory — why was this raised
+  justification String
   raisedById    String
   dueDate       DateTime
   completedAt   DateTime?
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
-  // Relations
-  person    Person        @relation("refresherPerson", fields: [personId], references: [id])
-  topic     TrainingTopic @relation(fields: [topicId], references: [id])
-  raisedBy  Person        @relation("raisedBy", fields: [raisedById], references: [id])
+  person   Person        @relation("refresherPerson", fields: [personId],  references: [id])
+  topic    TrainingTopic @relation(fields: [topicId],                       references: [id])
+  raisedBy Person        @relation("raisedBy",        fields: [raisedById], references: [id])
 
   @@map("refresher_triggers")
 }
 
 // ─────────────────────────────────────────────
-// SCIENTIST QUALIFICATION (PROVISIONAL)
+// SCIENTIST QUALIFICATION
 // ─────────────────────────────────────────────
 
 model Technique {
   id                      String        @id @default(cuid())
   name                    String
   code                    String        @unique
-  type                    TechniqueType // METHOD | INSTRUMENT | TECHNIQUE
+  type                    TechniqueType
   departmentId            String
   qualificationPeriodDays Int           @default(365)
   isActive                Boolean       @default(true)
   createdAt               DateTime      @default(now())
   updatedAt               DateTime      @updatedAt
 
-  // Relations
   department     Department            @relation(fields: [departmentId], references: [id])
   qualifications QualificationRecord[]
 
@@ -511,16 +498,15 @@ model QualificationRecord {
   initiatedAt       DateTime    @default(now())
   approvedAt        DateTime?
   expiryDate        DateTime?
-  requalificationOf String?     // links to previous qualification
+  requalificationOf String?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  // Relations
-  person          Person          @relation("qualifiedPerson", fields: [personId], references: [id])
-  technique       Technique       @relation(fields: [techniqueId], references: [id])
-  supervisor      Person?         @relation("supervisor", fields: [supervisorId], references: [id])
-  initiatedBy     Person          @relation("initiator", fields: [initiatedById], references: [id])
-  previousQual    QualificationRecord?  @relation("requalification", fields: [requalificationOf], references: [id])
+  person          Person               @relation("qualifiedPerson", fields: [personId],      references: [id])
+  technique       Technique            @relation(fields: [techniqueId],                        references: [id])
+  supervisor      Person?              @relation("supervisor",       fields: [supervisorId],   references: [id])
+  initiatedBy     Person               @relation("initiator",        fields: [initiatedById],  references: [id])
+  previousQual    QualificationRecord?  @relation("requalification",  fields: [requalificationOf], references: [id])
   nextQuals       QualificationRecord[] @relation("requalification")
   signatories     SignatoryEntry[]
   scannedDocuments ScannedDocument[]
@@ -540,9 +526,8 @@ model SignatoryEntry {
   status          SignatoryStatus @default(PENDING)
   createdAt       DateTime        @default(now())
 
-  // Relations
   qualification QualificationRecord @relation(fields: [qualificationId], references: [id])
-  signedBy      Person?             @relation(fields: [signedById], references: [id])
+  signedBy      Person?             @relation(fields: [signedById],       references: [id])
 
   @@unique([qualificationId, stepOrder])
   @@map("signatory_entries")
@@ -553,32 +538,30 @@ model ScannedDocument {
   qualificationId String
   fileUrl         String
   fileName        String
-  fileType        String   // pdf | jpg | png
+  fileType        String
   description     String
   uploadedById    String
   uploadedAt      DateTime @default(now())
 
-  // Relations
   qualification QualificationRecord @relation(fields: [qualificationId], references: [id])
-  uploadedBy    Person              @relation(fields: [uploadedById], references: [id])
+  uploadedBy    Person              @relation(fields: [uploadedById],    references: [id])
 
   @@map("scanned_documents")
 }
 
 model Certificate {
   id              String   @id @default(cuid())
-  certNumber      String   @unique // e.g. CERT-2026-00142
-  qualificationId String   @unique // one cert per qualification
+  certNumber      String   @unique
+  qualificationId String   @unique
   personId        String
   issuedById      String
   issuedAt        DateTime @default(now())
   fileUrl         String
   validUntil      DateTime
 
-  // Relations
   qualification QualificationRecord @relation(fields: [qualificationId], references: [id])
-  person        Person              @relation("certPerson", fields: [personId], references: [id])
-  issuedBy      Person              @relation("issuer", fields: [issuedById], references: [id])
+  person        Person              @relation("certPerson", fields: [personId],   references: [id])
+  issuedBy      Person              @relation("issuer",     fields: [issuedById], references: [id])
 
   @@map("certificates")
 }
@@ -588,17 +571,16 @@ model Certificate {
 // ─────────────────────────────────────────────
 
 model Notification {
-  id         String              @id @default(cuid())
-  personId   String
-  type       NotificationType
-  channel    NotificationChannel
-  title      String
-  message    String
-  isRead     Boolean             @default(false)
-  sentAt     DateTime            @default(now())
-  readAt     DateTime?
+  id       String              @id @default(cuid())
+  personId String
+  type     NotificationType
+  channel  NotificationChannel
+  title    String
+  message  String
+  isRead   Boolean             @default(false)
+  sentAt   DateTime            @default(now())
+  readAt   DateTime?
 
-  // Relations
   person Person @relation(fields: [personId], references: [id])
 
   @@map("notifications")
@@ -609,20 +591,19 @@ model Notification {
 // ─────────────────────────────────────────────
 
 model AuditLog {
-  id           String      @id @default(cuid())
-  userId       String
-  action       AuditAction
-  module       String      // e.g. "PERSONNEL", "ASSESSMENT", "QUALIFICATION"
-  recordId     String      // id of the record that was changed
-  recordType   String      // e.g. "Person", "TrainingAssignment"
-  beforeValue  Json?       // snapshot before change
-  afterValue   Json?       // snapshot after change
-  justification String     // mandatory — why this action was taken
-  ipAddress    String?
-  userAgent    String?
-  createdAt    DateTime    @default(now())
+  id            String      @id @default(cuid())
+  userId        String
+  action        AuditAction
+  module        String
+  recordId      String
+  recordType    String
+  beforeValue   Json?
+  afterValue    Json?
+  justification String
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime    @default(now())
 
-  // Relations
   user Person @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
@@ -632,41 +613,39 @@ model AuditLog {
 // VALIDATION SUPPORT
 // ─────────────────────────────────────────────
 
-
-
 model ValidationRun {
-  id          String           @id @default(cuid())
-  phase       TestPhase
-  version     String           // e.g. "v0.1.0"
-  environment String           // DEV | VALIDATION | PROD
-  status      ValidationStatus @default(PLANNED)
-  startedAt   DateTime?
-  completedAt DateTime?
+  id           String           @id @default(cuid())
+  phase        TestPhase
+  version      String
+  environment  String
+  status       ValidationStatus @default(PLANNED)
+  startedAt    DateTime?
+  completedAt  DateTime?
   executedById String?
   approvedById String?
-  approvedAt  DateTime?
-  notes       String?
-  createdAt   DateTime         @default(now())
+  approvedAt   DateTime?
+  notes        String?
+  createdAt    DateTime         @default(now())
 
-  executedBy  Person?  @relation("valRunExecutor", fields: [executedById], references: [id])
-  approvedBy  Person?  @relation("valRunApprover", fields: [approvedById], references: [id])
+  executedBy  Person?      @relation("valRunExecutor", fields: [executedById], references: [id])
+  approvedBy  Person?      @relation("valRunApprover", fields: [approvedById], references: [id])
   testResults TestResult[]
 
   @@map("validation_runs")
 }
 
 model TestCase {
-  id          String  @id @default(cuid())
-  ursId       String  // e.g. "URS-PER-001"
-  module      String  // e.g. "PERSONNEL"
+  id          String    @id @default(cuid())
+  ursId       String
+  module      String
   phase       TestPhase
   title       String
   description String
-  steps       String  // JSON array of step strings
-  expected    String  // expected result
-  priority    String  @default("M") // M | H | D
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
+  steps       String
+  expected    String
+  priority    String    @default("M")
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
 
   results TestResult[]
 
@@ -682,20 +661,13 @@ model TestResult {
   defectNotes    String?
   executedById   String?
   executedAt     DateTime?
-  screenshotUrls String[]   // stored in MinIO
+  screenshotUrls String[]
   createdAt      DateTime   @default(now())
 
-  run          ValidationRun @relation(fields: [runId],       references: [id])
-  testCase     TestCase      @relation(fields: [testCaseId],  references: [id])
-  executedBy   Person?       @relation("testResultExecutor", fields: [executedById], references: [id])
+  run        ValidationRun @relation(fields: [runId],       references: [id])
+  testCase   TestCase      @relation(fields: [testCaseId],  references: [id])
+  executedBy Person?       @relation("testResultExecutor", fields: [executedById], references: [id])
 
   @@unique([runId, testCaseId])
   @@map("test_results")
 }
-
-// ─────────────────────────────────────────────
-// MISSING RELATION ON DEPARTMENT FOR TECHNIQUE
-// ─────────────────────────────────────────────
-
-// Add this to Department model by adding the relation field
-// We handle this via the Technique → Department relation above

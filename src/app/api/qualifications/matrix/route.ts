@@ -30,7 +30,6 @@ export async function GET(req: NextRequest) {
 
   const matrix = await getCompetencyMatrix({
     departmentId:   isOrgWide ? (searchParams.get('departmentId') ?? undefined) : undefined,
-    unitId:         isOrgWide ? (searchParams.get('unitId')       ?? undefined) : undefined,
     subordinateIds: subordinateIds,
   })
 

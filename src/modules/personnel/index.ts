@@ -5,7 +5,7 @@ export {
   updatePerson,
   deactivatePerson,
   resetPersonPassword,
-  getUnitsAndDepartments,
+  getDepartmentsAndSections
 } from './actions'
 
 export type {

@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 interface MatrixRow {
   person: {
     id: string; name: string; employeeId: string
-    department: { name: string } | null; unit: { name: string }
+    department: { name: string } | null; 
   }
   topics: {
     topicId: string; topicName: string; status: string

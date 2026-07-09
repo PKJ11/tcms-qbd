@@ -22,7 +22,7 @@ const TOPIC_SELECT = {
         select: {
           id:   true,
           name: true,
-          unit: { select: { id: true, name: true } },
+          
         },
       },
     },
@@ -290,8 +290,6 @@ export async function getAllDepartments() {
   return prisma.department.findMany({
     where:   { isActive: true },
     orderBy: { name: 'asc' },
-    include: {
-      unit: { select: { id: true, name: true } },
-    },
+    
   })
 }

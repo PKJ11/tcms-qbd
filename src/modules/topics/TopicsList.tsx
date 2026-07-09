@@ -8,7 +8,7 @@ interface Department {
   department: {
     id:   string
     name: string
-    unit: { id: string; name: string }
+    
   }
 }
 
@@ -167,7 +167,7 @@ export function TopicsList({ canCreate }: { canCreate: boolean }) {
                       className="px-2 py-0.5 rounded-full text-xs"
                       style={{ background: '#eff6ff', color: '#1d4ed8' }}
                     >
-                      {td.department.name} · {td.department.unit.name}
+                      {td.department.name} 
                     </span>
                   ))
                 )}

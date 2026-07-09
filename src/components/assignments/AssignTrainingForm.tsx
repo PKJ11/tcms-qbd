@@ -4,11 +4,14 @@ import { useState, useEffect } from 'react'
 import { useRouter }           from 'next/navigation'
 import { JustificationModal }  from '@/components/JustificationModal'
 
-interface Topic      { id: string; name: string }
+interface Topic   { id: string; name: string }
+interface Section { id: string; name: string }
 interface Department {
-  id: string; name: string
-  unit: { id: string; name: string }
-  _count: { persons: number }
+  id:       string
+  name:     string
+  code:     string
+  sections: Section[]
+  _count?:  { persons: number }
 }
 interface Person {
   id: string; name: string; employeeId: string; designation: string; role?: string
@@ -16,56 +19,37 @@ interface Person {
 }
 
 interface Props {
-  topics:      Topic[]
-  departments: Department[]
+  topics: Topic[]
 }
 
 const TRIGGERS = [
-  {
-    value:       'INDUCTION',
-    label:       'Induction',
-    description: 'New joiner training — auto-assigned on joining',
-  },
-  {
-    value:       'UPGRADE',
-    label:       'Role upgrade',
-    description: 'Person\'s responsibilities have changed',
-  },
-  {
-    value:       'RETRAINING',
-    label:       'Retraining',
-    description: 'Performance or deviation-driven retraining',
-  },
-  {
-    value:       'REFRESHER',
-    label:       'Refresher',
-    description: 'Scheduled periodic refresh',
-  },
-  {
-    value:       'TECHNICAL',
-    label:       'Technical',
-    description: 'Skill upgrade or SOP revision-driven training',
-  },
-  {
-    value:       'EXTERNAL',
-    label:       'External training',
-    description: 'Director-approved external programme',
-  },
+  { value: 'INDUCTION',  label: 'Induction',        description: 'New joiner training — auto-assigned on joining' },
+  { value: 'UPGRADE',    label: 'Role upgrade',      description: "Person's responsibilities have changed" },
+  { value: 'RETRAINING', label: 'Retraining',        description: 'Performance or deviation-driven retraining' },
+  { value: 'REFRESHER',  label: 'Refresher',         description: 'Scheduled periodic refresh' },
+  { value: 'TECHNICAL',  label: 'Technical',         description: 'Skill upgrade or SOP revision-driven training' },
+  { value: 'EXTERNAL',   label: 'External training', description: 'Director-approved external programme' },
 ]
 
-export function AssignTrainingForm({ topics, departments }: Props) {
+export function AssignTrainingForm({ topics }: Props) {
   const router = useRouter()
 
   const [mode, setMode] = useState<'bulk' | 'individual'>('bulk')
 
   const [form, setForm] = useState({
-    topicId:      '',
-    trigger:      'INDUCTION',
-    dueDate:      '',
-    departmentId: '',
-    needIdentifiedById:  '',  // ← new
-    needBasis:           '',  // ← new
+    topicId:            '',
+    trigger:            'INDUCTION',
+    dueDate:            '',
+    needIdentifiedById: '',
+    needBasis:          '',
   })
+
+  // ── Multi-department + per-department section selection (bulk mode) ──
+  const [departments,      setDepartments]     = useState<Department[]>([])
+  const [selectedDeptIds,  setSelectedDeptIds]  = useState<string[]>([])
+  // Map of departmentId -> selected sectionIds for that department.
+  // Empty/absent array = whole department (no section filter).
+  const [sectionSelections, setSectionSelections] = useState<Record<string, string[]>>({})
 
   const [persons,         setPersons]         = useState<Person[]>([])
   const [managers,        setManagers]        = useState<Person[]>([])
@@ -77,7 +61,17 @@ export function AssignTrainingForm({ topics, departments }: Props) {
   const [error,     setError]     = useState<string | null>(null)
   const [success,   setSuccess]   = useState<string | null>(null)
 
-  // Fetch persons when switching to individual mode
+  // Load departments with sections
+  useEffect(() => {
+    async function fetchDepts() {
+      const res  = await fetch('/api/departments')
+      const data = await res.json()
+      setDepartments(data.departments ?? [])
+    }
+    fetchDepts()
+  }, [])
+
+  // Fetch potential "need identified by" managers
   useEffect(() => {
     async function fetchManagers() {
       const res  = await fetch('/api/personnel?isActive=true')
@@ -85,10 +79,10 @@ export function AssignTrainingForm({ topics, departments }: Props) {
       const people = (data.persons ?? []) as Person[]
       setManagers(people.filter((p) => ['MANAGER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'TRAINER'].includes(p.role ?? '')))
     }
-
     fetchManagers()
   }, [])
 
+  // Fetch persons when switching to individual mode
   useEffect(() => {
     if (mode !== 'individual') return
 
@@ -101,6 +95,41 @@ export function AssignTrainingForm({ topics, departments }: Props) {
     }
     fetchPersons()
   }, [mode])
+
+  // ── Department toggle (checkbox) ────────────────────────────────
+  function toggleDepartment(deptId: string) {
+    setSelectedDeptIds((prev) => {
+      if (prev.includes(deptId)) {
+        // Deselecting — also clear its section selections
+        setSectionSelections((sPrev) => {
+          const next = { ...sPrev }
+          delete next[deptId]
+          return next
+        })
+        return prev.filter((id) => id !== deptId)
+      }
+      return [...prev, deptId]
+    })
+  }
+
+  // ── Section toggle within a specific department ─────────────────
+  function toggleSection(deptId: string, sectionId: string) {
+    setSectionSelections((prev) => {
+      const current = prev[deptId] ?? []
+      const next = current.includes(sectionId)
+        ? current.filter((id) => id !== sectionId)
+        : [...current, sectionId]
+      return { ...prev, [deptId]: next }
+    })
+  }
+
+  function toggleAllSections(deptId: string, allSectionIds: string[]) {
+    setSectionSelections((prev) => {
+      const current = prev[deptId] ?? []
+      const next = current.length === allSectionIds.length ? [] : allSectionIds
+      return { ...prev, [deptId]: next }
+    })
+  }
 
   function togglePerson(id: string) {
     setSelectedPersons((prev) =>
@@ -117,7 +146,6 @@ export function AssignTrainingForm({ topics, departments }: Props) {
   const focusOn = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
     e.target.style.borderColor = '#2d6a4f'
   }
-
   const focusOff = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
     e.target.style.borderColor = '#d1d5db'
   }
@@ -130,8 +158,8 @@ export function AssignTrainingForm({ topics, departments }: Props) {
       setError('Topic and due date are required.')
       return
     }
-    if (mode === 'bulk' && !form.departmentId) {
-      setError('Please select a department.')
+    if (mode === 'bulk' && selectedDeptIds.length === 0) {
+      setError('Please select at least one department.')
       return
     }
     if (mode === 'individual' && selectedPersons.length === 0) {
@@ -150,10 +178,16 @@ export function AssignTrainingForm({ topics, departments }: Props) {
     const endpoint = mode === 'bulk' ? '/api/assignments/bulk' : '/api/assignments'
     const body = mode === 'bulk'
       ? {
-          departmentId: form.departmentId,
-          topicId:      form.topicId,
-          trigger:      form.trigger,
-          dueDate:      form.dueDate,
+          selections: selectedDeptIds.map((deptId) => ({
+            departmentId: deptId,
+            sectionIds:
+              sectionSelections[deptId] && sectionSelections[deptId].length > 0
+                ? sectionSelections[deptId]
+                : undefined,
+          })),
+          topicId: form.topicId,
+          trigger: form.trigger,
+          dueDate: form.dueDate,
           justification,
           needIdentifiedById: form.needIdentifiedById || undefined,
           needBasis:          form.needBasis          || undefined,
@@ -194,7 +228,8 @@ export function AssignTrainingForm({ topics, departments }: Props) {
 
   const inputClass = "w-full px-4 py-2.5 rounded-lg border text-sm outline-none transition-all"
   const inputStyle = { borderColor: '#d1d5db', background: '#fff' }
-  const selectedDept = departments.find((d) => d.id === form.departmentId)
+
+  const selectedDepartments = departments.filter((d) => selectedDeptIds.includes(d.id))
 
   return (
     <>
@@ -234,8 +269,8 @@ export function AssignTrainingForm({ topics, departments }: Props) {
               onChange={handleChange}
               className={inputClass}
               style={inputStyle}
-              onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
-              onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
+              onFocus={focusOn}
+              onBlur={focusOff}
             >
               <option value="">Select topic</option>
               {topics.map((t) => (
@@ -256,8 +291,8 @@ export function AssignTrainingForm({ topics, departments }: Props) {
                 onChange={handleChange}
                 className={inputClass}
                 style={inputStyle}
-                onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
-                onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
+                onFocus={focusOn}
+                onBlur={focusOff}
               >
                 {TRIGGERS.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -275,8 +310,8 @@ export function AssignTrainingForm({ topics, departments }: Props) {
                 onChange={handleChange}
                 className={inputClass}
                 style={inputStyle}
-                onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
-                onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
+                onFocus={focusOn}
+                onBlur={focusOff}
               />
             </div>
           </div>
@@ -329,33 +364,123 @@ export function AssignTrainingForm({ topics, departments }: Props) {
             </div>
           </div>
 
-          {/* Bulk mode — department selection */}
+          {/* Bulk mode — multi-department + per-department section selection */}
           {mode === 'bulk' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Department <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="departmentId"
-                value={form.departmentId}
-                onChange={handleChange}
-                className={inputClass}
-                style={inputStyle}
-                onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
-                onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
-              >
-                <option value="">Select department</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} · {d.unit.name} ({d._count.persons} people)
-                  </option>
-                ))}
-              </select>
-              {selectedDept && (
-                <p className="text-xs mt-2" style={{ color: '#2d6a4f' }}>
-                  This will assign training to all {selectedDept._count.persons} active person(s) in {selectedDept.name}.
-                </p>
-              )}
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Departments <span className="text-red-500">*</span>
+                  <span className="text-xs font-normal text-gray-400 ml-2">
+                    (select one or more)
+                  </span>
+                </label>
+                <div
+                  className="border rounded-lg overflow-hidden"
+                  style={{ borderColor: '#e5e7eb' }}
+                >
+                  {departments.map((d) => {
+                    const checked = selectedDeptIds.includes(d.id)
+                    return (
+                      <label
+                        key={d.id}
+                        className="flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors"
+                        style={{
+                          borderBottom: '1px solid #f3f4f6',
+                          background:   checked ? '#f0fdf4' : '#fff',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleDepartment(d.id)}
+                          className="w-4 h-4 accent-green-700"
+                        />
+                        <span className="text-sm font-medium text-gray-900">
+                          {d.name}{d._count ? ` (${d._count.persons} people)` : ''}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Per-department section pickers */}
+              {selectedDepartments.map((dept) => {
+                if (dept.sections.length === 0) {
+                  return (
+                    <div
+                      key={dept.id}
+                      className="text-xs px-3 py-2 rounded-lg"
+                      style={{ background: '#f9fafb', color: '#6b7280' }}
+                    >
+                      <strong>{dept.name}</strong> has no sections — training will be assigned to all persons in this department.
+                    </div>
+                  )
+                }
+
+                const deptSectionIds = sectionSelections[dept.id] ?? []
+                const allSectionIds  = dept.sections.map((s) => s.id)
+
+                return (
+                  <div key={dept.id}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      {dept.name} — Sections
+                      <span className="text-xs font-normal text-gray-400 ml-2">
+                        (leave all unselected to assign to entire department)
+                      </span>
+                    </label>
+                    <div
+                      className="border rounded-lg overflow-hidden"
+                      style={{ borderColor: '#e5e7eb' }}
+                    >
+                      <div
+                        className="flex items-center justify-between px-4 py-2 cursor-pointer"
+                        style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}
+                      >
+                        <span className="text-xs font-semibold text-gray-600">
+                          {deptSectionIds.length === 0
+                            ? `All sections (${dept.sections.length})`
+                            : `${deptSectionIds.length} of ${dept.sections.length} selected`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleAllSections(dept.id, allSectionIds)}
+                          className="text-xs font-medium"
+                          style={{ color: '#2d6a4f' }}
+                        >
+                          {deptSectionIds.length === allSectionIds.length ? 'Deselect all' : 'Select all'}
+                        </button>
+                      </div>
+                      {dept.sections.map((section) => {
+                        const selected = deptSectionIds.includes(section.id)
+                        return (
+                          <label
+                            key={section.id}
+                            className="flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors"
+                            style={{
+                              borderBottom: '1px solid #f3f4f6',
+                              background:   selected ? '#f0fdf4' : '#fff',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => toggleSection(dept.id, section.id)}
+                              className="w-4 h-4 accent-green-700"
+                            />
+                            <span className="text-sm text-gray-800">{section.name}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      {deptSectionIds.length === 0
+                        ? `Training will be assigned to all persons in ${dept.name}`
+                        : `Training will be assigned to persons in ${deptSectionIds.length} selected section(s) of ${dept.name} only`}
+                    </p>
+                  </div>
+                )
+              })}
             </div>
           )}
 
@@ -458,7 +583,7 @@ export function AssignTrainingForm({ topics, departments }: Props) {
         title="Confirm training assignment"
         description={
           mode === 'bulk'
-            ? `This will assign training to all active people in ${selectedDept?.name ?? 'the selected department'}.`
+            ? `This will assign training to active people in ${selectedDepartments.length} selected department(s).`
             : `This will assign training to ${selectedPersons.length} selected person(s).`
         }
         onConfirm={handleConfirm}

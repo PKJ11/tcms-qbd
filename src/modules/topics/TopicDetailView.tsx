@@ -7,7 +7,6 @@ import { JustificationModal } from '@/components/JustificationModal'
 interface Department {
   id:   string
   name: string
-  unit: { id: string; name: string }
 }
 
 interface Topic {
@@ -15,7 +14,7 @@ interface Topic {
   name: string
   isActive: boolean
   topicDepartments: {
-    department: { id: string; name: string; unit: { id: string; name: string } }
+    department: { id: string; name: string }
   }[]
 }
 
@@ -73,17 +72,6 @@ export function TopicDetailView({ topic, departments }: Props) {
       router.refresh()
     }
   }
-
-  // Group departments by unit
-  const deptsByUnit = departments.reduce<Record<string, {
-    unit: { id: string; name: string }
-    depts: Department[]
-  }>>((acc, dept) => {
-    const key = dept.unit.id
-    if (!acc[key]) acc[key] = { unit: dept.unit, depts: [] }
-    acc[key].depts.push(dept)
-    return acc
-  }, {})
 
   return (
     <>
@@ -159,35 +147,28 @@ export function TopicDetailView({ topic, departments }: Props) {
               </p>
             </div>
 
-            <div className="px-6 py-4 max-h-72 overflow-y-auto flex flex-col gap-4">
-              {Object.values(deptsByUnit).map(({ unit, depts }) => (
-                <div key={unit.id}>
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                    {unit.name}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {depts.map((dept) => {
-                      const selected = selectedDepts.includes(dept.id)
-                      return (
-                        <button
-                          key={dept.id}
-                          type="button"
-                          onClick={() => toggleDept(dept.id)}
-                          className="px-3 py-1.5 rounded-lg border text-xs font-medium transition-all"
-                          style={{
-                            background:  selected ? '#2d6a4f' : '#fff',
-                            color:       selected ? '#fff'    : '#374151',
-                            borderColor: selected ? '#2d6a4f' : '#e5e7eb',
-                          }}
-                        >
-                          {selected && <span className="mr-1">✓</span>}
-                          {dept.name}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
+            <div className="px-6 py-4 max-h-72 overflow-y-auto">
+              <div className="flex flex-wrap gap-2">
+                {departments.map((dept) => {
+                  const selected = selectedDepts.includes(dept.id)
+                  return (
+                    <button
+                      key={dept.id}
+                      type="button"
+                      onClick={() => toggleDept(dept.id)}
+                      className="px-3 py-1.5 rounded-lg border text-xs font-medium transition-all"
+                      style={{
+                        background:  selected ? '#2d6a4f' : '#fff',
+                        color:       selected ? '#fff'    : '#374151',
+                        borderColor: selected ? '#2d6a4f' : '#e5e7eb',
+                      }}
+                    >
+                      {selected && <span className="mr-1">✓</span>}
+                      {dept.name}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             <div
@@ -208,9 +189,6 @@ export function TopicDetailView({ topic, departments }: Props) {
                 <button
                   onClick={() => {
                     if (selectedDepts.length === 0) return
-                    setAction('edit-departments')
-                    // Trigger justification modal by switching action type
-                    // We reuse the same confirm handler
                     handleConfirm('Updated department mapping for topic')
                   }}
                   disabled={selectedDepts.length === 0}

@@ -36,7 +36,6 @@ export async function GET(req: NextRequest) {
   }
 
   const matrix = await getTrainingMatrix({
-    unitId:         isOrgWide ? (searchParams.get('unitId')       ?? undefined) : undefined,
     departmentId:   isOrgWide ? (searchParams.get('departmentId') ?? undefined) : undefined,
     topicId:        searchParams.get('topicId') ?? undefined,
     subordinateIds: subordinateIds,
@@ -46,12 +45,12 @@ export async function GET(req: NextRequest) {
     if (matrix.length === 0) return new NextResponse('No data', { status: 200 })
 
     const topicNames = matrix[0]?.topics.map((t) => t.topicName) ?? []
-    const headers    = ['Employee ID', 'Name', 'Department', 'Unit', ...topicNames]
+    const headers    = ['Employee ID', 'Name', 'Department', ...topicNames]
     const rows       = matrix.map((row) => [
       row.person.employeeId,
       row.person.name,
       row.person.department?.name ?? '',
-      row.person.unit.name,
+      
       ...row.topics.map((t) => t.status),
     ])
 

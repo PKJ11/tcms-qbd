@@ -6,109 +6,168 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🌱 Seeding database...')
 
-  // ─── Units ───────────────────────────────────
-  const unit1 = await prisma.unit.upsert({
-    where:  { code: 'U1' },
-    update: {},
-    create: { name: 'Unit 1', code: 'U1' },
-  })
+  // ─── Departments ─────────────────────────────────────────────
 
-  const unit2 = await prisma.unit.upsert({
-    where:  { code: 'U2' },
-    update: {},
-    create: { name: 'Unit 2', code: 'U2' },
-  })
-
-  console.log('✅ Units created')
-
-  // ─── Departments ─────────────────────────────
   const deptQC = await prisma.department.upsert({
-    where:  { unitId_code: { unitId: unit1.id, code: 'QC' } },
+    where:  { code: 'QC' },
     update: {},
-    create: { name: 'Quality Control', code: 'QC', unitId: unit1.id },
+    create: { name: 'Quality Control',  code: 'QC' },
   })
 
-  const deptRD = await prisma.department.upsert({
-    where:  { unitId_code: { unitId: unit1.id, code: 'RD' } },
+  const deptQA = await prisma.department.upsert({
+    where:  { code: 'QA' },
     update: {},
-    create: { name: 'Research & Development', code: 'RD', unitId: unit1.id },
+    create: { name: 'Quality Assurance', code: 'QA' },
+  })
+
+  const deptIT = await prisma.department.upsert({
+    where:  { code: 'IT' },
+    update: {},
+    create: { name: 'IT', code: 'IT' },
+  })
+
+  const deptHR = await prisma.department.upsert({
+    where:  { code: 'HR' },
+    update: {},
+    create: { name: 'HR and Admin', code: 'HR' },
   })
 
   console.log('✅ Departments created')
 
-  // ─── ADMINISTRATOR ─────────────────────────────
-  const ADMINISTRATORHash = await bcrypt.hash('Admin@1234', 12)
+  // ─── QC Sections ─────────────────────────────────────────────
 
-  const ADMINISTRATOR = await prisma.person.upsert({
-    where:  { email: 'admin@tcms.internal' },
+  const qcSections = [
+    { name: 'LCMS (Unit-I)',    code: 'LCMS-I'   },
+    { name: 'LCMS (Unit-II)',   code: 'LCMS-II'  },
+    { name: 'GCMS (Unit-I)',    code: 'GCMS-I'   },
+    { name: 'GCMS (Unit-II)',   code: 'GCMS-II'  },
+    { name: 'GC (Unit-I)',      code: 'GC-I'     },
+    { name: 'GC (Unit-II)',     code: 'GC-II'    },
+    { name: 'HPLC (Unit-I)',    code: 'HPLC-I'   },
+    { name: 'HPLC (Unit-II)',   code: 'HPLC-II'  },
+    { name: 'Wet lab (Unit-I)', code: 'WL-I'     },
+    { name: 'Wet lab (Unit-II)', code: 'WL-II'   },
+    { name: 'IC',               code: 'IC'       },
+    { name: 'ICP-MS',           code: 'ICP-MS'   },
+    { name: 'AAS',              code: 'AAS'      },
+  ]
+
+  for (const s of qcSections) {
+    await prisma.section.upsert({
+      where:  { departmentId_code: { departmentId: deptQC.id, code: s.code } },
+      update: {},
+      create: { name: s.name, code: s.code, departmentId: deptQC.id },
+    })
+  }
+
+  console.log('✅ QC sections created (13 sections)')
+
+  // ─── QA Sections ─────────────────────────────────────────────
+
+  const qaSections = [
+    { name: 'Unit-I QA',  code: 'QA-I'  },
+    { name: 'Unit-II QA', code: 'QA-II' },
+  ]
+
+  for (const s of qaSections) {
+    await prisma.section.upsert({
+      where:  { departmentId_code: { departmentId: deptQA.id, code: s.code } },
+      update: {},
+      create: { name: s.name, code: s.code, departmentId: deptQA.id },
+    })
+  }
+
+  console.log('✅ QA sections created (2 sections)')
+  console.log('✅ IT has no sections')
+  console.log('✅ HR and Admin has no sections')
+
+  // ─── Seed Users ───────────────────────────────────────────────
+
+  // Get HPLC-I section for analyst
+  const hplcSection = await prisma.section.findFirst({
+    where: { code: 'HPLC-I', departmentId: deptQC.id },
+  })
+
+  // Get QA-I section for training head
+  const qaSection = await prisma.section.findFirst({
+    where: { code: 'QA-I', departmentId: deptQA.id },
+  })
+
+  // ── Administrator (EMP-001) ───────────────────────────────────
+  const adminHash = await bcrypt.hash('Admin@1234', 12)
+
+  await prisma.person.upsert({
+    where:  { employeeId: 'EMP-001' },
     update: {},
     create: {
       employeeId:         'EMP-001',
       name:               'ADMINISTRATOR',
       email:              'admin@tcms.internal',
-      passwordHash:       ADMINISTRATORHash,
+      passwordHash:       adminHash,
       mustChangePassword: false,
       role:               UserRole.ADMINISTRATOR,
       designation:        'System Administrator',
       joiningDate:        new Date('2024-01-01'),
-      unitId:             unit1.id,
       departmentId:       deptQC.id,
+      sectionId:          null,  // Admin has no specific section
     },
   })
 
-  console.log('✅ ADMINISTRATOR created')
-  console.log('   Email:    admin@tcms.internal')
-  console.log('   Password: Admin@1234')
+  console.log('✅ Administrator (EMP-001) created')
+  console.log('   Login: EMP-001 / Admin@1234')
 
-  // ─── Training Head ────────────────────────────
-  const trainingHeadHash = await bcrypt.hash('Training@1234', 12)
+  // ── Training Head (EMP-002) ───────────────────────────────────
+  const thHash = await bcrypt.hash('Training@1234', 12)
 
   await prisma.person.upsert({
-    where:  { email: 'training.head@tcms.internal' },
+    where:  { employeeId: 'EMP-002' },
     update: {},
     create: {
       employeeId:         'EMP-002',
       name:               'Training Head',
       email:              'training.head@tcms.internal',
-      passwordHash:       trainingHeadHash,
+      passwordHash:       thHash,
       mustChangePassword: false,
       role:               UserRole.TRAINING_HEAD,
-      designation:        'Head of Training',
+      designation:        'Head QA',
       joiningDate:        new Date('2024-01-01'),
-      unitId:             unit1.id,
-      departmentId:       deptQC.id,
+      departmentId:       deptQA.id,
+      sectionId:          qaSection?.id ?? null,
     },
   })
 
-  console.log('✅ Training Head created')
-  console.log('   Email:    training.head@tcms.internal')
-  console.log('   Password: Training@1234')
+  console.log('✅ Training Head (EMP-002) created')
+  console.log('   Login: EMP-002 / Training@1234')
 
-  // ─── Sample Analyst ───────────────────────────
+  // ── Sample Analyst (EMP-003) ──────────────────────────────────
   const analystHash = await bcrypt.hash('Analyst@1234', 12)
 
   await prisma.person.upsert({
-    where:  { email: 'analyst@tcms.internal' },
+    where:  { employeeId: 'EMP-003' },
     update: {},
     create: {
       employeeId:         'EMP-003',
       name:               'Dr. R. Sharma',
       email:              'analyst@tcms.internal',
       passwordHash:       analystHash,
-      mustChangePassword: true,
+      mustChangePassword: false,
       role:               UserRole.USER,
       designation:        'Senior Analyst',
       joiningDate:        new Date('2024-06-01'),
-      unitId:             unit1.id,
       departmentId:       deptQC.id,
+      sectionId:          hplcSection?.id ?? null,
     },
   })
 
-  console.log('✅ Sample Analyst created')
-  console.log('   Email:    analyst@tcms.internal')
-  console.log('   Password: Analyst@1234')
+  console.log('✅ Analyst (EMP-003) created')
+  console.log('   Login: EMP-003 / Analyst@1234')
 
   console.log('\n🎉 Seeding complete.')
+  console.log('\nDepartment Structure:')
+  console.log('  Quality Control (13 sections)')
+  console.log('  Quality Assurance (2 sections)')
+  console.log('  IT (no sections)')
+  console.log('  HR and Admin (no sections)')
 }
 
 main()

@@ -12,10 +12,7 @@ export interface TopicListItem {
     department: {
       id:   string
       name: string
-      unit: {
-        id:   string
-        name: string
-      }
+      
     }
   }[]
   _count: {

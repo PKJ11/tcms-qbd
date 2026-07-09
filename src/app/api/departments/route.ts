@@ -11,9 +11,14 @@ export async function GET() {
   const departments = await prisma.department.findMany({
     where:   { isActive: true },
     select: {
-      id:   true,
-      name: true,
-      
+      id:       true,
+      name:     true,
+      code:     true,
+      sections: {
+        where:   { isActive: true },
+        select:  { id: true, name: true, code: true },
+        orderBy: { name: 'asc' },
+      },
     },
     orderBy: { name: 'asc' },
   })

@@ -354,7 +354,7 @@ async function UserDashboard({ userId, userName }: { userId: string; userName: s
 async function ReviewerDashboard() {
   const stats = await getReviewerStats()
 
-  const units = await prisma.unit.findMany({
+  const departments = await prisma.department.findMany({
     where:   { isActive: true },
     select:  {
       id:   true,
@@ -369,7 +369,7 @@ async function ReviewerDashboard() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <StatCard label="Total personnel"    value={stats.totalPersons}       color="#1d4ed8" />
-        <StatCard label="Active units"       value={stats.totalUnits}         color="#6d28d9" />
+        <StatCard label="Active departments" value={stats.totalDepartments}   color="#6d28d9" />
         <StatCard label="Active topics"      value={stats.activeTopics}       color="#2d6a4f" />
         <StatCard label="Active quals"       value={stats.approvedQuals}      color="#166534" />
         <StatCard label="Overdue trainings"  value={stats.overdueAssignments} color="#dc2626" />
@@ -377,15 +377,15 @@ async function ReviewerDashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {units.map((unit) => (
+        {departments.map((department) => (
           <div
-            key={unit.id}
+            key={department.id}
             className="bg-white rounded-xl border p-5"
             style={{ borderColor: '#e5e7eb' }}
           >
-            <h3 className="text-sm font-semibold text-gray-900 mb-1">{unit.name}</h3>
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">{department.name}</h3>
             <div className="text-2xl font-bold" style={{ color: '#2d6a4f' }}>
-              {unit._count.persons}
+              {department._count.persons}
             </div>
             <div className="text-xs text-gray-400">Active personnel</div>
           </div>
@@ -415,8 +415,8 @@ export default async function DashboardPage() {
           Welcome back, {user.name.split(' ')[0]} 👋
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          {user.unitName}
-          {user.department ? ` · ${user.department}` : ''}
+          {user.department}
+          {user.section ? ` · ${user.section}` : ''}
           {' · '}
           {new Date().toLocaleDateString('en-IN', {
             weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',

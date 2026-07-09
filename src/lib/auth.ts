@@ -5,69 +5,56 @@ import bcrypt                             from 'bcryptjs'
 import type { TCMSUser }                  from '@/lib/types'
 
 export const authOptions: NextAuthOptions = {
-  session:  { strategy: 'jwt', maxAge: 8 * 60 * 60 },
-  pages:    { signIn: '/login' },
+  session: { strategy: 'jwt', maxAge: 8 * 60 * 60 },
+  pages:   { signIn: '/login' },
 
   providers: [
     CredentialsProvider({
       name: 'credentials',
       credentials: {
-        // Changed from email to employeeId
         employeeId: { label: 'Employee ID', type: 'text'     },
         password:   { label: 'Password',    type: 'password' },
       },
 
       async authorize(credentials) {
-        if (!credentials?.employeeId || !credentials?.password) {
-          return null
-        }
+        if (!credentials?.employeeId || !credentials?.password) return null
 
-        // Look up by employeeId — NOT email
         const person = await prisma.person.findUnique({
           where:  { employeeId: credentials.employeeId.trim().toUpperCase() },
           select: {
             id:                 true,
             employeeId:         true,
             name:               true,
-            email:              true,  // still select it — used for display
+            email:              true,
             role:               true,
             passwordHash:       true,
             mustChangePassword: true,
             isActive:           true,
-            unitId:             true,
             departmentId:       true,
-            unit:               { select: { name: true } },
-            department:         { select: { name: true } },
+            sectionId:          true,
+            department:         { select: { id: true, name: true } },
+            section:            { select: { id: true, name: true } },
           },
         })
 
-        // Person not found
-        if (!person) return null
-
-        // Account deactivated
-        if (!person.isActive) return null
-
-        // No password set
+        if (!person)           return null
+        if (!person.isActive)  return null
         if (!person.passwordHash) return null
 
-        // Verify password
-        const valid = await bcrypt.compare(
-          credentials.password,
-          person.passwordHash
-        )
+        const valid = await bcrypt.compare(credentials.password, person.passwordHash)
         if (!valid) return null
 
-        // Return user object — used in JWT callback
         const user: TCMSUser = {
           id:                 person.id,
           employeeId:         person.employeeId,
           name:               person.name,
-          email:              person.email ?? '',  // empty string if no email
+          email:              person.email ?? '',
           role:               person.role,
           mustChangePassword: person.mustChangePassword,
-          unitId:             person.unitId ?? '',
-          unitName:           person.unit?.name ?? '',
+          departmentId:       person.departmentId ?? '',
           department:         person.department?.name ?? '',
+          sectionId:          person.sectionId ?? '',
+          section:            person.section?.name ?? '',
         }
 
         return user
@@ -85,9 +72,10 @@ export const authOptions: NextAuthOptions = {
         token.email              = u.email
         token.role               = u.role
         token.mustChangePassword = u.mustChangePassword
-        token.unitId             = u.unitId
-        token.unitName           = u.unitName
+        token.departmentId       = u.departmentId
         token.department         = u.department
+        token.sectionId          = u.sectionId
+        token.section            = u.section
       }
       return token
     },
@@ -100,9 +88,10 @@ export const authOptions: NextAuthOptions = {
         email:              token.email              as string,
         role:               token.role               as string,
         mustChangePassword: token.mustChangePassword as boolean,
-        unitId:             token.unitId             as string,
-        unitName:           token.unitName           as string,
+        departmentId:       token.departmentId       as string,
         department:         token.department         as string,
+        sectionId:          token.sectionId          as string,
+        section:            token.section            as string,
       }
       return session
     },
@@ -110,18 +99,17 @@ export const authOptions: NextAuthOptions = {
 
   events: {
     async signIn({ user }) {
-      // Audit log on successful login
       try {
         const u = user as TCMSUser
         await prisma.auditLog.create({
           data: {
-            userId:     u.id,
-            action:     'LOGIN',
-            module:     'AUTH',
-            recordId:   u.id,
-            recordType: 'Person',
-            justification: 'System-generated: user login',
-            afterValue: {
+            userId:        u.id,
+            action:        'LOGIN',
+            module:        'AUTH',
+            recordId:      u.id,
+            recordType:    'Person',
+            justification: 'User login',
+            afterValue:    {
               employeeId: u.employeeId,
               role:       u.role,
               timestamp:  new Date().toISOString(),
@@ -129,7 +117,7 @@ export const authOptions: NextAuthOptions = {
           },
         })
       } catch {
-        // Never block login due to audit log failure
+        // Never block login
       }
     },
   },
@@ -137,10 +125,7 @@ export const authOptions: NextAuthOptions = {
 
 export default NextAuth(authOptions)
 
-// ── Server-side session helper ────────────────────────────────────
-
 import { getServerSession } from 'next-auth'
-
 export async function getSession() {
   return getServerSession(authOptions)
 }

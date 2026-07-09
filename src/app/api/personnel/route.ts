@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getPersons, createPerson } from '@/modules/personnel'
+import { getSubordinateIds } from '@/lib/subordinates'
 import type { UserRole } from '@/lib/types'
 
 const CAN_CREATE: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
@@ -13,17 +14,19 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
 
-  // Managers can only see their unit
-  const unitId = session.user.role === 'MANAGER'
-    ? session.user.unitId
-    : searchParams.get('unitId') ?? undefined
+  // Managers and trainers can only see their direct/indirect reports
+  const SCOPED_ROLES: UserRole[] = ['MANAGER', 'TRAINER']
+  const subordinateIds = SCOPED_ROLES.includes(session.user.role as UserRole)
+    ? await getSubordinateIds(session.user.id)
+    : undefined
 
   const persons = await getPersons({
-    unitId,
+    subordinateIds,
     departmentId: searchParams.get('departmentId') ?? undefined,
-    role:         searchParams.get('role')         ?? undefined,
+    sectionId:    searchParams.get('sectionId')     ?? undefined,
+    role:         searchParams.get('role')          ?? undefined,
     isActive:     searchParams.get('isActive') === 'false' ? false : true,
-    search:       searchParams.get('search')       ?? undefined,
+    search:       searchParams.get('search')        ?? undefined,
   })
 
   return NextResponse.json({ persons })

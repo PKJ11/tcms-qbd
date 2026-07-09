@@ -10,14 +10,15 @@ export type UserRole =
 
 export interface TCMSUser {
   id:                 string
-  employeeId:         string   // ← primary auth identifier
+  employeeId:         string
   name:               string
-  email:              string   // still in session but may be empty string
+  email:              string
   role:               string
   mustChangePassword: boolean
-  unitId:             string
-  unitName:           string
+  departmentId:       string
   department:         string
+  sectionId:          string
+  section:            string
 }
 
 declare module 'next-auth' {
@@ -35,8 +36,9 @@ declare module 'next-auth/jwt' {
     email:              string
     role:               string
     mustChangePassword: boolean
-    unitId:             string
-    unitName:           string
+    departmentId:       string
     department:         string
+    sectionId:          string
+    section:            string
   }
 }

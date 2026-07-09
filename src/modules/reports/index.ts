@@ -7,6 +7,7 @@ export {
   getManagerStats,
   getMDStats,
   getSubordinateIds,
+  getReviewerStats
 } from './actions'
 
 // ← imported from utils, not actions

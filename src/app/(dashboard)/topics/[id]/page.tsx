@@ -90,7 +90,7 @@ export default async function TopicDetailPage({
                 className="px-3 py-1 rounded-full text-xs font-medium"
                 style={{ background: '#eff6ff', color: '#1d4ed8' }}
               >
-                {td.department.name} · {td.department.unit.name}
+                {td.department.name}
               </span>
             ))}
           </div>

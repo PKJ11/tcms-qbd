@@ -25,7 +25,7 @@ const TECHNIQUE_SELECT = {
     select: {
       id:   true,
       name: true,
-      unit: { select: { id: true, name: true } },
+      
     },
   },
   _count: { select: { qualifications: true } },
@@ -583,8 +583,8 @@ export async function getCertificateUrl(certId: string): Promise<string> {
 // ── Get competency matrix ─────────────────────────────────────────
 
 export async function getCompetencyMatrix(filters?: {
-  departmentId?:  string
-  unitId?:        string
+  departmentId?:   string
+  sectionId?:      string
   subordinateIds?: string[]   // ← new
 }) {
   await prisma.qualificationRecord.updateMany({
@@ -598,12 +598,12 @@ export async function getCompetencyMatrix(filters?: {
   const persons = await prisma.person.findMany({
     where: {
       isActive: true,
-      // Subordinate scoping takes priority over unit/dept filters
+      // Subordinate scoping takes priority over department/section filters
       ...(filters?.subordinateIds && filters.subordinateIds.length > 0
         ? { id: { in: filters.subordinateIds } }
         : {
             ...(filters?.departmentId && { departmentId: filters.departmentId }),
-            ...(filters?.unitId       && { unitId:       filters.unitId       }),
+            ...(filters?.sectionId    && { sectionId:    filters.sectionId    }),
           }
       ),
     },
@@ -667,7 +667,7 @@ export async function getPersonsAndTechniques() {
     }),
     prisma.department.findMany({
       where:   { isActive: true },
-      select:  { id: true, name: true, unit: { select: { name: true } } },
+      select:  { id: true, name: true },
       orderBy: { name: 'asc' },
     }),
   ])

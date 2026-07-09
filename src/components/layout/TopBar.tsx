@@ -7,7 +7,7 @@ import { NotificationBell } from '@/components/notifications/NotificationBell'
 interface Props {
   user: {
     name:     string
-    unitName: string
+   
   }
 }
 
@@ -51,7 +51,7 @@ export function TopBar({ user }: Props) {
           className="text-xs px-2.5 py-1 rounded-full font-medium hidden sm:block"
           style={{ background: '#f0fdf4', color: '#166534' }}
         >
-          {user.unitName}
+          {user.name}
         </span>
 
         {/* Real notification bell */}

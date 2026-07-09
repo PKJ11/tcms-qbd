@@ -4,17 +4,17 @@ export interface PersonListItem {
   id:           string
   employeeId:   string
   name:         string
-  email:        string
+  email:        string | null
   role:         UserRole
   designation:  string
   isActive:     boolean
   joiningDate:  Date
   lastLoginAt:  Date | null
-  unit: {
+  department: {
     id:   string
     name: string
-  }
-  department: {
+  } | null
+  section: {
     id:   string
     name: string
   } | null
@@ -36,23 +36,23 @@ export interface PersonDetail extends PersonListItem {
 }
 
 export interface CreatePersonInput {
-  employeeId:   string
-  name:         string
-  email:        string
-  role:         UserRole
-  designation:  string
-  joiningDate:  string
-  unitId:       string
+  employeeId:    string
+  name:          string
+  email:         string
+  role:          UserRole
+  designation:   string
+  joiningDate:   string
   departmentId?: string
-  managerId?:   string
+  sectionId?:    string
+  managerId?:    string
 }
 
 export interface UpdatePersonInput {
   name?:         string
   role?:         UserRole
   designation?:  string
-  unitId?:       string
   departmentId?: string
+  sectionId?:    string
   managerId?:    string
   isActive?:     boolean
 }

@@ -5,7 +5,7 @@ export interface TrainingMatrixRow {
     employeeId: string
     designation: string
     department: { name: string } | null
-    unit:       { name: string }
+    section: { name: string } | null
   }
   topics: {
     topicId:   string
@@ -37,7 +37,7 @@ export interface OverdueReportRow {
     name:       string
     employeeId: string
     department: string | null
-    unit:       string
+    section: string | null
     manager:    string | null
   }
   assignment: {

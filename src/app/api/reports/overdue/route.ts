@@ -32,21 +32,21 @@ export async function GET(req: NextRequest) {
   }
 
   const rows = await getOverdueReport({
-    unitId:         isOrgWide ? (searchParams.get('unitId')       ?? undefined) : undefined,
     departmentId:   isOrgWide ? (searchParams.get('departmentId') ?? undefined) : undefined,
+    sectionId:      isOrgWide ? (searchParams.get('sectionId')    ?? undefined) : undefined,
     subordinateIds: subordinateIds,
   })
 
   if (format === 'csv') {
     const headers = [
-      'Employee ID', 'Name', 'Department', 'Unit',
+      'Employee ID', 'Name', 'Department', 'Section',
       'Manager', 'Topic', 'Trigger', 'Due date', 'Days overdue',
     ]
     const csvRows = rows.map((r) => [
       r.person.employeeId,
       r.person.name,
       r.person.department ?? '',
-      r.person.unit,
+      r.person.section    ?? '',
       r.person.manager    ?? '',
       r.assignment.topicName,
       r.assignment.trigger,

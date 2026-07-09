@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { JustificationModal } from '@/components/JustificationModal'
 
-interface Department { id: string; name: string; unit: { name: string } }
+interface Department { id: string; name: string;  }
 interface Technique  {
   id: string; name: string; code: string; type: string
   qualificationPeriodDays: number; isActive: boolean
-  department: { id: string; name: string; unit: { id: string; name: string } }
+  department: { id: string; name: string;  }
   _count: { qualifications: number }
 }
 
@@ -155,7 +155,7 @@ export function TechniquesManager({ techniques: initial, canCreate }: Props) {
                   <option value="">Select department</option>
                   {departments.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.name} · {d.unit.name}
+                      {d.name} 
                     </option>
                   ))}
                 </select>

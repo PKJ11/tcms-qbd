@@ -1,6 +1,6 @@
 import { getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { getUnitsAndDepartments } from '@/modules/personnel'
+import { getDepartmentsAndSections } from '@/modules/personnel'
 import { CreatePersonForm } from '@/components/personnel/CreatePersonForm'
 
 export default async function NewPersonPage() {
@@ -10,7 +10,7 @@ export default async function NewPersonPage() {
   const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR']
   if (!allowed.includes(session.user.role)) redirect('/unauthorised')
 
-  const { units, departments } = await getUnitsAndDepartments()
+  const departments = await getDepartmentsAndSections()
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>
@@ -32,7 +32,7 @@ export default async function NewPersonPage() {
           </p>
         </div>
 
-        <CreatePersonForm units={units} departments={departments} />
+        <CreatePersonForm departments={departments} />
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { autoAssignInductionTraining } from '@/modules/assignments'
 import { sendEmail } from '@/lib/email'
+import type { UserRole as PrismaUserRole } from '@prisma/client'
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -25,39 +26,55 @@ const PERSON_SELECT = {
   isActive: true,
   joiningDate: true,
   lastLoginAt: true,
-  unit: { select: { id: true, name: true } },
   department: { select: { id: true, name: true } },
+  section: { select: { id: true, name: true } },
   manager: { select: { id: true, name: true } },
 } as const
 
 // ── Get all persons ───────────────────────────────────────────────
 
 export async function getPersons(filters?: {
-  unitId?: string
-  departmentId?: string
-  role?: string
-  isActive?: boolean
-  search?: string
+  subordinateIds?: string[]
+  departmentId?:   string
+  sectionId?:      string
+  role?:           string
+  isActive?:       boolean
+  search?:         string
 }) {
-  const where: Record<string, unknown> = {}
-
-  if (filters?.unitId) where.unitId = filters.unitId
-  if (filters?.departmentId) where.departmentId = filters.departmentId
-  if (filters?.role) where.role = filters.role
-  if (filters?.isActive !== undefined) where.isActive = filters.isActive
-
-  if (filters?.search) {
-    where.OR = [
-      { name: { contains: filters.search, mode: 'insensitive' } },
-      { email: { contains: filters.search, mode: 'insensitive' } },
-      { employeeId: { contains: filters.search, mode: 'insensitive' } },
-    ]
-  }
-
   return prisma.person.findMany({
-    where,
-    select: PERSON_SELECT,
-    orderBy: { name: 'asc' },
+    where: {
+      ...(filters?.isActive !== undefined && { isActive: filters.isActive }),
+      ...(filters?.subordinateIds && filters.subordinateIds.length > 0
+        ? { id: { in: filters.subordinateIds } }
+        : {
+            ...(filters?.departmentId && { departmentId: filters.departmentId }),
+            ...(filters?.sectionId    && { sectionId:    filters.sectionId    }),
+          }
+      ),
+      ...(filters?.role && { role: filters.role as PrismaUserRole }),
+      ...(filters?.search && {
+        OR: [
+          { name:       { contains: filters.search, mode: 'insensitive' } },
+          { employeeId: { contains: filters.search, mode: 'insensitive' } },
+          { email:      { contains: filters.search, mode: 'insensitive' } },
+        ],
+      }),
+    },
+    select: {
+      id: true,
+      employeeId: true,
+      name: true,
+      email: true,
+      role: true,
+      designation: true,
+      isActive: true,
+      joiningDate: true,
+      lastLoginAt: true,
+      department: { select: { id: true, name: true } },
+      section: { select: { id: true, name: true } },
+      manager: { select: { id: true, name: true } },
+    },
+    orderBy: [{ department: { name: 'asc' } }, { name: 'asc' }],
   })
 }
 
@@ -88,7 +105,6 @@ export async function createPerson(
   const parsed = createPersonSchema.safeParse(input)
   if (!parsed.success) throw new Error(parsed.error.message)
 
-  // employeeId must be unique
   const existingEmpId = await prisma.person.findUnique({
     where: { employeeId: input.employeeId.trim().toUpperCase() },
   })
@@ -96,8 +112,7 @@ export async function createPerson(
     throw new Error(`Employee ID ${input.employeeId} is already in use`)
   }
 
-  // Email uniqueness check — ONLY if email is provided
-  if (input.email && input.email.trim()) {
+  if (input.email?.trim()) {
     const existingEmail = await prisma.person.findFirst({
       where: { email: input.email.trim().toLowerCase() },
     })
@@ -109,94 +124,66 @@ export async function createPerson(
   const tempPassword = generateTempPassword()
   const passwordHash = await bcrypt.hash(tempPassword, 12)
 
-  function buildWelcomeEmailHtml(
-  name: string,
-  employeeId: string,
-  tempPassword: string
-): string {
-  return `
-    <div style="font-family:sans-serif;max-width:480px;margin:auto">
-      <h2 style="color:#2d6a4f">Welcome to TCMS</h2>
-      <p>Dear ${name},</p>
-      <p>Your account has been created on the Training &amp; Competency Management System.</p>
-      <table style="background:#f9fafb;border-radius:8px;padding:16px;width:100%">
-        <tr>
-          <td><strong>Employee ID:</strong></td>
-          <td style="font-family:monospace;font-size:16px">${employeeId}</td>
-        </tr>
-        <tr>
-          <td><strong>Temporary password:</strong></td>
-          <td style="font-family:monospace;font-size:16px">${tempPassword}</td>
-        </tr>
-      </table>
-      <p style="color:#6b7280;font-size:13px;margin-top:16px">
-        You will be required to change this password on first login.
-      </p>
-    </div>
-  `
-}
-
   const person = await prisma.person.create({
     data: {
-      employeeId:         input.employeeId.trim().toUpperCase(),
-      name:               input.name,
-      email:              input.email?.trim().toLowerCase() || null,  // null if empty
-      designation:        input.designation,
-      role:               input.role,
-      unitId:             input.unitId,
-      departmentId:       input.departmentId      || null,
-      managerId:          input.managerId         || null,
-      joiningDate:        input.joiningDate ? new Date(input.joiningDate) : new Date(),
+      employeeId: input.employeeId.trim().toUpperCase(),
+      name: input.name,
+      email: input.email?.trim().toLowerCase() || null,
+      designation: input.designation,
+      role: input.role,
+      departmentId: input.departmentId,
+      sectionId: input.sectionId || null,
+      managerId: input.managerId || null,
+      joiningDate: input.joiningDate ? new Date(input.joiningDate) : new Date(),
       passwordHash,
       mustChangePassword: true,
     },
     select: {
-      id:         true,
+      id: true,
       employeeId: true,
-      name:       true,
-      email:      true,
+      name: true,
+      email: true,
       department: { select: { id: true, name: true } },
+      section: { select: { id: true, name: true } },
     },
   })
 
-  // Send email ONLY if email address provided
+  // Send email only if email provided
   if (person.email) {
     try {
       await sendEmail({
-        to:      person.email,
+        to: person.email,
         subject: 'Your TCMS account has been created',
-        html:    buildWelcomeEmailHtml(
-          person.name,
-          person.employeeId,
-          tempPassword
-        ),
+        html: (person.name, person.employeeId, tempPassword),
       })
     } catch (error) {
       console.error('[EMAIL ERROR]', error)
-      // Do not block person creation if email fails
     }
   }
 
-  // Log audit
   await logAuditEvent({
-    userId:        actorId,
-    action:        'CREATE',
-    module:        'PERSONNEL',
-    recordId:      person.id,
-    recordType:    'Person',
-    beforeValue:   null,
-    afterValue:    {
+    userId: actorId,
+    action: 'CREATE',
+    module: 'PERSONNEL',
+    recordId: person.id,
+    recordType: 'Person',
+    beforeValue: null,
+    afterValue: {
       employeeId: person.employeeId,
-      name:       person.name,
-      email:      person.email ?? 'not provided',
+      name: person.name,
+      department: person.department?.name,
+      section: person.section?.name ?? 'none',
     },
     justification,
   })
 
-  // Auto-assign induction training
   if (person.department) {
     try {
-      await autoAssignInductionTraining(person.id, person.department.id, actorId)
+      await autoAssignInductionTraining(
+        person.id,
+        person.department.id,
+        actorId
+      )
     } catch (error) {
       console.error('[AUTO-ASSIGN ERROR]', error)
     }
@@ -230,13 +217,21 @@ export async function updatePerson(
   const after = await prisma.person.update({
     where: { id },
     data: {
-      ...(input.name && { name: input.name }),
-      ...(input.role && { role: input.role }),
-      ...(input.designation && { designation: input.designation }),
-      ...(input.unitId && { unitId: input.unitId }),
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.role !== undefined && { role: input.role }),
+      ...(input.designation !== undefined && {
+        designation: input.designation,
+      }),
       ...(input.isActive !== undefined && { isActive: input.isActive }),
-      departmentId: input.departmentId?.trim() || null,
-      managerId: input.managerId?.trim() || null,
+      ...(input.departmentId !== undefined && {
+        departmentId: input.departmentId?.trim() || null,
+      }),
+      ...(input.sectionId !== undefined && {
+        sectionId: input.sectionId?.trim() || null,
+      }),
+      ...(input.managerId !== undefined && {
+        managerId: input.managerId?.trim() || null,
+      }),
     },
     select: PERSON_SELECT,
   })
@@ -365,20 +360,22 @@ export async function resetPersonPassword(
   return tempPassword
 }
 
-// ── Get units and departments for dropdowns ───────────────────────
+// Get departments
+export async function getDepartmentsAndSections() {
+  const departments = await prisma.department.findMany({
+    where: { isActive: true },
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      sections: {
+        where: { isActive: true },
+        select: { id: true, name: true, code: true },
+        orderBy: { name: 'asc' },
+      },
+    },
+    orderBy: { name: 'asc' },
+  })
 
-export async function getUnitsAndDepartments() {
-  const [units, departments] = await Promise.all([
-    prisma.unit.findMany({
-      where: { isActive: true },
-      orderBy: { name: 'asc' },
-    }),
-    prisma.department.findMany({
-      where: { isActive: true },
-      orderBy: { name: 'asc' },
-      include: { unit: { select: { id: true, name: true } } },
-    }),
-  ])
-
-  return { units, departments }
+  return departments
 }
