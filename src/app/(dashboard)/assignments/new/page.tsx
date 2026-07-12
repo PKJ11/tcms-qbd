@@ -1,22 +1,16 @@
 import { getSession }    from '@/lib/auth'
 import { redirect }      from 'next/navigation'
-import {
-  getActiveTopicsForAssignment,
-  getDepartmentsForAssignment,
-} from '@/modules/assignments'
+import { getActiveTopicsForAssignment } from '@/modules/assignments'
 import { AssignTrainingForm } from '@/components/assignments/AssignTrainingForm'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function NewAssignmentPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR']
-  if (!allowed.includes(session.user.role)) redirect('/unauthorised')
+  if (!hasAnyRole(session.user, PERMISSIONS.ASSIGN_TRAINING)) redirect('/unauthorised')
 
-  const [topics, departments] = await Promise.all([
-    getActiveTopicsForAssignment(),
-    getDepartmentsForAssignment(),
-  ])
+  const topics = await getActiveTopicsForAssignment()
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>
@@ -38,7 +32,7 @@ export default async function NewAssignmentPage() {
           </p>
         </div>
 
-        <AssignTrainingForm topics={topics} departments={departments} />
+        <AssignTrainingForm topics={topics} />
       </div>
     </div>
   )

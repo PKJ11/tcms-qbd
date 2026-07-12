@@ -4,11 +4,11 @@ import { prisma } from '@/lib/prisma'
 import { logAuditEvent } from '@/modules/audit-trail'
 import { createPersonSchema, updatePersonSchema } from './schema'
 import type { CreatePersonInput, UpdatePersonInput } from './types'
+import type { AppRole } from '@/lib/types'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { autoAssignInductionTraining } from '@/modules/assignments'
 import { sendEmail } from '@/lib/email'
-import type { UserRole as PrismaUserRole } from '@prisma/client'
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -21,37 +21,54 @@ const PERSON_SELECT = {
   employeeId: true,
   name: true,
   email: true,
-  role: true,
+  roles: { select: { role: true } },
   designation: true,
   isActive: true,
   joiningDate: true,
   lastLoginAt: true,
   department: { select: { id: true, name: true } },
+  unit: { select: { id: true, name: true } },
   section: { select: { id: true, name: true } },
   manager: { select: { id: true, name: true } },
 } as const
+
+// Server-side auto-increment for Guest (G-XXX) and Contractual (CR-XXX) IDs.
+// Never trust a client-supplied employeeId for these two employee types.
+async function getNextSequentialId(prefix: 'G' | 'CR'): Promise<string> {
+  const existing = await prisma.person.findMany({
+    where:  { employeeId: { startsWith: `${prefix}-` } },
+    select: { employeeId: true },
+  })
+  const max = existing
+    .map((p) => parseInt(p.employeeId.slice(prefix.length + 1), 10))
+    .filter((n) => !isNaN(n))
+    .reduce((m, n) => Math.max(m, n), 0)
+  return `${prefix}-${String(max + 1).padStart(3, '0')}`
+}
 
 // ── Get all persons ───────────────────────────────────────────────
 
 export async function getPersons(filters?: {
   subordinateIds?: string[]
   departmentId?:   string
+  unitId?:         string
   sectionId?:      string
   role?:           string
   isActive?:       boolean
   search?:         string
 }) {
-  return prisma.person.findMany({
+  const persons = await prisma.person.findMany({
     where: {
       ...(filters?.isActive !== undefined && { isActive: filters.isActive }),
       ...(filters?.subordinateIds && filters.subordinateIds.length > 0
         ? { id: { in: filters.subordinateIds } }
         : {
             ...(filters?.departmentId && { departmentId: filters.departmentId }),
+            ...(filters?.unitId       && { unitId:       filters.unitId       }),
             ...(filters?.sectionId    && { sectionId:    filters.sectionId    }),
           }
       ),
-      ...(filters?.role && { role: filters.role as PrismaUserRole }),
+      ...(filters?.role && { roles: { some: { role: filters.role as AppRole } } }),
       ...(filters?.search && {
         OR: [
           { name:       { contains: filters.search, mode: 'insensitive' } },
@@ -60,28 +77,17 @@ export async function getPersons(filters?: {
         ],
       }),
     },
-    select: {
-      id: true,
-      employeeId: true,
-      name: true,
-      email: true,
-      role: true,
-      designation: true,
-      isActive: true,
-      joiningDate: true,
-      lastLoginAt: true,
-      department: { select: { id: true, name: true } },
-      section: { select: { id: true, name: true } },
-      manager: { select: { id: true, name: true } },
-    },
+    select: PERSON_SELECT,
     orderBy: [{ department: { name: 'asc' } }, { name: 'asc' }],
   })
+
+  return persons.map((p) => ({ ...p, roles: p.roles.map((r) => r.role) }))
 }
 
 // ── Get single person ─────────────────────────────────────────────
 
 export async function getPersonById(id: string) {
-  return prisma.person.findUnique({
+  const person = await prisma.person.findUnique({
     where: { id },
     select: {
       ...PERSON_SELECT,
@@ -89,10 +95,21 @@ export async function getPersonById(id: string) {
       createdAt: true,
       updatedAt: true,
       subordinates: {
-        select: { id: true, name: true, role: true },
+        select: { id: true, name: true, roles: { select: { role: true } } },
       },
     },
   })
+
+  if (!person) return null
+
+  return {
+    ...person,
+    roles: person.roles.map((r) => r.role),
+    subordinates: person.subordinates.map((s) => ({
+      ...s,
+      roles: s.roles.map((r) => r.role),
+    })),
+  }
 }
 
 // ── Create person ─────────────────────────────────────────────────
@@ -104,17 +121,11 @@ export async function createPerson(
 ) {
   const parsed = createPersonSchema.safeParse(input)
   if (!parsed.success) throw new Error(parsed.error.message)
+  const data = parsed.data
 
-  const existingEmpId = await prisma.person.findUnique({
-    where: { employeeId: input.employeeId.trim().toUpperCase() },
-  })
-  if (existingEmpId) {
-    throw new Error(`Employee ID ${input.employeeId} is already in use`)
-  }
-
-  if (input.email?.trim()) {
+  if (data.email?.trim()) {
     const existingEmail = await prisma.person.findFirst({
-      where: { email: input.email.trim().toLowerCase() },
+      where: { email: data.email.trim().toLowerCase() },
     })
     if (existingEmail) {
       throw new Error('An account with this email address already exists')
@@ -124,29 +135,92 @@ export async function createPerson(
   const tempPassword = generateTempPassword()
   const passwordHash = await bcrypt.hash(tempPassword, 12)
 
-  const person = await prisma.person.create({
-    data: {
-      employeeId: input.employeeId.trim().toUpperCase(),
-      name: input.name,
-      email: input.email?.trim().toLowerCase() || null,
-      designation: input.designation,
-      role: input.role,
-      departmentId: input.departmentId,
-      sectionId: input.sectionId || null,
-      managerId: input.managerId || null,
-      joiningDate: input.joiningDate ? new Date(input.joiningDate) : new Date(),
-      passwordHash,
-      mustChangePassword: true,
-    },
-    select: {
-      id: true,
-      employeeId: true,
-      name: true,
-      email: true,
-      department: { select: { id: true, name: true } },
-      section: { select: { id: true, name: true } },
-    },
-  })
+  // Resolve employeeId + final role set per employee type
+  let employeeId: string
+  let roles: AppRole[]
+
+  if (data.employeeType === 'QBD') {
+    employeeId = data.employeeId.trim()
+    roles      = data.roles
+
+    const existingEmpId = await prisma.person.findUnique({ where: { employeeId } })
+    if (existingEmpId) throw new Error(`Employee ID ${employeeId} is already in use`)
+  } else if (data.employeeType === 'GUEST') {
+    roles = ['GUEST_TRAINER']
+  } else {
+    roles = ['CONTRACTUAL_EMPLOYEE', ...data.roles]
+  }
+
+  const baseData = {
+    name:               data.name,
+    email:              data.email?.trim().toLowerCase() || null,
+    designation:        data.designation,
+    departmentId:       data.departmentId,
+    unitId:             data.unitId,
+    sectionId:          data.sectionId || null,
+    managerId:          data.managerId || null,
+    joiningDate:        data.joiningDate ? new Date(data.joiningDate) : new Date(),
+    passwordHash,
+    mustChangePassword: true,
+  }
+
+  const personSelect = {
+    id: true,
+    employeeId: true,
+    name: true,
+    email: true,
+    department: { select: { id: true, name: true } },
+    unit:       { select: { id: true, name: true } },
+    section:    { select: { id: true, name: true } },
+  } as const
+
+  type CreatedPerson = {
+    id: string
+    employeeId: string
+    name: string
+    email: string | null
+    department: { id: string; name: string } | null
+    unit:       { id: string; name: string } | null
+    section:    { id: string; name: string } | null
+  }
+
+  let person: CreatedPerson
+
+  if (data.employeeType === 'QBD') {
+    person = await prisma.person.create({
+      data: {
+        ...baseData,
+        employeeId: employeeId!,
+        roles: { create: roles.map((role) => ({ role })) },
+      },
+      select: personSelect,
+    })
+  } else {
+    // Guest / Contractual — server generates the sequential ID.
+    // Retry on unique-constraint race if two admins create one concurrently.
+    const prefix = data.employeeType === 'GUEST' ? 'G' : 'CR'
+    let attempts = 0
+    while (true) {
+      attempts++
+      const candidateId = await getNextSequentialId(prefix)
+      try {
+        person = await prisma.person.create({
+          data: {
+            ...baseData,
+            employeeId: candidateId,
+            roles: { create: roles.map((role) => ({ role })) },
+          },
+          select: personSelect,
+        })
+        break
+      } catch (error) {
+        const isUniqueConflict =
+          error instanceof Object && (error as { code?: string }).code === 'P2002'
+        if (isUniqueConflict && attempts < 5) continue
+        throw error
+      }
+    }
+  }
 
   // Send email only if email provided
   if (person.email) {
@@ -171,7 +245,9 @@ export async function createPerson(
     afterValue: {
       employeeId: person.employeeId,
       name: person.name,
+      roles,
       department: person.department?.name,
+      unit: person.unit?.name,
       section: person.section?.name ?? 'none',
     },
     justification,
@@ -200,7 +276,7 @@ export async function updatePerson(
   justification: string,
   actorId: string
 ) {
-  const parsed = updatePersonSchema.safeParse(input)
+  const parsed = updatePersonSchema.safeParse({ id, ...input })
   if (!parsed.success) {
     throw new Error(parsed.error.message)
   }
@@ -213,18 +289,24 @@ export async function updatePerson(
 
   if (!before) throw new Error('Person not found')
 
+  if (input.roles !== undefined) {
+    await prisma.personRole.deleteMany({ where: { personId: id } })
+  }
+
   // Update
   const after = await prisma.person.update({
     where: { id },
     data: {
       ...(input.name !== undefined && { name: input.name }),
-      ...(input.role !== undefined && { role: input.role }),
       ...(input.designation !== undefined && {
         designation: input.designation,
       }),
       ...(input.isActive !== undefined && { isActive: input.isActive }),
       ...(input.departmentId !== undefined && {
-        departmentId: input.departmentId?.trim() || null,
+        departmentId: input.departmentId,
+      }),
+      ...(input.unitId !== undefined && {
+        unitId: input.unitId,
       }),
       ...(input.sectionId !== undefined && {
         sectionId: input.sectionId?.trim() || null,
@@ -232,9 +314,15 @@ export async function updatePerson(
       ...(input.managerId !== undefined && {
         managerId: input.managerId?.trim() || null,
       }),
+      ...(input.roles !== undefined && {
+        roles: { create: input.roles.map((role) => ({ role })) },
+      }),
     },
     select: PERSON_SELECT,
   })
+
+  const beforeFlat = { ...before, roles: before.roles.map((r) => r.role) }
+  const afterFlat  = { ...after,  roles: after.roles.map((r) => r.role) }
 
   // Audit log with before/after
   await logAuditEvent({
@@ -244,21 +332,21 @@ export async function updatePerson(
     recordId: id,
     recordType: 'Person',
     beforeValue: {
-      name: before.name,
-      role: before.role,
-      designation: before.designation,
-      isActive: before.isActive,
+      name: beforeFlat.name,
+      roles: beforeFlat.roles,
+      designation: beforeFlat.designation,
+      isActive: beforeFlat.isActive,
     },
     afterValue: {
-      name: after.name,
-      role: after.role,
-      designation: after.designation,
-      isActive: after.isActive,
+      name: afterFlat.name,
+      roles: afterFlat.roles,
+      designation: afterFlat.designation,
+      isActive: afterFlat.isActive,
     },
     justification,
   })
 
-  return after
+  return afterFlat
 }
 
 // ── Deactivate person (soft delete) ──────────────────────────────
@@ -360,17 +448,26 @@ export async function resetPersonPassword(
   return tempPassword
 }
 
-// Get departments
-export async function getDepartmentsAndSections() {
+// Get departments → units → sections (for cascading selects)
+export async function getDepartmentsUnitsAndSections() {
   const departments = await prisma.department.findMany({
     where: { isActive: true },
     select: {
       id: true,
       name: true,
       code: true,
-      sections: {
+      units: {
         where: { isActive: true },
-        select: { id: true, name: true, code: true },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          sections: {
+            where: { isActive: true },
+            select: { id: true, name: true, code: true },
+            orderBy: { name: 'asc' },
+          },
+        },
         orderBy: { name: 'asc' },
       },
     },

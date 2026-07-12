@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
         justification,
         afterValue: {
           employeeId: session.user.employeeId,
-          role:       session.user.role,
+          roles:      session.user.roles,
           logoutType: type,
           timestamp:  new Date().toISOString(),
         },

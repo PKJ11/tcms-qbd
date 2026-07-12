@@ -5,13 +5,13 @@ import {
   getPersonsForRefresher,
 } from '@/modules/refresher'
 import { TriggerRefresherForm } from '@/components/refresher/TriggerRefresherForm'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function NewRefresherPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR']
-  if (!allowed.includes(session.user.role)) redirect('/unauthorised')
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_REFRESHER)) redirect('/unauthorised')
 
   const [topics, persons] = await Promise.all([
     getActiveTopicsForRefresher(),

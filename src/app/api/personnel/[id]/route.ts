@@ -6,9 +6,7 @@ import {
   deactivatePerson,
   resetPersonPassword,
 } from '@/modules/personnel'
-import type { UserRole } from '@/lib/types'
-
-const CAN_MODIFY: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET(
   req: NextRequest,
@@ -37,7 +35,7 @@ export async function PATCH(
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  if (!CAN_MODIFY.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_USERS)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

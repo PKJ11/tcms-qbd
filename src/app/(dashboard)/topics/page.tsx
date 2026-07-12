@@ -1,12 +1,13 @@
 import { getSession } from '@/lib/auth'
 import { TopicsList } from '@/modules/topics/TopicsList'
 import { redirect } from 'next/navigation'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function TopicsPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const canCreate = ['TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
+  const canCreate = hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>

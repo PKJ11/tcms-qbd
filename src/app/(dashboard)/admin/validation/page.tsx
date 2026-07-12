@@ -1,13 +1,13 @@
 import { getSession }     from '@/lib/auth'
 import { redirect }       from 'next/navigation'
 import { ValidationHub }  from '@/components/validation/ValidationHub'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function ValidationPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR']
-  if (!allowed.includes(session.user.role)) redirect('/unauthorised')
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_USERS)) redirect('/unauthorised')
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>

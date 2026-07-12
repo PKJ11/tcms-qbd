@@ -5,9 +5,7 @@ import {
   createQuestionBank,
   getTopicsWithoutBank,
 } from '@/modules/assessment'
-import type { UserRole } from '@/lib/types'
-
-const CAN_MANAGE: UserRole[] = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET() {
   const session = await getSession()
@@ -29,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_MANAGE.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

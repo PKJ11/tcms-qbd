@@ -11,13 +11,13 @@ datasource db {
 // ENUMS
 // ─────────────────────────────────────────────
 
-enum UserRole {
-  USER
-  MANAGER
-  TRAINER
-  TRAINING_HEAD
+enum AppRole {
   ADMINISTRATOR
-  REVIEWER
+  VIEWER
+  TRAINER
+  TRAINEE
+  GUEST_TRAINER
+  CONTRACTUAL_EMPLOYEE
 }
 
 enum TrainingTrigger {
@@ -173,7 +173,7 @@ model Department {
   updatedAt DateTime @updatedAt
 
   // Relations
-  sections         Section[]
+  units            Unit[]
   persons          Person[]
   techniques       Technique[]
   topicDepartments TopicDepartment[]
@@ -181,7 +181,7 @@ model Department {
   @@map("departments")
 }
 
-model Section {
+model Unit {
   id           String   @id @default(cuid())
   name         String
   code         String
@@ -192,10 +192,39 @@ model Section {
 
   // Relations
   department Department @relation(fields: [departmentId], references: [id])
+  sections   Section[]
   persons    Person[]
 
   @@unique([departmentId, code])
+  @@map("units")
+}
+
+model Section {
+  id        String   @id @default(cuid())
+  name      String
+  code      String
+  unitId    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  unit    Unit     @relation(fields: [unitId], references: [id])
+  persons Person[]
+
+  @@unique([unitId, code])
   @@map("sections")
+}
+
+model PersonRole {
+  id       String  @id @default(cuid())
+  personId String
+  role     AppRole
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([personId, role])
+  @@map("person_roles")
 }
 
 model Person {
@@ -205,13 +234,13 @@ model Person {
   email                  String?   @unique
   passwordHash           String
   mustChangePassword     Boolean   @default(true)
-  role                   UserRole  @default(USER)
   designation            String
   isActive               Boolean   @default(true)
   joiningDate            DateTime
   lastLoginAt            DateTime?
-  departmentId           String?
-  sectionId              String?   // optional — not all depts have sections
+  departmentId           String
+  unitId                 String
+  sectionId              String?   // optional — not all units have sections
   managerId              String?
   flaggedForJobReassignment Boolean  @default(false)
   flaggedAt              DateTime?
@@ -226,7 +255,9 @@ model Person {
   updatedAt              DateTime  @updatedAt
 
   // Relations
-  department               Department?           @relation(fields: [departmentId], references: [id])
+  roles                    PersonRole[]
+  department               Department            @relation(fields: [departmentId], references: [id])
+  unit                     Unit                  @relation(fields: [unitId], references: [id])
   section                  Section?              @relation(fields: [sectionId], references: [id])
   manager                  Person?               @relation("manages", fields: [managerId], references: [id])
   subordinates             Person[]              @relation("manages")

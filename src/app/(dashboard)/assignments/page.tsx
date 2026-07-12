@@ -2,13 +2,14 @@ import { getSession } from '@/lib/auth'
 import { redirect }   from 'next/navigation'
 import { personHasSubordinates } from '@/modules/assignments'
 import { AssignmentsTabs } from '@/components/assignments/AssignmentsTabs'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function AssignmentsPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const canAssign = ['TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
-  const isOrgWide = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'].includes(session.user.role)
+  const canAssign = hasAnyRole(session.user, PERMISSIONS.ASSIGN_TRAINING)
+  const isOrgWide = hasAnyRole(session.user, ['TRAINER', 'GUEST_TRAINER', 'VIEWER'])
 
   // Check REAL subordinates, not just role label
   const hasSubordinates = isOrgWide || await personHasSubordinates(session.user.id)

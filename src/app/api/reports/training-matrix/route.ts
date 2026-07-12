@@ -2,43 +2,25 @@ import { NextRequest, NextResponse }   from 'next/server'
 import { getSession }                  from '@/lib/auth'
 import {
   getTrainingMatrix,
-  getSubordinateIds,
   convertToCSV,
 } from '@/modules/reports'
-import type { UserRole } from '@/lib/types'
-
-const CAN_VIEW: UserRole[] = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_VIEW.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.VIEW_REPORTS)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
   const { searchParams } = new URL(req.url)
   const format           = searchParams.get('format')
 
-  // Determine scope
-  const isOrgWide = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'].includes(session.user.role)
-
-  let subordinateIds: string[] | undefined
-
-  if (!isOrgWide) {
-    // MANAGER or TRAINER — scope to their direct reports only
-    subordinateIds = await getSubordinateIds(session.user.id)
-
-    if (subordinateIds.length === 0) {
-      return NextResponse.json({ matrix: [] })
-    }
-  }
-
   const matrix = await getTrainingMatrix({
-    departmentId:   isOrgWide ? (searchParams.get('departmentId') ?? undefined) : undefined,
-    topicId:        searchParams.get('topicId') ?? undefined,
-    subordinateIds: subordinateIds,
+    departmentId: searchParams.get('departmentId') ?? undefined,
+    topicId:      searchParams.get('topicId') ?? undefined,
   })
 
   if (format === 'csv') {

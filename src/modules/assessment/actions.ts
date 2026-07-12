@@ -2,6 +2,7 @@
 
 import { prisma }        from '@/lib/prisma'
 import { logAuditEvent } from '@/modules/audit-trail'
+import { hasAnyRole }    from '@/lib/permissions'
 import {
   createQuestionBankSchema,
   createQuestionSchema,
@@ -425,7 +426,7 @@ export async function submitAttempt(
     await tx.person.update({
       where: { id: actorId },
       data:  {
-        flaggedForReassignment: true,
+        flaggedForJobReassignment: true,
         flaggedAt:              new Date(),
         flagTopicId:            assignment.topicId,
         flagCycleCount:         totalRetrain,
@@ -449,15 +450,15 @@ export async function submitAttempt(
       },
     })
 
-    // Notify ALL Training Heads with full person + topic details
-    const trainingHeads = await tx.person.findMany({
-      where:  { role: 'TRAINING_HEAD', isActive: true },
+    // Notify ALL Trainers with full person + topic details
+    const trainers = await tx.person.findMany({
+      where:  { isActive: true, roles: { some: { role: 'TRAINER' } } },
       select: { id: true },
     })
 
-    if (trainingHeads.length > 0) {
+    if (trainers.length > 0) {
       await tx.notification.createMany({
-        data: trainingHeads.map((th) => ({
+        data: trainers.map((th) => ({
           personId: th.id,
           type:     'RETRAINING' as const,
           channel:  'IN_APP'     as const,
@@ -595,13 +596,13 @@ export async function submitOralAttempt(
   },
   actorId: string
 ): Promise<AttemptResult> {
-  // Verify actor is a Trainer/Training Head/ADMINISTRATOR
+  // Verify actor is a Trainer/Guest Trainer
   const actor = await prisma.person.findUnique({
     where:  { id: actorId },
-    select: { role: true, name: true },
+    select: { name: true, roles: { select: { role: true } } },
   })
-  const allowedRoles = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR']
-  if (!actor || !allowedRoles.includes(actor.role)) {
+  const actorRoles = actor?.roles.map((r) => r.role) ?? []
+  if (!actor || !hasAnyRole({ roles: actorRoles }, ['TRAINER', 'GUEST_TRAINER'])) {
     throw new Error('Only Trainers can record oral assessment outcomes')
   }
 

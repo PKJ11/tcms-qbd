@@ -6,15 +6,16 @@ import { JustificationModal }  from '@/components/JustificationModal'
 
 interface Topic   { id: string; name: string }
 interface Section { id: string; name: string }
+interface Unit    { id: string; name: string; sections: Section[] }
 interface Department {
   id:       string
   name:     string
   code:     string
-  sections: Section[]
+  units:    Unit[]
   _count?:  { persons: number }
 }
 interface Person {
-  id: string; name: string; employeeId: string; designation: string; role?: string
+  id: string; name: string; employeeId: string; designation: string; roles: string[]
   department: { id: string; name: string } | null
 }
 
@@ -77,7 +78,7 @@ export function AssignTrainingForm({ topics }: Props) {
       const res  = await fetch('/api/personnel?isActive=true')
       const data = await res.json()
       const people = (data.persons ?? []) as Person[]
-      setManagers(people.filter((p) => ['MANAGER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'TRAINER'].includes(p.role ?? '')))
+      setManagers(people.filter((p) => p.roles.some((r) => ['ADMINISTRATOR', 'TRAINER'].includes(r))))
     }
     fetchManagers()
   }, [])
@@ -404,9 +405,13 @@ export function AssignTrainingForm({ topics }: Props) {
                 </div>
               </div>
 
-              {/* Per-department section pickers */}
+              {/* Per-department section pickers (labeled with their Unit) */}
               {selectedDepartments.map((dept) => {
-                if (dept.sections.length === 0) {
+                const deptSections = dept.units.flatMap((u) =>
+                  u.sections.map((s) => ({ ...s, label: `${u.name} — ${s.name}` }))
+                )
+
+                if (deptSections.length === 0) {
                   return (
                     <div
                       key={dept.id}
@@ -419,7 +424,7 @@ export function AssignTrainingForm({ topics }: Props) {
                 }
 
                 const deptSectionIds = sectionSelections[dept.id] ?? []
-                const allSectionIds  = dept.sections.map((s) => s.id)
+                const allSectionIds  = deptSections.map((s) => s.id)
 
                 return (
                   <div key={dept.id}>
@@ -439,8 +444,8 @@ export function AssignTrainingForm({ topics }: Props) {
                       >
                         <span className="text-xs font-semibold text-gray-600">
                           {deptSectionIds.length === 0
-                            ? `All sections (${dept.sections.length})`
-                            : `${deptSectionIds.length} of ${dept.sections.length} selected`}
+                            ? `All sections (${deptSections.length})`
+                            : `${deptSectionIds.length} of ${deptSections.length} selected`}
                         </span>
                         <button
                           type="button"
@@ -451,7 +456,7 @@ export function AssignTrainingForm({ topics }: Props) {
                           {deptSectionIds.length === allSectionIds.length ? 'Deselect all' : 'Select all'}
                         </button>
                       </div>
-                      {dept.sections.map((section) => {
+                      {deptSections.map((section) => {
                         const selected = deptSectionIds.includes(section.id)
                         return (
                           <label
@@ -468,7 +473,7 @@ export function AssignTrainingForm({ topics }: Props) {
                               onChange={() => toggleSection(dept.id, section.id)}
                               className="w-4 h-4 accent-green-700"
                             />
-                            <span className="text-sm text-gray-800">{section.name}</span>
+                            <span className="text-sm text-gray-800">{section.label}</span>
                           </label>
                         )
                       })}

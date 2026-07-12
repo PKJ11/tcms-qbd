@@ -1,12 +1,13 @@
 import { getSession } from '@/lib/auth'
 import { redirect }   from 'next/navigation'
 import { AssessmentsView } from '@/components/assessments/AssessmentsView'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function AssessmentsPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const canManage = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
+  const canManage = hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>

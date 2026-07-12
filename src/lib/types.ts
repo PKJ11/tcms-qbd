@@ -1,22 +1,19 @@
 import type { DefaultSession } from 'next-auth'
+import type { AppRole } from '@prisma/client'
 
-export type UserRole =
-  | 'USER'
-  | 'MANAGER'
-  | 'TRAINER'
-  | 'TRAINING_HEAD'
-  | 'ADMINISTRATOR'
-  | 'REVIEWER'
+export type { AppRole }
 
 export interface TCMSUser {
   id:                 string
   employeeId:         string
   name:               string
   email:              string
-  role:               string
+  roles:              AppRole[]
   mustChangePassword: boolean
   departmentId:       string
   department:         string
+  unitId:             string
+  unit:               string
   sectionId:          string
   section:            string
 }
@@ -34,10 +31,12 @@ declare module 'next-auth/jwt' {
     employeeId:         string
     name:               string
     email:              string
-    role:               string
+    roles:              AppRole[]
     mustChangePassword: boolean
     departmentId:       string
     department:         string
+    unitId:             string
+    unit:               string
     sectionId:          string
     section:            string
   }

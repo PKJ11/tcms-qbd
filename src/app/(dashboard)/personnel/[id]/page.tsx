@@ -1,8 +1,10 @@
 import { getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { getPersonById } from '@/modules/personnel'
+import { getPersonById, getDepartmentsUnitsAndSections } from '@/modules/personnel'
 import { PersonDetail } from '@/components/personnel/PersonDetail'
+import { EditPersonForm } from '@/components/personnel/EditPersonForm'
 import { formatDate } from '@/lib/utils'
+import { PERMISSIONS, hasAnyRole, ROLE_LABELS } from '@/lib/permissions'
 
 export default async function PersonDetailPage({
   params,
@@ -15,7 +17,8 @@ export default async function PersonDetailPage({
   const person = await getPersonById(params.id)
   if (!person) redirect('/personnel')
 
-  const canEdit = ['TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
+  const canEdit    = hasAnyRole(session.user, PERMISSIONS.MANAGE_USERS)
+  const departments = canEdit ? await getDepartmentsUnitsAndSections() : []
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>
@@ -74,9 +77,10 @@ export default async function PersonDetailPage({
           <div className="grid grid-cols-2 gap-4 text-sm">
             {[
               { label: 'Email',       value: person.email             },
-              { label: 'Role',        value: person.role.replace('_',' ') },
+              { label: 'Role(s)',     value: person.roles.map((r) => ROLE_LABELS[r]).join(', ') },
 
               { label: 'Department',  value: person.department?.name ?? '—' },
+              { label: 'Unit',        value: person.unit?.name ?? '—' },
               { label: 'Manager',     value: person.manager?.name    ?? '—' },
               { label: 'Joined',      value: formatDate(person.joiningDate) },
               { label: 'Last login',  value: person.lastLoginAt ? formatDate(person.lastLoginAt) : '—' },
@@ -89,6 +93,22 @@ export default async function PersonDetailPage({
             ))}
           </div>
         </div>
+
+        {/* Edit role / org placement */}
+        {canEdit && (
+          <div className="mb-4">
+            <EditPersonForm
+              person={{
+                id:           person.id,
+                roles:        person.roles,
+                departmentId: person.department?.id ?? '',
+                unitId:       person.unit?.id ?? '',
+                sectionId:    person.section?.id ?? '',
+              }}
+              departments={departments}
+            />
+          </div>
+        )}
 
         {/* Actions */}
         {canEdit && (

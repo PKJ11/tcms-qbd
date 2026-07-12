@@ -2,13 +2,13 @@ import { getSession }     from '@/lib/auth'
 import { redirect }       from 'next/navigation'
 import { getActiveTopics } from '@/modules/content'
 import { UploadMaterialForm } from '@/components/content/UploadMaterialForm'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function UploadMaterialPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR']
-  if (!allowed.includes(session.user.role)) redirect('/unauthorised')
+  if (!hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)) redirect('/unauthorised')
 
   const topics = await getActiveTopics()
 

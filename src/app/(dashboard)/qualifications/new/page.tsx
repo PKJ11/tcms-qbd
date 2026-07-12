@@ -2,14 +2,13 @@ import { getSession }              from '@/lib/auth'
 import { redirect }                from 'next/navigation'
 import { getPersonsAndTechniques } from '@/modules/qualification'
 import { CreateQualificationForm } from '@/components/qualifications/CreateQualificationForm'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function NewQualificationPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  // TRAINING_HEAD and ADMINISTRATOR can create qualifications
-  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR']
-  if (!allowed.includes(session.user.role)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_QUALIFICATIONS)) {
     redirect('/unauthorised')
   }
 

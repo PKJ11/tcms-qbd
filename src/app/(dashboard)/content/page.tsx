@@ -2,6 +2,7 @@ import { getSession }  from '@/lib/auth'
 import { redirect }    from 'next/navigation'
 import { ContentList } from '@/components/content/ContentList'
 import { prisma }      from '@/lib/prisma'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function ContentPage({
   searchParams,
@@ -11,7 +12,7 @@ export default async function ContentPage({
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const canUpload = ['TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
+  const canUpload = hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)
 
   // If filtering by topic, fetch the topic name for display
   let filteredTopic: { id: string; name: string } | null = null

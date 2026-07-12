@@ -1,41 +1,51 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
+import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/permissions'
+import type { AppRole } from '@/lib/types'
 
 interface Section    { id: string; name: string; code: string }
-interface Department { id: string; name: string; code: string; sections: Section[] }
+interface Unit       { id: string; name: string; code: string; sections: Section[] }
+interface Department { id: string; name: string; code: string; units: Unit[] }
 interface Manager    { id: string; name: string; designation: string }
 
 interface Props {
   departments: Department[]
 }
 
-const ROLES = [
-  { value: 'USER',          label: 'User'          },
-  { value: 'MANAGER',       label: 'Manager'       },
-  { value: 'TRAINER',       label: 'Trainer'       },
-  { value: 'TRAINING_HEAD', label: 'Training Head' },
-  { value: 'ADMINISTRATOR', label: 'Administrator' },
-  { value: 'REVIEWER',      label: 'Reviewer'      },
+type EmployeeType = 'QBD' | 'GUEST' | 'CONTRACTUAL'
+
+const EMPLOYEE_TYPES: { value: EmployeeType; label: string }[] = [
+  { value: 'QBD',          label: 'QBD Employee' },
+  { value: 'GUEST',        label: 'Guest' },
+  { value: 'CONTRACTUAL',  label: 'Contractual Employee' },
 ]
+
+const QBD_ROLES: AppRole[]          = ['ADMINISTRATOR', 'VIEWER', 'TRAINER', 'TRAINEE']
+const CONTRACTUAL_ROLES: AppRole[]  = ['TRAINER', 'TRAINEE']
 
 export function CreatePersonForm({ departments }: Props) {
   const router = useRouter()
+
+  const [employeeType, setEmployeeType] = useState<EmployeeType>('QBD')
 
   const [form, setForm] = useState({
     employeeId:   '',
     name:         '',
     email:        '',
-    role:         'USER',
     designation:  '',
     joiningDate:  '',
     departmentId: '',
+    unitId:       '',
     sectionId:    '',
     managerId:    '',
   })
 
+  const [roles, setRoles] = useState<AppRole[]>([])
+
+  const [units,     setUnits]     = useState<Unit[]>([])
   const [sections,  setSections]  = useState<Section[]>([])
   const [managers,  setManagers]  = useState<Manager[]>([])
   const [modalOpen, setModalOpen] = useState(false)
@@ -43,7 +53,7 @@ export function CreatePersonForm({ departments }: Props) {
   const [error,     setError]     = useState<string | null>(null)
   const [success,   setSuccess]   = useState<string | null>(null)
 
-  // Fetch potential managers when department changes
+  // Fetch potential managers when department changes (Administrator + Trainer only)
   useEffect(() => {
     if (!form.departmentId) {
       setManagers([])
@@ -58,10 +68,9 @@ export function CreatePersonForm({ departments }: Props) {
       const res  = await fetch(`/api/personnel?${params}`)
       const data = await res.json()
 
-      // Only MANAGER, TRAINER, TRAINING_HEAD, ADMINISTRATOR, REVIEWER can be managers
-      const managerRoles = ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER']
+      const managerRoles: AppRole[] = ['ADMINISTRATOR', 'TRAINER']
       const filtered = (data.persons ?? []).filter(
-        (p: { role: string }) => managerRoles.includes(p.role)
+        (p: { roles: AppRole[] }) => p.roles.some((r) => managerRoles.includes(r))
       )
       setManagers(filtered)
     }
@@ -69,19 +78,27 @@ export function CreatePersonForm({ departments }: Props) {
     fetchManagers()
   }, [form.departmentId])
 
+  function handleEmployeeTypeChange(type: EmployeeType) {
+    setEmployeeType(type)
+    setError(null)
+    setForm((prev) => ({ ...prev, employeeId: '' }))
+    if (type === 'GUEST') setRoles(['GUEST_TRAINER'])
+    else setRoles([])
+  }
+
+  function toggleRole(role: AppRole) {
+    setRoles((prev) =>
+      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
+    )
+  }
+
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) {
     const { name, value } = e.target
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-      // Reset section and manager when department changes
-      ...(name === 'departmentId' ? { sectionId: '', managerId: '' } : {}),
-    }))
+    setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  // When department changes — update sections dropdown
   function handleDepartmentChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const deptId = e.target.value
     const dept   = departments.find((d) => d.id === deptId)
@@ -89,20 +106,49 @@ export function CreatePersonForm({ departments }: Props) {
     setForm((prev) => ({
       ...prev,
       departmentId: deptId,
+      unitId:       '',
       sectionId:    '',
       managerId:    '',
     }))
 
-    setSections(dept?.sections ?? [])
+    setUnits(dept?.units ?? [])
+    setSections([])
   }
+
+  function handleUnitChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const unitId = e.target.value
+    const unit   = units.find((u) => u.id === unitId)
+
+    setForm((prev) => ({ ...prev, unitId, sectionId: '' }))
+    setSections(unit?.sections ?? [])
+  }
+
+  const availableRoles = useMemo(
+    () => (employeeType === 'QBD' ? QBD_ROLES : employeeType === 'CONTRACTUAL' ? CONTRACTUAL_ROLES : []),
+    [employeeType]
+  )
 
   function handleSubmitClick(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
 
-    if (!form.employeeId || !form.name || !form.email ||
-        !form.designation || !form.joiningDate || !form.departmentId) {
+    if (!form.name || !form.designation || !form.departmentId || !form.unitId) {
       setError('Please fill in all required fields.')
+      return
+    }
+
+    if (employeeType === 'QBD' && !form.employeeId.trim()) {
+      setError('Employee ID is required for QBD Employees.')
+      return
+    }
+
+    if (employeeType === 'QBD' && !/^\d+$/.test(form.employeeId.trim())) {
+      setError('QBD Employee ID must be numeric only.')
+      return
+    }
+
+    if ((employeeType === 'QBD' || employeeType === 'CONTRACTUAL') && roles.length === 0) {
+      setError('Select at least one role.')
       return
     }
 
@@ -114,10 +160,25 @@ export function CreatePersonForm({ departments }: Props) {
     setLoading(true)
     setError(null)
 
+    const payload = {
+      employeeType,
+      employeeId:   employeeType === 'QBD' ? form.employeeId.trim() : undefined,
+      name:         form.name,
+      email:        form.email || undefined,
+      designation:  form.designation,
+      joiningDate:  form.joiningDate || undefined,
+      departmentId: form.departmentId,
+      unitId:       form.unitId,
+      sectionId:    form.sectionId || undefined,
+      managerId:    form.managerId || undefined,
+      roles:        employeeType === 'GUEST' ? undefined : roles,
+      justification,
+    }
+
     const res = await fetch('/api/personnel', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ ...form, justification }),
+      body:    JSON.stringify(payload),
     })
 
     const data = await res.json()
@@ -129,7 +190,8 @@ export function CreatePersonForm({ departments }: Props) {
     }
 
     setSuccess(
-      `Person created successfully. A temporary password has been emailed to ${form.email}.`
+      `Person created successfully — Employee ID: ${data.person.employeeId}.` +
+      (form.email ? ' A temporary password has been emailed.' : '')
     )
 
     setTimeout(() => router.push('/personnel'), 2000)
@@ -148,6 +210,24 @@ export function CreatePersonForm({ departments }: Props) {
         className="bg-white rounded-2xl border p-6"
         style={{ borderColor: '#e5e7eb' }}
       >
+        {/* Employee type tabs */}
+        <div className="flex gap-2 mb-6 border-b" style={{ borderColor: '#e5e7eb' }}>
+          {EMPLOYEE_TYPES.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => handleEmployeeTypeChange(t.value)}
+              className="px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px"
+              style={{
+                borderColor: employeeType === t.value ? '#2d6a4f' : 'transparent',
+                color:       employeeType === t.value ? '#2d6a4f' : '#6b7280',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         <form onSubmit={handleSubmitClick} className="flex flex-col gap-5">
 
           {/* Row 1 — Employee ID + Name */}
@@ -156,16 +236,26 @@ export function CreatePersonForm({ departments }: Props) {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Employee ID <span className="text-red-500">*</span>
               </label>
-              <input
-                name="employeeId"
-                value={form.employeeId}
-                onChange={handleChange}
-                placeholder="EMP-004"
-                className={inputClass}
-                style={inputStyle}
-                onFocus={focusOn}
-                onBlur={focusOff}
-              />
+              {employeeType === 'QBD' ? (
+                <input
+                  name="employeeId"
+                  value={form.employeeId}
+                  onChange={handleChange}
+                  placeholder="e.g. 1006"
+                  inputMode="numeric"
+                  className={inputClass}
+                  style={inputStyle}
+                  onFocus={focusOn}
+                  onBlur={focusOff}
+                />
+              ) : (
+                <div
+                  className="w-full px-4 py-2.5 rounded-lg border text-sm text-gray-500"
+                  style={{ borderColor: '#e5e7eb', background: '#f9fafb' }}
+                >
+                  Will be auto-assigned as {employeeType === 'GUEST' ? 'G-XXX' : 'CR-XXX'} on save
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -188,7 +278,8 @@ export function CreatePersonForm({ departments }: Props) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Email <span className="text-red-500">*</span>
+                Email
+                <span className="text-gray-400 font-normal ml-1">(optional)</span>
               </label>
               <input
                 name="email"
@@ -219,29 +310,11 @@ export function CreatePersonForm({ departments }: Props) {
             </div>
           </div>
 
-          {/* Row 3 — Role + Joining Date */}
+          {/* Row 3 — Joining Date */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Role <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="role"
-                value={form.role}
-                onChange={handleChange}
-                className={inputClass}
-                style={inputStyle}
-                onFocus={focusOn}
-                onBlur={focusOff}
-              >
-                {ROLES.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Joining Date <span className="text-red-500">*</span>
+                Joining Date
               </label>
               <input
                 name="joiningDate"
@@ -256,8 +329,62 @@ export function CreatePersonForm({ departments }: Props) {
             </div>
           </div>
 
-          {/* Row 4 — Department + Section */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Roles */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Role(s) <span className="text-red-500">*</span>
+            </label>
+
+            {employeeType === 'GUEST' ? (
+              <div
+                className="px-4 py-3 rounded-lg border text-sm"
+                style={{ borderColor: '#e5e7eb', background: '#f9fafb' }}
+              >
+                <span className="font-medium" style={{ color: '#c2410c' }}>
+                  {ROLE_LABELS.GUEST_TRAINER}
+                </span>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {ROLE_DESCRIPTIONS.GUEST_TRAINER}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {availableRoles.map((role) => (
+                  <label
+                    key={role}
+                    className="flex items-start gap-3 px-4 py-2.5 rounded-lg border cursor-pointer"
+                    style={{
+                      borderColor: roles.includes(role) ? '#2d6a4f' : '#e5e7eb',
+                      background:  roles.includes(role) ? '#f0fdf4' : '#fff',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={roles.includes(role)}
+                      onChange={() => toggleRole(role)}
+                      className="w-4 h-4 mt-0.5 rounded border-gray-300 accent-green-700"
+                    />
+                    <div>
+                      <div className="text-sm font-medium text-gray-800">
+                        {ROLE_LABELS[role]}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {ROLE_DESCRIPTIONS[role]}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+                {employeeType === 'CONTRACTUAL' && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Also tagged as {ROLE_LABELS.CONTRACTUAL_EMPLOYEE} — {ROLE_DESCRIPTIONS.CONTRACTUAL_EMPLOYEE}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Department + Unit + Section */}
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Department <span className="text-red-500">*</span>
@@ -274,6 +401,32 @@ export function CreatePersonForm({ departments }: Props) {
                 <option value="">Select department</option>
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Unit <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="unitId"
+                value={form.unitId}
+                onChange={handleUnitChange}
+                disabled={units.length === 0}
+                className={inputClass}
+                style={{
+                  ...inputStyle,
+                  opacity: units.length === 0 ? 0.5 : 1,
+                  cursor:  units.length === 0 ? 'not-allowed' : 'auto',
+                }}
+                onFocus={focusOn}
+                onBlur={focusOff}
+              >
+                <option value="">
+                  {!form.departmentId ? 'Select a department first' : 'Select unit'}
+                </option>
+                {units.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
                 ))}
               </select>
             </div>
@@ -297,10 +450,10 @@ export function CreatePersonForm({ departments }: Props) {
                 onBlur={focusOff}
               >
                 <option value="">
-                  {!form.departmentId
-                    ? 'Select a department first'
+                  {!form.unitId
+                    ? 'Select a unit first'
                     : sections.length === 0
-                    ? 'This department has no sections'
+                    ? 'This unit has no sections'
                     : 'No specific section'}
                 </option>
                 {sections.map((s) => (
@@ -310,7 +463,7 @@ export function CreatePersonForm({ departments }: Props) {
             </div>
           </div>
 
-          {/* Row 5 — Manager */}
+          {/* Manager */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Reporting Manager
@@ -344,7 +497,7 @@ export function CreatePersonForm({ departments }: Props) {
               ))}
             </select>
             <p className="text-xs text-gray-400 mt-1">
-              Only active Managers, Trainers, Training Heads, and above are shown.
+              Only active Administrators and Trainers are shown.
             </p>
           </div>
 
@@ -400,7 +553,7 @@ export function CreatePersonForm({ departments }: Props) {
       <JustificationModal
         isOpen={modalOpen}
         title="Confirm person creation"
-        description={`Creating account for ${form.name || 'new person'}. A temporary password will be emailed.`}
+        description={`Creating account for ${form.name || 'new person'}.${form.email ? ' A temporary password will be emailed.' : ''}`}
         onConfirm={handleConfirm}
         onCancel={() => setModalOpen(false)}
         loading={loading}

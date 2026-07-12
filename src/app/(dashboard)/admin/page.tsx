@@ -3,13 +3,13 @@ import { redirect }   from 'next/navigation'
 import { TrainerCertificatesAdmin } from '@/components/admin/TrainerCertificatesAdmin'
 import { FlaggedPersonsAdmin }      from '@/components/admin/FlaggedPersonsAdmin'
 import { OverdueScanAdmin }         from '@/components/admin/OverdueScanAdmin'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function AdminPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR']
-  if (!allowed.includes(session.user.role)) redirect('/unauthorised')
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_USERS)) redirect('/unauthorised')
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>
@@ -43,6 +43,38 @@ export default async function AdminPage() {
               </div>
               <div className="text-xs text-gray-500 mt-0.5">
                 RTM, IQ/OQ/PQ execution, test evidence, validation reports. URS-VAL-001 to 004.
+              </div>
+            </div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </a>
+
+        {/* Organization structure quick access */}
+        <a
+          href="/admin/organization"
+          className="flex items-center justify-between bg-white rounded-xl border p-5 mb-6 hover:shadow-sm transition-shadow"
+          style={{ borderColor: '#e5e7eb' }}
+        >
+          <div className="flex items-center gap-4">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: '#f0fdf4' }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2d6a4f" strokeWidth="2">
+                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="14" y="14" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+              </svg>
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-gray-900">
+                Organization Structure
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                Manage Units and Sections within each Department.
               </div>
             </div>
           </div>

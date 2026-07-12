@@ -2,9 +2,9 @@ import { NextResponse }          from 'next/server'
 import { getSession }            from '@/lib/auth'
 import {
   getTrainingHeadStats,
-  getManagerStats,
   getReviewerStats,
 } from '@/modules/reports'
+import { hasAnyRole } from '@/lib/permissions'
 
 export async function GET() {
   const session = await getSession()
@@ -12,21 +12,14 @@ export async function GET() {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  const { role, id: userId } = session.user
-
-  if (role === 'REVIEWER') {
-    const stats = await getReviewerStats()
-    return NextResponse.json({ stats, type: 'reviewer' })
-  }
-
-  if (['TRAINING_HEAD', 'ADMINISTRATOR'].includes(role)) {
+  if (hasAnyRole(session.user, ['TRAINER', 'GUEST_TRAINER'])) {
     const stats = await getTrainingHeadStats()
     return NextResponse.json({ stats, type: 'training_head' })
   }
 
-  if (role === 'MANAGER') {
-    const stats = await getManagerStats(userId)
-    return NextResponse.json({ stats, type: 'manager' })
+  if (hasAnyRole(session.user, ['ADMINISTRATOR', 'VIEWER'])) {
+    const stats = await getReviewerStats()
+    return NextResponse.json({ stats, type: 'reviewer' })
   }
 
   return NextResponse.json({ stats: null, type: 'user' })

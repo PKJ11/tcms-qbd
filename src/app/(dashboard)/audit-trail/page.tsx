@@ -1,14 +1,14 @@
 import { getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { AuditTrailViewer } from '@/components/AuditTrailViewer'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function AuditTrailPage() {
   const session = await getSession()
 
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER']
-  if (!allowed.includes(session.user.role)) redirect('/unauthorised')
+  if (!hasAnyRole(session.user, PERMISSIONS.VIEW_AUDIT_TRAIL)) redirect('/unauthorised')
 
   return (
     <div

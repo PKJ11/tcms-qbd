@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { approveMaterialVersion } from '@/modules/content'
-import type { UserRole } from '@/lib/types'
-
-const CAN_APPROVE: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function POST(
   req: NextRequest,
@@ -15,7 +13,7 @@ export async function POST(
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  if (!CAN_APPROVE.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.APPROVE_CONTENT)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

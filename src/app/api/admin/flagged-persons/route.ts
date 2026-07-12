@@ -1,9 +1,7 @@
 import { NextResponse }  from 'next/server'
 import { getSession }    from '@/lib/auth'
 import { prisma }        from '@/lib/prisma'
-import type { UserRole } from '@/lib/types'
-
-const CAN_VIEW: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET() {
   const session = await getSession()
@@ -11,7 +9,7 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_VIEW.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_USERS)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

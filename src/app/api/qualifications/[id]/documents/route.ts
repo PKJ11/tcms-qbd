@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { uploadScannedDocument } from '@/modules/qualification'
 import { prisma } from '@/lib/prisma'
-import type { UserRole } from '@/lib/types'
-
-const CAN_UPLOAD: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR', 'TRAINER']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET(
   _req: NextRequest,
@@ -40,7 +38,7 @@ export async function POST(
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_UPLOAD.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_QUALIFICATIONS)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

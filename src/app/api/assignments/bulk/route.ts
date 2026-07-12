@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { bulkAssignByDepartment } from '@/modules/assignments'
-import type { UserRole } from '@/lib/types'
-
-const CAN_ASSIGN: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
@@ -12,7 +10,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  if (!CAN_ASSIGN.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.ASSIGN_TRAINING)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

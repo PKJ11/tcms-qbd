@@ -26,14 +26,16 @@ export const authOptions: NextAuthOptions = {
             employeeId:         true,
             name:               true,
             email:              true,
-            role:               true,
             passwordHash:       true,
             mustChangePassword: true,
             isActive:           true,
             departmentId:       true,
+            unitId:             true,
             sectionId:          true,
             department:         { select: { id: true, name: true } },
+            unit:               { select: { id: true, name: true } },
             section:            { select: { id: true, name: true } },
+            roles:              { select: { role: true } },
           },
         })
 
@@ -49,10 +51,12 @@ export const authOptions: NextAuthOptions = {
           employeeId:         person.employeeId,
           name:               person.name,
           email:              person.email ?? '',
-          role:               person.role,
+          roles:              person.roles.map((r) => r.role),
           mustChangePassword: person.mustChangePassword,
-          departmentId:       person.departmentId ?? '',
+          departmentId:       person.departmentId,
           department:         person.department?.name ?? '',
+          unitId:             person.unitId,
+          unit:               person.unit?.name ?? '',
           sectionId:          person.sectionId ?? '',
           section:            person.section?.name ?? '',
         }
@@ -70,10 +74,12 @@ export const authOptions: NextAuthOptions = {
         token.employeeId         = u.employeeId
         token.name               = u.name
         token.email              = u.email
-        token.role               = u.role
+        token.roles              = u.roles
         token.mustChangePassword = u.mustChangePassword
         token.departmentId       = u.departmentId
         token.department         = u.department
+        token.unitId             = u.unitId
+        token.unit               = u.unit
         token.sectionId          = u.sectionId
         token.section            = u.section
       }
@@ -86,10 +92,12 @@ export const authOptions: NextAuthOptions = {
         employeeId:         token.employeeId         as string,
         name:               token.name               as string,
         email:              token.email              as string,
-        role:               token.role               as string,
+        roles:              token.roles,
         mustChangePassword: token.mustChangePassword as boolean,
         departmentId:       token.departmentId       as string,
         department:         token.department         as string,
+        unitId:             token.unitId             as string,
+        unit:               token.unit               as string,
         sectionId:          token.sectionId          as string,
         section:            token.section            as string,
       }
@@ -111,7 +119,7 @@ export const authOptions: NextAuthOptions = {
             justification: 'User login',
             afterValue:    {
               employeeId: u.employeeId,
-              role:       u.role,
+              roles:      u.roles,
               timestamp:  new Date().toISOString(),
             },
           },

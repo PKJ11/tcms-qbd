@@ -2,13 +2,13 @@ import { getSession }          from '@/lib/auth'
 import { redirect }            from 'next/navigation'
 import { getTopicsWithoutBank } from '@/modules/assessment'
 import { CreateBankForm }      from '@/components/assessments/CreateBankForm'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function NewBankPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR']
-  if (!allowed.includes(session.user.role)) redirect('/unauthorised')
+  if (!hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)) redirect('/unauthorised')
 
   const topics = await getTopicsWithoutBank()
 

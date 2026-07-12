@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import type { UserRole } from '@/lib/types'
-
-// Only Training Head and above can read audit logs
-const ALLOWED_ROLES: UserRole[] = [
-  'TRAINING_HEAD',
-  'ADMINISTRATOR',
-  'REVIEWER',
-]
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -17,7 +10,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  if (!ALLOWED_ROLES.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.VIEW_AUDIT_TRAIL)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

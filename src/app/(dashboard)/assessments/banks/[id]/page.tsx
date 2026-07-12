@@ -3,6 +3,7 @@ import { redirect }   from 'next/navigation'
 import { prisma }     from '@/lib/prisma'
 import { getQuestionBankByTopic } from '@/modules/assessment'
 import { QuestionBankDetail } from '@/components/assessments/QuestionBankDetail'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function BankDetailPage({
   params,
@@ -12,8 +13,7 @@ export default async function BankDetailPage({
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR']
-  if (!allowed.includes(session.user.role)) redirect('/unauthorised')
+  if (!hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)) redirect('/unauthorised')
 
   const bankRef = await prisma.questionBank.findUnique({
     where:  { id: params.id },

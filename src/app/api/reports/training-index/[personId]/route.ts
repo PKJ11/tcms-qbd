@@ -2,9 +2,9 @@ import { NextRequest, NextResponse }   from 'next/server'
 import { getSession }                  from '@/lib/auth'
 import {
   getTrainingIndex,
-  getSubordinateIds,
   convertToCSV,
 } from '@/modules/reports'
+import { hasAnyRole } from '@/lib/permissions'
 
 export async function GET(
   req: NextRequest,
@@ -15,22 +15,11 @@ export async function GET(
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  const isOrgWide    = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'].includes(session.user.role)
-  const isSubManager = ['MANAGER', 'TRAINER'].includes(session.user.role)
+  const isOrgWide = hasAnyRole(session.user, ['VIEWER', 'TRAINER', 'GUEST_TRAINER'])
 
-  // Users can only view their own training index
-  if (!isOrgWide && !isSubManager) {
-    if (params.personId !== session.user.id) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
-    }
-  }
-
-  // MANAGER/TRAINER can only view their subordinates
-  if (isSubManager && params.personId !== session.user.id) {
-    const subordinateIds = await getSubordinateIds(session.user.id)
-    if (!subordinateIds.includes(params.personId)) {
-      return NextResponse.json({ message: 'Forbidden — not your subordinate' }, { status: 403 })
-    }
+  // Non-elevated users can only view their own training index
+  if (!isOrgWide && params.personId !== session.user.id) {
+    return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
   const { searchParams } = new URL(req.url)

@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getQuestionBankByTopic, updateQuestionBank } from '@/modules/assessment'
 import { prisma } from '@/lib/prisma'
-import type { UserRole } from '@/lib/types'
-
-const CAN_MANAGE: UserRole[] = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET(
   _req: NextRequest,
@@ -35,7 +33,7 @@ export async function PATCH(
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_MANAGE.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

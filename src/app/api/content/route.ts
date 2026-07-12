@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession }    from '@/lib/auth'
 import { getMaterials, uploadMaterial } from '@/modules/content'
-import type { UserRole } from '@/lib/types'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 import type { CreateMaterialInput, FileType, VersionType } from '@/modules/content'
-
-const CAN_UPLOAD: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
 
 export async function GET(req: NextRequest) {
   console.log("Entered in the uploadmaterial function")
@@ -31,7 +29,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  if (!CAN_UPLOAD.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

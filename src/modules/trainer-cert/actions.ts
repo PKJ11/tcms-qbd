@@ -2,6 +2,7 @@
 
 import { prisma }        from '@/lib/prisma'
 import { logAuditEvent } from '@/modules/audit-trail'
+import { hasAnyRole } from '@/lib/permissions'
 
 // ── Generate unique trainer cert number ───────────────────────────
 
@@ -47,7 +48,7 @@ export async function getTrainerCertificates(filters?: {
 }
 
 // ── Issue trainer certificate ─────────────────────────────────────
-// Per SOP: issued by Head QA / Designee (TRAINING_HEAD role)
+// Per SOP: issued by a Trainer / Guest Trainer
 
 export async function issueTrainerCertificate(
   input: {
@@ -57,13 +58,13 @@ export async function issueTrainerCertificate(
   justification: string,
   actorId:       string
 ) {
-  // Only Training Head / ADMINISTRATOR can issue
+  // Only Trainer / Guest Trainer can issue
   const actor = await prisma.person.findUnique({
     where:  { id: actorId },
-    select: { role: true },
+    select: { roles: { select: { role: true } } },
   })
-  if (!actor || !['TRAINING_HEAD', 'ADMINISTRATOR'].includes(actor.role)) {
-    throw new Error('Only Training Head / Head QA can issue Trainer Certificates')
+  if (!actor || !hasAnyRole({ roles: actor.roles.map((r) => r.role) }, ['TRAINER', 'GUEST_TRAINER'])) {
+    throw new Error('Only a Trainer can issue Trainer Certificates')
   }
 
   // Check if person already has an active cert
@@ -148,14 +149,14 @@ export async function revokeTrainerCertificate(
 // ── Get all persons eligible to become trainers ───────────────────
 
 export async function getEligibleTrainers() {
-  return prisma.person.findMany({
+  const persons = await prisma.person.findMany({
     where: { isActive: true },
     select: {
       id:          true,
       name:        true,
       employeeId:  true,
       designation: true,
-      role:        true,
+      roles:       { select: { role: true } },
       department:  { select: { name: true } },
       trainerCertificates: {
         where:  { isActive: true },
@@ -165,4 +166,6 @@ export async function getEligibleTrainers() {
     },
     orderBy: { name: 'asc' },
   })
+
+  return persons.map((p) => ({ ...p, roles: p.roles.map((r) => r.role) }))
 }

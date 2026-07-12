@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession }      from '@/lib/auth'
 import { prisma }          from '@/lib/prisma'
 import { logAuditEvent }   from '@/modules/audit-trail'
-import type { UserRole }   from '@/lib/types'
-
-const CAN_RESOLVE: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function POST(
   req: NextRequest,
@@ -14,7 +12,7 @@ export async function POST(
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_RESOLVE.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_USERS)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
@@ -53,7 +51,7 @@ export async function POST(
       id:                     true,
       name:                   true,
       employeeId:             true,
-      flaggedForReassignment: true,
+      flaggedForJobReassignment: true,
       flagTopicId:            true,
       flagCycleCount:         true,
     },
@@ -63,7 +61,7 @@ export async function POST(
     return NextResponse.json({ message: 'Person not found' }, { status: 404 })
   }
 
-  if (!person.flaggedForReassignment) {
+  if (!person.flaggedForJobReassignment) {
     return NextResponse.json(
       { message: 'This person is not currently flagged for reassignment' },
       { status: 400 }
@@ -76,7 +74,7 @@ export async function POST(
       await tx.person.update({
         where: { id: params.id },
         data:  {
-          flaggedForReassignment: false,
+          flaggedForJobReassignment: false,
           resolvedAt:             new Date(),
           resolvedById:           session.user.id,
           resolutionAction:       action,
@@ -132,9 +130,9 @@ export async function POST(
       module:        'ADMIN',
       recordId:      params.id,
       recordType:    'Person',
-      beforeValue:   { flaggedForReassignment: true, flagCycleCount: person.flagCycleCount },
+      beforeValue:   { flaggedForJobReassignment: true, flagCycleCount: person.flagCycleCount },
       afterValue:    {
-        flaggedForReassignment: false,
+        flaggedForJobReassignment: false,
         resolutionAction:       action,
         resolutionNotes,
         resolvedBy:             session.user.id,

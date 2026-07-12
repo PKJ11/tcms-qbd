@@ -9,15 +9,14 @@ import {
   ROLE_LABELS,
   ROLE_COLORS,
 } from '@/lib/navigation'
-import type { UserRole } from '@/lib/types'
+import type { AppRole } from '@/lib/types'
 import { useAutoLogoutAudit } from '@/hooks/useAutoLogoutAudit'
 
 interface Props {
   user: {
     name:       string
     email:      string
-    role:       UserRole
-    
+    roles:      AppRole[]
     department: string | null
   }
 }
@@ -28,9 +27,7 @@ export function Sidebar({ user }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const navItems  = getNavItemsForRole(user.role)
-  const roleLabel = ROLE_LABELS[user.role]
-  const roleStyle = ROLE_COLORS[user.role]
+  const navItems = getNavItemsForRole(user.roles)
 
   function isActive(href: string) {
     if (href === '/dashboard') return pathname === '/dashboard'
@@ -164,12 +161,17 @@ export function Sidebar({ user }: Props) {
               <div className="text-white text-xs font-medium truncate">
                 {user.name}
               </div>
-              <span
-                className="text-xs px-1.5 py-0.5 rounded font-medium"
-                style={roleStyle}
-              >
-                {roleLabel}
-              </span>
+              <div className="flex flex-wrap gap-1 mt-0.5">
+                {user.roles.map((role) => (
+                  <span
+                    key={role}
+                    className="text-xs px-1.5 py-0.5 rounded font-medium"
+                    style={ROLE_COLORS[role]}
+                  >
+                    {ROLE_LABELS[role]}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         )}

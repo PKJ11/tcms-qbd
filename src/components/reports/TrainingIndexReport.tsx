@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '@/lib/utils'
+import type { AppRole } from '@/lib/types'
 
 interface IndexEntry {
   id:          string
@@ -33,18 +34,18 @@ const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
 
 interface Props {
   userId:          string
-  role:            string
+  roles:           AppRole[]
   isOrgWide:       boolean
   subordinateIds:  string[]
 }
 
-export function TrainingIndexReport({ userId, role, isOrgWide, subordinateIds }: Props) {
+export function TrainingIndexReport({ userId, roles, isOrgWide, subordinateIds }: Props) {
   const [persons,   setPersons]   = useState<Person[]>([])
   const [selectedId, setSelectedId] = useState(userId)
   const [entries,   setEntries]   = useState<IndexEntry[]>([])
   const [loading,   setLoading]   = useState(true)
 
-  const canViewOthers = isOrgWide || ['MANAGER', 'TRAINER'].includes(role)
+  const canViewOthers = isOrgWide || roles.some((r) => r === 'TRAINER' || r === 'GUEST_TRAINER')
 
   // Load persons for dropdown (admin only)
   useEffect(() => {

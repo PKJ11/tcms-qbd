@@ -3,6 +3,7 @@ import { redirect }         from 'next/navigation'
 import { getTopicById, getAllDepartments } from '@/modules/topics'
 import { formatDate }       from '@/lib/utils'
 import { TopicDetailView } from '@/modules/topics/TopicDetailView'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function TopicDetailPage({
   params,
@@ -19,7 +20,7 @@ export default async function TopicDetailPage({
 
   if (!topic) redirect('/topics')
 
-  const canEdit = ['TRAINING_HEAD', 'ADMINISTRATOR'].includes(session.user.role)
+  const canEdit = hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>

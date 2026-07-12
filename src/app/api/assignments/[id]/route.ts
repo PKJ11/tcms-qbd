@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getAssignmentById } from '@/modules/assignments'
+import { hasAnyRole } from '@/lib/permissions'
 
 export async function GET(
   _req: NextRequest,
@@ -16,8 +17,9 @@ export async function GET(
     return NextResponse.json({ message: 'Assignment not found' }, { status: 404 })
   }
 
-  // Users can only view their own assignment
-  if (session.user.role === 'USER' && assignment.person.id !== session.user.id) {
+  // Non-elevated users (e.g. Trainee) can only view their own assignment
+  const isElevated = hasAnyRole(session.user, ['ADMINISTRATOR', 'VIEWER', 'TRAINER', 'GUEST_TRAINER'])
+  if (!isElevated && assignment.person.id !== session.user.id) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

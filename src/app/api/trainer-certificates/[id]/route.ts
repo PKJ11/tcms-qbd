@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { revokeTrainerCertificate } from '@/modules/trainer-cert'
-import type { UserRole } from '@/lib/types'
-
-const CAN_MANAGE: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function PATCH(
   req: NextRequest,
@@ -14,7 +12,7 @@ export async function PATCH(
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_MANAGE.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_QUALIFICATIONS)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

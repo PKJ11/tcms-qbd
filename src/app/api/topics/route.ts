@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getTopics, createTopic } from '@/modules/topics'
-import type { UserRole } from '@/lib/types'
-
-const CAN_CREATE: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -29,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  if (!CAN_CREATE.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

@@ -1,16 +1,20 @@
-import type { UserRole } from '@/lib/types'
+import type { AppRole } from '@/lib/types'
 
 export interface PersonListItem {
   id:           string
   employeeId:   string
   name:         string
   email:        string | null
-  role:         UserRole
+  roles:        AppRole[]
   designation:  string
   isActive:     boolean
   joiningDate:  Date
   lastLoginAt:  Date | null
   department: {
+    id:   string
+    name: string
+  } | null
+  unit: {
     id:   string
     name: string
   } | null
@@ -29,29 +33,34 @@ export interface PersonDetail extends PersonListItem {
   createdAt:          Date
   updatedAt:          Date
   subordinates: {
-    id:   string
-    name: string
-    role: UserRole
+    id:    string
+    name:  string
+    roles: AppRole[]
   }[]
 }
 
+export type EmployeeType = 'QBD' | 'GUEST' | 'CONTRACTUAL'
+
 export interface CreatePersonInput {
-  employeeId:    string
-  name:          string
-  email:         string
-  role:          UserRole
-  designation:   string
-  joiningDate:   string
-  departmentId?: string
-  sectionId?:    string
-  managerId?:    string
+  employeeType: EmployeeType
+  employeeId?:  string   // required for QBD only — GUEST/CONTRACTUAL are server-generated
+  name:         string
+  email?:       string
+  roles?:       AppRole[]  // QBD: any of Administrator/Viewer/Trainer/Trainee; CONTRACTUAL: Trainer/Trainee; GUEST: ignored (forced to Guest Trainer)
+  designation:  string
+  joiningDate?: string
+  departmentId: string
+  unitId:       string
+  sectionId?:   string
+  managerId?:   string
 }
 
 export interface UpdatePersonInput {
   name?:         string
-  role?:         UserRole
+  roles?:        AppRole[]
   designation?:  string
   departmentId?: string
+  unitId?:       string
   sectionId?:    string
   managerId?:    string
   isActive?:     boolean

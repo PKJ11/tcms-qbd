@@ -1,16 +1,16 @@
 import { getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { getDepartmentsAndSections } from '@/modules/personnel'
+import { getDepartmentsUnitsAndSections } from '@/modules/personnel'
 import { CreatePersonForm } from '@/components/personnel/CreatePersonForm'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function NewPersonPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const allowed = ['TRAINING_HEAD', 'ADMINISTRATOR']
-  if (!allowed.includes(session.user.role)) redirect('/unauthorised')
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_USERS)) redirect('/unauthorised')
 
-  const departments = await getDepartmentsAndSections()
+  const departments = await getDepartmentsUnitsAndSections()
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>

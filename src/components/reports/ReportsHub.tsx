@@ -5,9 +5,10 @@ import { TrainingMatrixReport }      from './TrainingMatrixReport'
 import { OverdueReport }             from './OverdueReport'
 import { QualificationStatusReport } from './QualificationStatusReport'
 import { TrainingIndexReport }       from './TrainingIndexReport'
+import type { AppRole } from '@/lib/types'
 
 interface Props {
-  role:            string
+  roles:           AppRole[]
   userId:          string
   isOrgWide:       boolean
   subordinateIds:  string[]
@@ -28,7 +29,7 @@ const ALL_TABS = [
   { key: 'training-index', label: 'Training Index'       },
 ] as const
 
-export function ReportsHub({ role, userId, isOrgWide, subordinateIds }: Props) {
+export function ReportsHub({ roles, userId, isOrgWide, subordinateIds }: Props) {
   const [activeTab, setActiveTab] = useState<ReportTab>('matrix')
 
   return (
@@ -85,7 +86,7 @@ export function ReportsHub({ role, userId, isOrgWide, subordinateIds }: Props) {
       {activeTab === 'training-index' && (
         <TrainingIndexReport
           userId={userId}
-          role={role}
+          roles={roles}
           isOrgWide={isOrgWide}
           subordinateIds={subordinateIds}
         />

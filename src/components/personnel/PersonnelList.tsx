@@ -3,30 +3,28 @@
 import { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '@/lib/utils'
 import { JustificationModal } from '@/components/JustificationModal'
+import { ROLE_COLORS, ROLE_LABELS } from '@/lib/permissions'
+import type { AppRole } from '@/lib/types'
 
 interface Person {
   id:          string
   employeeId:  string
   name:        string
   email:       string
-  role:        string
+  roles:       AppRole[]
   designation: string
   isActive:    boolean
   joiningDate: string
   lastLoginAt: string | null
   department:  { id: string; name: string } | null
+  unit:        { id: string; name: string } | null
   section:     { id: string; name: string } | null
   manager:     { id: string; name: string } | null
 }
 
-const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
-  USER:          { bg: '#f0fdf4', color: '#166534' },
-  MANAGER:       { bg: '#eff6ff', color: '#1d4ed8' },
-  TRAINER:       { bg: '#f5f3ff', color: '#6d28d9' },
-  TRAINING_HEAD: { bg: '#fff7ed', color: '#c2410c' },
-  ADMINISTRATOR:   { bg: '#fef2f2', color: '#dc2626' },
-  MD:            { bg: '#fefce8', color: '#854d0e' },
-}
+const ALL_ROLES: AppRole[] = [
+  'ADMINISTRATOR', 'VIEWER', 'TRAINER', 'TRAINEE', 'GUEST_TRAINER', 'CONTRACTUAL_EMPLOYEE',
+]
 
 export function PersonnelList({
   canCreate,
@@ -116,8 +114,7 @@ export function PersonnelList({
           style={{ borderColor: '#e5e7eb' }}
         >
           <option value="">All roles</option>
-          {['USER','MANAGER','TRAINER','TRAINING_HEAD','ADMINISTRATOR','REVIEWER']
-            .map((r) => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+          {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
         </select>
 
         {/* Active toggle */}
@@ -167,7 +164,7 @@ export function PersonnelList({
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['Employee','Email','Role','Department / Section','Joined','Last login',''].map((h) => (
+                {['Employee','Email','Role(s)','Department / Unit / Section','Joined','Last login',''].map((h) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
@@ -179,7 +176,6 @@ export function PersonnelList({
             </thead>
             <tbody>
               {persons.map((p) => {
-                const roleStyle = ROLE_COLORS[p.role] ?? { bg: '#f9fafb', color: '#374151' }
                 return (
                   <tr
                     key={p.id}
@@ -211,21 +207,26 @@ export function PersonnelList({
                       {p.email}
                     </td>
 
-                    {/* Role */}
+                    {/* Role(s) */}
                     <td className="px-4 py-3">
-                      <span
-                        className="px-2 py-0.5 rounded-full text-xs font-semibold"
-                        style={roleStyle}
-                      >
-                        {p.role.replace('_', ' ')}
-                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {p.roles.map((role) => (
+                          <span
+                            key={role}
+                            className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                            style={ROLE_COLORS[role]}
+                          >
+                            {ROLE_LABELS[role]}
+                          </span>
+                        ))}
+                      </div>
                     </td>
 
-                    {/* Department / Section */}
+                    {/* Department / Unit / Section */}
                     <td className="px-4 py-3 text-xs text-gray-500">
                       <div>{p.department?.name ?? '—'}</div>
                       <div className="text-gray-400">
-                        {p.section?.name ?? '—'}
+                        {p.unit?.name ?? '—'}{p.section?.name ? ` / ${p.section.name}` : ''}
                       </div>
                     </td>
 

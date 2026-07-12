@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession }   from '@/lib/auth'
 import { getRefreshers, getMyRefreshers, createRefreshers } from '@/modules/refresher'
-import type { UserRole } from '@/lib/types'
-
-const CAN_TRIGGER: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -19,7 +17,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ refreshers })
   }
 
-  if (!CAN_TRIGGER.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_REFRESHER)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
@@ -39,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_TRIGGER.includes(session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_REFRESHER)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

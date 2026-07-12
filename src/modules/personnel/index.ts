@@ -5,7 +5,7 @@ export {
   updatePerson,
   deactivatePerson,
   resetPersonPassword,
-  getDepartmentsAndSections
+  getDepartmentsUnitsAndSections,
 } from './actions'
 
 export type {
@@ -13,4 +13,5 @@ export type {
   PersonDetail,
   CreatePersonInput,
   UpdatePersonInput,
+  EmployeeType,
 } from './types'

@@ -4,12 +4,7 @@ import {
   getQualifications,
   createQualification,
 } from '@/modules/qualification'
-import { getSubordinateIds, isSubordinate } from '@/lib/subordinates'
-import type { UserRole }  from '@/lib/types'
-
-const CAN_CREATE: UserRole[] = ['TRAINING_HEAD', 'ADMINISTRATOR']
-const CAN_MANAGE: UserRole[] = ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR']
-const SUB_SCOPE:  UserRole[] = ['MANAGER', 'TRAINER']
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -18,35 +13,20 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const isOrgWide        = ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'].includes(session.user.role)
-  const isSubScope       = SUB_SCOPE.includes(session.user.role as UserRole)
+  const isOrgWide = hasAnyRole(session.user, [...PERMISSIONS.VIEW_QUALIFICATIONS])
 
-  let subordinateIds: string[] | undefined
-
-  if (session.user.role === 'USER') {
-    // Regular users see only their own qualifications
+  if (!isOrgWide) {
+    // Non-elevated users (e.g. Trainee) see only their own qualifications
     const qualifications = await getQualifications({
       personId: session.user.id,
     })
     return NextResponse.json({ qualifications })
   }
 
-  if (isSubScope) {
-    // MANAGER and TRAINER see their direct reports only
-    subordinateIds = await getSubordinateIds(session.user.id)
-
-    if (subordinateIds.length === 0) {
-      return NextResponse.json({ qualifications: [] })
-    }
-  }
-
   const qualifications = await getQualifications({
-    personId:       isOrgWide
-      ? (searchParams.get('personId') ?? undefined)
-      : undefined,
-    techniqueId:    searchParams.get('techniqueId') ?? undefined,
-    status:         searchParams.get('status')      ?? undefined,
-    subordinateIds: subordinateIds,
+    personId:    searchParams.get('personId')    ?? undefined,
+    techniqueId: searchParams.get('techniqueId') ?? undefined,
+    status:      searchParams.get('status')      ?? undefined,
   })
 
   return NextResponse.json({ qualifications })
@@ -58,7 +38,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!CAN_CREATE.includes( session.user.role as UserRole)) {
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_QUALIFICATIONS)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

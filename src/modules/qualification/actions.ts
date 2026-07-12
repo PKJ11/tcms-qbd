@@ -11,6 +11,7 @@ import type {
   CreateTechniqueInput,
   CreateQualificationInput,
 } from './types'
+import { hasAnyRole } from '@/lib/permissions'
 
 // ── Shared selects ────────────────────────────────────────────────
 
@@ -333,28 +334,23 @@ export async function signQualification(
   if (qual.status === 'APPROVED') throw new Error('Already fully approved')
   if (qual.status === 'REVOKED')  throw new Error('This qualification has been revoked')
 
-  // Get the actor's role
+  // Get the actor's roles
   const actor = await prisma.person.findUnique({
     where:  { id: actorId },
-    select: { id: true, role: true, name: true },
+    select: { id: true, name: true, roles: { select: { role: true } } },
   })
   if (!actor) throw new Error('Actor not found')
+  const actorRoles = actor.roles.map((r) => r.role)
 
   // Find the next pending step
   const nextStep = qual.signatories.find((s) => s.status === 'PENDING')
   if (!nextStep) throw new Error('No pending signature steps remaining')
 
-  // Role check — only the correct role can sign each step
-  const roleMatches: Record<string, string[]> = {
-    TRAINER:       ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR'],
-    QA:            ['TRAINING_HEAD', 'ADMINISTRATOR'],
-    QA_MANAGER:    ['TRAINING_HEAD', 'ADMINISTRATOR'],
-    TRAINING_HEAD: ['TRAINING_HEAD', 'ADMINISTRATOR'],
-  }
-  const allowedRoles = roleMatches[nextStep.requiredRole] ?? []
-  if (!allowedRoles.includes(actor.role)) {
+  // Role check — only Trainer/Guest Trainer can sign any step (Administrator
+  // is scoped to user/org management only and has no qualification sign-off authority)
+  if (!hasAnyRole({ roles: actorRoles }, ['TRAINER', 'GUEST_TRAINER'])) {
     throw new Error(
-      `Only a ${nextStep.requiredRole.replace('_', ' ')} can sign step ${nextStep.stepOrder}`
+      `Only a Trainer can sign step ${nextStep.stepOrder}`
     )
   }
 

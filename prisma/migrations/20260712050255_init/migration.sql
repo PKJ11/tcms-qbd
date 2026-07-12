@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('USER', 'MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER');
+CREATE TYPE "AppRole" AS ENUM ('ADMINISTRATOR', 'VIEWER', 'TRAINER', 'TRAINEE', 'GUEST_TRAINER', 'CONTRACTUAL_EMPLOYEE');
 
 -- CreateEnum
 CREATE TYPE "TrainingTrigger" AS ENUM ('INDUCTION', 'UPGRADE', 'RETRAINING', 'REFRESHER', 'TECHNICAL', 'EXTERNAL');
@@ -74,7 +74,7 @@ CREATE TABLE "departments" (
 );
 
 -- CreateTable
-CREATE TABLE "sections" (
+CREATE TABLE "units" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "code" TEXT NOT NULL,
@@ -83,7 +83,29 @@ CREATE TABLE "sections" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
+    CONSTRAINT "units_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sections" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "unitId" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
     CONSTRAINT "sections_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "person_roles" (
+    "id" TEXT NOT NULL,
+    "personId" TEXT NOT NULL,
+    "role" "AppRole" NOT NULL,
+
+    CONSTRAINT "person_roles_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -94,12 +116,12 @@ CREATE TABLE "persons" (
     "email" TEXT,
     "passwordHash" TEXT NOT NULL,
     "mustChangePassword" BOOLEAN NOT NULL DEFAULT true,
-    "role" "UserRole" NOT NULL DEFAULT 'USER',
     "designation" TEXT NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "joiningDate" TIMESTAMP(3) NOT NULL,
     "lastLoginAt" TIMESTAMP(3),
-    "departmentId" TEXT,
+    "departmentId" TEXT NOT NULL,
+    "unitId" TEXT NOT NULL,
     "sectionId" TEXT,
     "managerId" TEXT,
     "flaggedForJobReassignment" BOOLEAN NOT NULL DEFAULT false,
@@ -445,7 +467,13 @@ CREATE UNIQUE INDEX "departments_name_key" ON "departments"("name");
 CREATE UNIQUE INDEX "departments_code_key" ON "departments"("code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "sections_departmentId_code_key" ON "sections"("departmentId", "code");
+CREATE UNIQUE INDEX "units_departmentId_code_key" ON "units"("departmentId", "code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "sections_unitId_code_key" ON "sections"("unitId", "code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "person_roles_personId_role_key" ON "person_roles"("personId", "role");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "persons_employeeId_key" ON "persons"("employeeId");
@@ -481,10 +509,19 @@ CREATE UNIQUE INDEX "certificates_qualificationId_key" ON "certificates"("qualif
 CREATE UNIQUE INDEX "test_results_runId_testCaseId_key" ON "test_results"("runId", "testCaseId");
 
 -- AddForeignKey
-ALTER TABLE "sections" ADD CONSTRAINT "sections_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "units" ADD CONSTRAINT "units_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "persons" ADD CONSTRAINT "persons_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "sections" ADD CONSTRAINT "sections_unitId_fkey" FOREIGN KEY ("unitId") REFERENCES "units"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "person_roles" ADD CONSTRAINT "person_roles_personId_fkey" FOREIGN KEY ("personId") REFERENCES "persons"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "persons" ADD CONSTRAINT "persons_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "persons" ADD CONSTRAINT "persons_unitId_fkey" FOREIGN KEY ("unitId") REFERENCES "units"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "persons" ADD CONSTRAINT "persons_sectionId_fkey" FOREIGN KEY ("sectionId") REFERENCES "sections"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -614,3 +651,4 @@ ALTER TABLE "test_results" ADD CONSTRAINT "test_results_testCaseId_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "test_results" ADD CONSTRAINT "test_results_executedById_fkey" FOREIGN KEY ("executedById") REFERENCES "persons"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+

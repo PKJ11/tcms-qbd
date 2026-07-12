@@ -11,9 +11,10 @@ const TEST_CASES = [
     title:       'Create new person record',
     description: 'Verify the system can create a person with all required fields',
     steps:       JSON.stringify([
-      'Login as ADMINISTRATOR',
+      'Login as Administrator',
       'Navigate to /personnel/new',
-      'Fill in all required fields: Employee ID, Name, Email, Role, Designation, Joining Date, Unit',
+      'Choose employee type: QBD Employee',
+      'Fill in all required fields: Employee ID (numeric), Name, Designation, Joining Date, Department, Unit, Role(s)',
       'Click Create person',
       'Enter justification in the modal',
       'Click Confirm action',
@@ -25,16 +26,17 @@ const TEST_CASES = [
     ursId:       'URS-PER-002',
     module:      'PERSONNEL',
     phase:       'OQ' as const,
-    title:       'Assign person to Unit and Department',
-    description: 'Verify Unit and Department assignment works correctly',
+    title:       'Cascading Department → Unit → Section selection',
+    description: 'Verify Department, Unit, and Section selects cascade correctly',
     steps:       JSON.stringify([
       'Create a new person',
-      'Select Unit 1 from the Unit dropdown',
-      'Observe Department dropdown filters to Unit 1 departments only',
-      'Select Quality Control department',
-      'Save the person record',
+      'Select Quality Control from the Department dropdown',
+      'Observe Unit dropdown filters to Quality Control units only (Unit-I, Unit-II)',
+      'Select Unit-I',
+      'Observe Section dropdown filters to Unit-I sections only (LCMS, GCMS, GC, HPLC, Wet Lab, IC, AAS, ICP-MS)',
+      'Select a section and save the person record',
     ]),
-    expected:    'Person assigned to Unit 1 / Quality Control. Department list filtered by selected unit.',
+    expected:    'Person assigned to Quality Control / Unit-I / selected section. Unit list filtered by department; section list filtered by unit.',
     priority:    'M',
   },
   {
@@ -44,8 +46,8 @@ const TEST_CASES = [
     title:       'Manager-subordinate reporting relationship',
     description: 'Verify manager can see subordinate training data',
     steps:       JSON.stringify([
-      'Create Person A with MANAGER role',
-      'Create Person B with USER role, set Manager = Person A',
+      'Create Person A with the Trainer role',
+      'Create Person B with the Trainee role, set Manager = Person A',
       'Assign training to Person B',
       'Login as Person A',
       'Navigate to /assignments → My Team tab',
@@ -69,6 +71,21 @@ const TEST_CASES = [
     expected:    'Person record marked inactive. Login rejected. All historical records retained. Audit log shows DELETE action.',
     priority:    'M',
   },
+  {
+    ursId:       'URS-PER-005',
+    module:      'PERSONNEL',
+    phase:       'OQ' as const,
+    title:       'Employee-type ID formats and role restrictions',
+    description: 'Verify each employee type enforces its ID format and allowed roles',
+    steps:       JSON.stringify([
+      'Create a Guest person — verify Employee ID auto-generates as G-001 (next: G-002, ...) and role is fixed to Guest Trainer',
+      'Create a Contractual Employee — verify Employee ID auto-generates as CR-001 (next: CR-002, ...) and only Trainer/Trainee checkboxes are selectable (both allowed)',
+      'Create a QBD Employee — verify Employee ID must be entered manually and must be numeric only',
+      'Attempt to select Administrator or Viewer for a Guest or Contractual Employee',
+    ]),
+    expected:    'Guest and Contractual IDs are server-generated and sequential. QBD Employee ID rejects non-numeric input. Administrator/Viewer are not offered for Guest or Contractual Employee types.',
+    priority:    'H',
+  },
 
   // ─── TRAINING TOPICS ─────────────────────────────────────────
   {
@@ -78,7 +95,7 @@ const TEST_CASES = [
     title:       'Create training topic',
     description: 'Verify topic can be created and appears in master list',
     steps:       JSON.stringify([
-      'Login as Training Head',
+      'Login as Trainer',
       'Navigate to /topics/new',
       'Enter topic name and description',
       'Select at least one department',
@@ -111,7 +128,7 @@ const TEST_CASES = [
     title:       'Upload training material',
     description: 'Verify file upload to MinIO storage works',
     steps:       JSON.stringify([
-      'Login as Training Head',
+      'Login as Trainer',
       'Navigate to /content/upload',
       'Select a topic and fill all fields',
       'Select version type: Minor',
@@ -161,7 +178,7 @@ const TEST_CASES = [
     title:       'Assign training — induction trigger',
     description: 'Verify training can be manually assigned with INDUCTION trigger',
     steps:       JSON.stringify([
-      'Login as Training Head',
+      'Login as Trainer',
       'Navigate to /assignments/new',
       'Select a topic, trigger INDUCTION, set due date',
       'Select a person individually',
@@ -208,7 +225,7 @@ const TEST_CASES = [
     title:       'Create question bank',
     description: 'Verify question bank can be created for a topic',
     steps:       JSON.stringify([
-      'Login as Trainer or Training Head',
+      'Login as Trainer',
       'Navigate to /assessments/banks/new',
       'Select a topic without an existing bank',
       'Set pass mark to 80%, 5 questions per attempt, 3 max attempts',
@@ -300,7 +317,7 @@ const TEST_CASES = [
     title:       'Planned refresher training',
     description: 'Verify planned refresher can be created and linked assignment generated',
     steps:       JSON.stringify([
-      'Login as Training Head',
+      'Login as Trainer',
       'Navigate to /refresher/new',
       'Select trigger type: Planned',
       'Select topic, due date, and one person',
@@ -350,7 +367,7 @@ const TEST_CASES = [
     title:       'Create qualification record',
     description: 'Verify OJT qualification record creation with 2-step signatory chain',
     steps:       JSON.stringify([
-      'Login as Training Head',
+      'Login as Trainer',
       'Navigate to /qualifications/new',
       'Select analyst, technique, date performed, supervisor',
       'Confirm with justification',
@@ -470,10 +487,10 @@ const TEST_CASES = [
     ursId:       'URS-NFR-006',
     module:      'AUTH',
     phase:       'OQ' as const,
-    title:       'Role-based access control — USER cannot access admin pages',
-    description: 'Verify USER role cannot access restricted pages',
+    title:       'Role-based access control — Trainee cannot access admin pages',
+    description: 'Verify Trainee role cannot access restricted pages',
     steps:       JSON.stringify([
-      'Login as a USER role account',
+      'Login as a Trainee role account',
       'Attempt to navigate to /personnel/new',
       'Attempt to navigate to /topics/new',
       'Attempt to navigate to /content/upload',
@@ -518,7 +535,7 @@ const TEST_CASES = [
     title:       'In-app notification on training assignment',
     description: 'Verify person receives in-app notification when training is assigned',
     steps:       JSON.stringify([
-      'Login as Training Head',
+      'Login as Trainer',
       'Assign a training to Person A',
       'Login as Person A',
       'Check notification bell',
@@ -630,10 +647,10 @@ const TEST_CASES = [
     description: 'Verify all required database tables exist with correct structure',
     steps:       JSON.stringify([
       'Open Prisma Studio: npx prisma studio',
-      'Verify presence of all tables: persons, units, departments, training_topics, training_materials, material_versions, training_assignments, question_banks, questions, assessment_attempts, qualification_records, techniques, signatory_entries, scanned_documents, certificates, refresher_triggers, notifications, audit_logs',
-      'Verify seed data: 2 units, 2 departments, 3 persons',
+      'Verify presence of all tables: persons, person_roles, departments, units, sections, training_topics, training_materials, material_versions, training_assignments, question_banks, questions, assessment_attempts, qualification_records, techniques, signatory_entries, scanned_documents, certificates, refresher_triggers, notifications, audit_logs',
+      'Verify seed data: 4 departments, 8 units, 16 sections, 9 persons',
     ]),
-    expected:    'All 18 tables present. Seed data correct. No orphaned records.',
+    expected:    'All 20 tables present. Seed data correct. No orphaned records.',
     priority:    'M',
   },
 ]

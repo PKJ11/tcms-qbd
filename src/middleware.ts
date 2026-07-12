@@ -1,22 +1,14 @@
 import { withAuth } from 'next-auth/middleware'
 import { NextResponse } from 'next/server'
-import type { UserRole } from '@/lib/types'
+import { PERMISSIONS } from '@/lib/permissions'
+import type { AppRole } from '@/lib/types'
 
-const ROLE_HIERARCHY: Record<UserRole, number> = {
-  USER:          1,
-  MANAGER:       2,
-  TRAINER:       3,
-  TRAINING_HEAD: 4,
-  ADMINISTRATOR: 5,
-  REVIEWER:      6,
-}
-
-const ROUTE_MIN_ROLES: Record<string, UserRole> = {
-  '/admin':       'ADMINISTRATOR',
-  '/reports':     'MANAGER',
-  '/audit-trail': 'TRAINING_HEAD',
-  '/content':     'TRAINING_HEAD',
-  '/topics':      'TRAINING_HEAD',
+const ROUTE_ROLES: Record<string, readonly AppRole[]> = {
+  '/admin':       PERMISSIONS.MANAGE_USERS,
+  '/reports':     PERMISSIONS.VIEW_REPORTS,
+  '/audit-trail': PERMISSIONS.VIEW_AUDIT_TRAIL,
+  '/content':     PERMISSIONS.AUTHOR_CONTENT,
+  '/topics':      PERMISSIONS.AUTHOR_CONTENT,
 }
 
 export default withAuth(
@@ -37,12 +29,13 @@ export default withAuth(
       return NextResponse.redirect(new URL('/change-password', req.url))
     }
 
-    // Route level role check
-    for (const [route, minRole] of Object.entries(ROUTE_MIN_ROLES)) {
+    // Route level role check — any of the allowed roles grants access
+    const userRoles = (token.roles as AppRole[] | undefined) ?? []
+
+    for (const [route, allowedRoles] of Object.entries(ROUTE_ROLES)) {
       if (pathname.startsWith(route)) {
-        const userLevel = ROLE_HIERARCHY[token.role as UserRole] ?? 0
-        const minLevel  = ROLE_HIERARCHY[minRole]
-        if (userLevel < minLevel) {
+        const authorised = allowedRoles.some((r) => userRoles.includes(r))
+        if (!authorised) {
           return NextResponse.redirect(new URL('/unauthorised', req.url))
         }
       }

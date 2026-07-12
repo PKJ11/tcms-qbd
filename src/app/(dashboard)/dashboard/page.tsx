@@ -4,10 +4,9 @@ import { prisma }      from '@/lib/prisma'
 import { formatDate }  from '@/lib/utils'
 import {
   getTrainingHeadStats,
-  getManagerStats,
   getReviewerStats,
 } from '@/modules/reports'
-import type { UserRole } from '@/lib/types'
+import { hasAnyRole } from '@/lib/permissions'
 
 // ── Stat card ─────────────────────────────────────────────────────
 
@@ -193,93 +192,15 @@ async function TrainingHeadDashboard({ userId }: { userId: string }) {
   )
 }
 
-async function ManagerDashboard({ userId, userName }: { userId: string; userName: string }) {
-  const stats = await getManagerStats(userId)
-
-  const subordinates = await prisma.person.findMany({
-    where:   { managerId: userId, isActive: true },
-    select: {
-      id:   true,
-      name: true,
-      trainingAssignments: {
-        where:   { status: { in: ['OVERDUE', 'NOT_STARTED', 'IN_PROGRESS'] } },
-        select:  { id: true, status: true },
-      },
-    },
+// Everyone can be assigned training and attend it, regardless of role —
+// so this section always renders, on top of any role-specific dashboard below.
+async function MyTrainingSection({ userId }: { userId: string }) {
+  const assignments = await prisma.trainingAssignment.findMany({
+    where:   { personId: userId, status: { not: 'COMPLETED' } },
+    select:  { id: true, status: true, dueDate: true, topic: { select: { name: true } } },
+    orderBy: { dueDate: 'asc' },
+    take:    5,
   })
-
-  return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Team members" value={subordinates.length} color="#1d4ed8" />
-        <StatCard label="Pending"      value={stats.pending}       color="#854d0e" />
-        <StatCard label="Overdue"      value={stats.overdue}       color="#dc2626" />
-        <StatCard label="Completed"    value={stats.completed}     color="#166534" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div>
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Your team</h2>
-          <div className="flex flex-col gap-2">
-            {subordinates.map((s) => {
-              const overdueCount  = s.trainingAssignments.filter((a) => a.status === 'OVERDUE').length
-              const pendingCount  = s.trainingAssignments.filter((a) => a.status !== 'OVERDUE').length
-              return (
-                <div
-                  key={s.id}
-                  className="bg-white rounded-xl border p-4 flex items-center justify-between"
-                  style={{ borderColor: overdueCount > 0 ? '#fecaca' : '#e5e7eb' }}
-                >
-                  <div className="font-medium text-sm text-gray-900">{s.name}</div>
-                  <div className="flex items-center gap-2">
-                    {overdueCount > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: '#fef2f2', color: '#dc2626' }}>
-                        {overdueCount} overdue
-                      </span>
-                    )}
-                    {pendingCount > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: '#fefce8', color: '#854d0e' }}>
-                        {pendingCount} pending
-                      </span>
-                    )}
-                    {overdueCount === 0 && pendingCount === 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: '#f0fdf4', color: '#166534' }}>
-                        ✓ Up to date
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        <div>
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick actions</h2>
-          <div className="flex flex-col gap-2">
-            <QuickLink href="/assignments"    label="Team assignments"  description="View all team training assignments"    icon="📋" />
-            <QuickLink href="/reports"        label="Team reports"      description="Training matrix for your team"        icon="📊" />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-async function UserDashboard({ userId, userName }: { userId: string; userName: string }) {
-  const [assignments, notifications] = await Promise.all([
-    prisma.trainingAssignment.findMany({
-      where:   { personId: userId, status: { not: 'COMPLETED' } },
-      select:  { id: true, status: true, dueDate: true, topic: { select: { name: true } } },
-      orderBy: { dueDate: 'asc' },
-      take:    5,
-    }),
-    prisma.notification.findMany({
-      where:   { personId: userId, channel: 'IN_APP', isRead: false },
-      orderBy: { sentAt: 'desc' },
-      take:    3,
-    }),
-  ])
 
   const overdue   = assignments.filter((a) => a.status === 'OVERDUE').length
   const pending   = assignments.filter((a) => a.status !== 'OVERDUE').length
@@ -288,64 +209,61 @@ async function UserDashboard({ userId, userName }: { userId: string; userName: s
   })
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <StatCard label="Pending"   value={pending}   color="#854d0e" href="/assignments" />
-        <StatCard label="Overdue"   value={overdue}   color="#dc2626" href="/assignments" />
-        <StatCard label="Completed" value={completed} color="#166534"                    />
-      </div>
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="max-w-3xl">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">Your training</h2>
 
-      <div className="grid grid-cols-1 gap-6">
-        <div>
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">
-            Upcoming training
-          </h2>
-          {assignments.length === 0 ? (
-            <div
-              className="bg-white rounded-xl border p-6 text-center text-sm text-gray-400"
-              style={{ borderColor: '#e5e7eb' }}
-            >
-              ✅ You have no pending training right now
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {assignments.map((a) => (
-                <a
-                  key={a.id}
-                  href="/assignments"
-                  className="bg-white rounded-xl border p-4 flex items-center justify-between hover:shadow-sm transition-shadow"
-                  style={{ borderColor: a.status === 'OVERDUE' ? '#fecaca' : '#e5e7eb' }}
-                >
-                  <div>
-                    <div className="text-sm font-medium text-gray-900">
-                      {a.topic.name}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      Due {formatDate(a.dueDate)}
-                    </div>
-                  </div>
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                    style={
-                      a.status === 'OVERDUE'     ? { background: '#fef2f2', color: '#dc2626' } :
-                      a.status === 'IN_PROGRESS' ? { background: '#eff6ff', color: '#1d4ed8' } :
-                                                   { background: '#f9fafb', color: '#6b7280'  }
-                    }
-                  >
-                    {a.status.replace('_', ' ')}
-                  </span>
-                </a>
-              ))}
-              <a
-                href="/assignments"
-                className="text-xs text-center font-medium py-2"
-                style={{ color: '#2d6a4f' }}
-              >
-                View all assignments →
-              </a>
-            </div>
-          )}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <StatCard label="Pending"   value={pending}   color="#854d0e" href="/assignments" />
+          <StatCard label="Overdue"   value={overdue}   color="#dc2626" href="/assignments" />
+          <StatCard label="Completed" value={completed} color="#166534"                    />
         </div>
+
+        {assignments.length === 0 ? (
+          <div
+            className="bg-white rounded-xl border p-6 text-center text-sm text-gray-400"
+            style={{ borderColor: '#e5e7eb' }}
+          >
+            ✅ You have no pending training right now
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {assignments.map((a) => (
+              <a
+                key={a.id}
+                href="/assignments"
+                className="bg-white rounded-xl border p-4 flex items-center justify-between hover:shadow-sm transition-shadow"
+                style={{ borderColor: a.status === 'OVERDUE' ? '#fecaca' : '#e5e7eb' }}
+              >
+                <div>
+                  <div className="text-sm font-medium text-gray-900">
+                    {a.topic.name}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    Due {formatDate(a.dueDate)}
+                  </div>
+                </div>
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                  style={
+                    a.status === 'OVERDUE'     ? { background: '#fef2f2', color: '#dc2626' } :
+                    a.status === 'IN_PROGRESS' ? { background: '#eff6ff', color: '#1d4ed8' } :
+                                                 { background: '#f9fafb', color: '#6b7280'  }
+                  }
+                >
+                  {a.status.replace('_', ' ')}
+                </span>
+              </a>
+            ))}
+            <a
+              href="/assignments"
+              className="text-xs text-center font-medium py-2"
+              style={{ color: '#2d6a4f' }}
+            >
+              View all assignments →
+            </a>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -424,18 +342,15 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Role-based dashboard content */}
-      {['TRAINING_HEAD', 'ADMINISTRATOR'].includes(user.role) && (
+      {/* Everyone can attend training, regardless of role */}
+      <MyTrainingSection userId={user.id} />
+
+      {/* Additional role-specific dashboard content */}
+      {hasAnyRole(user, ['TRAINER', 'GUEST_TRAINER']) && (
         <TrainingHeadDashboard userId={user.id} />
       )}
-      {user.role === 'MANAGER' && (
-        <ManagerDashboard userId={user.id} userName={user.name} />
-      )}
-      {user.role === 'REVIEWER' && (
+      {hasAnyRole(user, ['ADMINISTRATOR', 'VIEWER']) && (
         <ReviewerDashboard />
-      )}
-      {['USER', 'TRAINER'].includes(user.role) && (
-        <UserDashboard userId={user.id} userName={user.name} />
       )}
     </div>
   )

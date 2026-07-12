@@ -1,10 +1,11 @@
-import type { UserRole } from '@/lib/types'
+import type { AppRole } from '@/lib/types'
+import { ROLE_LABELS, ROLE_COLORS } from '@/lib/permissions'
 
 export interface NavItem {
   label:     string
   href:      string
   icon:      string
-  roles:     UserRole[]  // empty = all roles
+  roles:     AppRole[]  // empty = all roles
   badge?:    string
   children?: NavItem[]
 }
@@ -17,7 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
     roles: [],  // all roles
   },
   {
-    label: 'Notifications',    // ← add here
+    label: 'Notifications',
     href:  '/notifications',
     icon:  'bell',
     roles: [],
@@ -26,19 +27,19 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Personnel',
     href:  '/personnel',
     icon:  'users',
-    roles: ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
+    roles: ['ADMINISTRATOR', 'VIEWER'],
   },
   {
     label: 'Training Topics',
     href:  '/topics',
     icon:  'book-open',
-    roles: ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
+    roles: ['TRAINER', 'GUEST_TRAINER'],
   },
   {
     label: 'Materials',
     href:  '/content',
     icon:  'file-text',
-    roles: ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
+    roles: ['TRAINER', 'GUEST_TRAINER'],
   },
   {
     label: 'Assignments',
@@ -56,25 +57,25 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Qualifications',
     href:  '/qualifications',
     icon:  'award',
-    roles: ['TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
+    roles: ['TRAINER', 'GUEST_TRAINER', 'VIEWER'],
   },
   {
     label: 'Refresher',
     href:  '/refresher',
     icon:  'refresh-cw',
-    roles: ['TRAINING_HEAD', 'ADMINISTRATOR'],
+    roles: ['TRAINER', 'GUEST_TRAINER'],
   },
   {
     label: 'Reports',
     href:  '/reports',
     icon:  'bar-chart-2',
-    roles: ['MANAGER', 'TRAINER', 'TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
+    roles: ['VIEWER'],
   },
   {
     label: 'Audit Trail',
     href:  '/audit-trail',
     icon:  'shield',
-    roles: ['TRAINING_HEAD', 'ADMINISTRATOR', 'REVIEWER'],
+    roles: ['VIEWER'],
   },
   {
     label: 'Admin',
@@ -84,26 +85,10 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ]
 
-export function getNavItemsForRole(role: UserRole): NavItem[] {
+export function getNavItemsForRole(roles: AppRole[]): NavItem[] {
   return NAV_ITEMS.filter(
-    (item) => item.roles.length === 0 || item.roles.includes(role)
+    (item) => item.roles.length === 0 || item.roles.some((r) => roles.includes(r))
   )
 }
 
-export const ROLE_LABELS: Record<UserRole, string> = {
-  USER:          'User',
-  MANAGER:       'Manager',
-  TRAINER:       'Trainer',
-  TRAINING_HEAD: 'Training Head',
-  ADMINISTRATOR: 'Administrator',
-  REVIEWER:      'Reviewer',
-}
-
-export const ROLE_COLORS: Record<UserRole, { bg: string; color: string }> = {
-  USER:          { bg: '#f0fdf4', color: '#166534' },
-  MANAGER:       { bg: '#eff6ff', color: '#1d4ed8' },
-  TRAINER:       { bg: '#f5f3ff', color: '#6d28d9' },
-  TRAINING_HEAD: { bg: '#fff7ed', color: '#c2410c' },
-  ADMINISTRATOR: { bg: '#fef2f2', color: '#dc2626' },
-  REVIEWER:      { bg: '#fefce8', color: '#854d0e' },
-}
+export { ROLE_LABELS, ROLE_COLORS }
