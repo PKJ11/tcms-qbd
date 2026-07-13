@@ -1,19 +1,26 @@
+export type TrainingType = 'MATERIAL_MCQ' | 'MATERIAL_ONLY' | 'ACKNOWLEDGEMENT_ONLY'
+
+export interface TopicScopeItem {
+  departmentId: string
+  unitId?:      string
+  sectionId?:   string
+}
+
 export interface TopicListItem {
-  id:          string
-  name:        string
-  description: string | null
-  isActive:    boolean
-  createdAt:   Date
+  id:           string
+  name:         string
+  description:  string | null
+  trainingType: TrainingType
+  isActive:     boolean
+  createdAt:    Date
   createdBy: {
     id:   string
     name: string
   }
-  departments: {
-    department: {
-      id:   string
-      name: string
-      
-    }
+  topicScopes: {
+    department: { id: string; name: string }
+    unit:       { id: string; name: string } | null
+    section:    { id: string; name: string } | null
   }[]
   _count: {
     assignments: number
@@ -43,12 +50,14 @@ export interface TopicDetail extends TopicListItem {
 export interface CreateTopicInput {
   name:          string
   description?:  string
-  departmentIds: string[]
+  trainingType?: TrainingType
+  scopes:        TopicScopeItem[]
 }
 
 export interface UpdateTopicInput {
   name?:         string
   description?:  string
-  departmentIds?: string[]
+  trainingType?: TrainingType
+  scopes?:       TopicScopeItem[]
   isActive?:     boolean
 }

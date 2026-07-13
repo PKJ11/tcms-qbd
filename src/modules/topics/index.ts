@@ -12,4 +12,6 @@ export type {
   TopicDetail,
   CreateTopicInput,
   UpdateTopicInput,
+  TopicScopeItem,
+  TrainingType,
 } from './types'

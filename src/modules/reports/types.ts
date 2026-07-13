@@ -14,6 +14,7 @@ export interface TrainingMatrixRow {
     score?:    number
     completedAt?: Date | null
     dueDate?:  Date | null
+    assignedBy?: string | null
   }[]
 }
 
@@ -65,9 +66,34 @@ export interface QualificationStatusRow {
   certNumber:  string | null
 }
 
+export interface TopicCompletionReport {
+  topicId:     string
+  topicName:   string
+  trainerName: string
+  trainees: {
+    personId:    string
+    name:        string
+    employeeId:  string
+    status:      string
+    assignedAt:  Date
+    dueDate:     Date
+    completedAt: Date | null
+    assignedBy:  string
+  }[]
+}
+
+export interface AttendanceChartBucket {
+  month:       string  // '2026-01'
+  monthLabel:  string  // 'Jan 2026'
+  attended:    number
+  notAttended: number
+}
+
 export type ReportType =
   | 'training-matrix'
   | 'training-index'
   | 'overdue'
   | 'qualification-status'
   | 'competency-board'
+  | 'topic-completion'
+  | 'attendance-chart'

@@ -5,6 +5,7 @@ import {
   convertToCSV,
 } from '@/modules/reports'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+import { resolveScopeFilter }      from '@/lib/subordinates'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -17,10 +18,12 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const format           = searchParams.get('format')
+  const subordinateIds   = await resolveScopeFilter(session.user, searchParams.get('scope'))
 
   const matrix = await getTrainingMatrix({
     departmentId: searchParams.get('departmentId') ?? undefined,
     topicId:      searchParams.get('topicId') ?? undefined,
+    subordinateIds,
   })
 
   if (format === 'csv') {

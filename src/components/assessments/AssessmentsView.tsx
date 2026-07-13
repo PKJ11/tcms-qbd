@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { AssessmentPlayer } from './AssessmentPlayer';
 
 interface MyAssignmentForAssessment {
@@ -31,6 +32,9 @@ export function AssessmentsView({ canManage }: { canManage: boolean }) {
 // ── USER VIEW — pending assessments from their assignments ────────
 
 function TakeAssessmentView() {
+  const searchParams = useSearchParams()
+  const autoAssignmentId = searchParams.get('assignmentId')
+
   const [pending,  setPending]  = useState<MyAssignmentForAssessment[]>([])
   const [loading,  setLoading]  = useState(true)
   const [active,   setActive]   = useState<MyAssignmentForAssessment | null>(null)
@@ -80,6 +84,13 @@ function TakeAssessmentView() {
   }, [])
 
   useEffect(() => { fetchPending() }, [fetchPending])
+
+  // Deep-linked straight from "Take the assessment" on the assignment card
+  useEffect(() => {
+    if (!autoAssignmentId || active) return
+    const match = pending.find((p) => p.id === autoAssignmentId)
+    if (match) setActive(match)
+  }, [autoAssignmentId, pending, active])
 
   if (active) {
     return (

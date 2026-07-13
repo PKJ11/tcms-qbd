@@ -253,12 +253,14 @@ export async function createPerson(
     justification,
   })
 
-  if (person.department) {
+  if (person.department && person.unit) {
     try {
       await autoAssignInductionTraining(
         person.id,
         person.department.id,
-        actorId
+        person.unit.id,
+        actorId,
+        person.section?.id
       )
     } catch (error) {
       console.error('[AUTO-ASSIGN ERROR]', error)

@@ -1,15 +1,17 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import type { ReportScope } from './ReportsHub'
 
 interface MatrixRow {
   person: {
     id: string; name: string; employeeId: string
-    department: { name: string } | null; 
+    department: { name: string } | null;
   }
   topics: {
     topicId: string; topicName: string; status: string
     score?: number; completedAt?: string | null; dueDate?: string | null
+    assignedBy?: string | null
   }[]
 }
 
@@ -22,22 +24,23 @@ const STATUS_CELL: Record<string, { bg: string; color: string; label: string }> 
   NOT_ASSIGNED: { bg: '#f9fafb', color: '#9ca3af', label: '—'         },
 }
 
-export function TrainingMatrixReport({ isOrgWide }: { isOrgWide: boolean }) {
+export function TrainingMatrixReport({ scope }: { scope: ReportScope }) {
   const [matrix,  setMatrix]  = useState<MatrixRow[]>([])
   const [loading, setLoading] = useState(true)
+  const isOrgWide = scope === 'all'
 
   const fetchMatrix = useCallback(async () => {
     setLoading(true)
-    const res  = await fetch('/api/reports/training-matrix')
+    const res  = await fetch(`/api/reports/training-matrix?scope=${scope}`)
     const data = await res.json()
     setMatrix(data.matrix ?? [])
     setLoading(false)
-  }, [])
+  }, [scope])
 
   useEffect(() => { fetchMatrix() }, [fetchMatrix])
 
   function handleExport() {
-    window.open('/api/reports/training-matrix?format=csv', '_blank')
+    window.open(`/api/reports/training-matrix?scope=${scope}&format=csv`, '_blank')
   }
 
   if (loading) {
@@ -73,7 +76,7 @@ export function TrainingMatrixReport({ isOrgWide }: { isOrgWide: boolean }) {
                 className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold"
                 style={{ background: '#eff6ff', color: '#1d4ed8' }}
               >
-                Direct reports only
+                {scope === 'team' ? 'My team' : 'My reportees'}
               </span>
             )}
           </p>
@@ -179,11 +182,11 @@ export function TrainingMatrixReport({ isOrgWide }: { isOrgWide: boolean }) {
                           className="w-7 h-7 rounded-lg flex items-center justify-center font-bold mx-auto text-sm"
                           style={{ background: style.bg, color: style.color }}
                           title={
-                            t.status === 'COMPLETED' && t.score
-                              ? `Score: ${t.score}%`
-                              : t.dueDate
-                              ? `Due: ${new Date(t.dueDate).toLocaleDateString('en-IN')}`
-                              : t.status
+                            [
+                              t.status === 'COMPLETED' && t.score ? `Score: ${t.score}%` : null,
+                              t.dueDate ? `Due: ${new Date(t.dueDate).toLocaleDateString('en-IN')}` : null,
+                              t.assignedBy ? `Assigned by: ${t.assignedBy}` : null,
+                            ].filter(Boolean).join(' · ') || t.status
                           }
                         >
                           {style.label}

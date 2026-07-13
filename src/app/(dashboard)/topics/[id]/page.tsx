@@ -20,7 +20,9 @@ export default async function TopicDetailPage({
 
   if (!topic) redirect('/topics')
 
-  const canEdit = hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)
+  const canEdit      = hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)
+  const canAssign    = hasAnyRole(session.user, PERMISSIONS.ASSIGN_TRAINING)
+  const canViewReport = hasAnyRole(session.user, PERMISSIONS.VIEW_REPORTS)
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>
@@ -39,24 +41,75 @@ export default async function TopicDetailPage({
         </a>
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex items-start justify-between mb-6 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{topic.name}</h1>
             {topic.description && (
               <p className="text-sm text-gray-500 mt-1">{topic.description}</p>
             )}
           </div>
-          <span
-            className="px-3 py-1 rounded-full text-xs font-semibold"
-            style={
-              topic.isActive
-                ? { background: '#f0fdf4', color: '#166534' }
-                : { background: '#fef2f2', color: '#dc2626' }
-            }
-          >
-            {topic.isActive ? 'Active' : 'Inactive'}
-          </span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span
+              className="px-3 py-1 rounded-full text-xs font-semibold"
+              style={
+                topic.isActive
+                  ? { background: '#f0fdf4', color: '#166534' }
+                  : { background: '#fef2f2', color: '#dc2626' }
+              }
+            >
+              {topic.isActive ? 'Active' : 'Inactive'}
+            </span>
+          </div>
         </div>
+
+        {/* Primary actions — add question (MCQ topics), assign training, view report */}
+        {(canViewReport || (topic.isActive && (canAssign || (canEdit && topic.trainingType === 'MATERIAL_MCQ')))) && (
+          <div className="flex flex-wrap gap-3 mb-6">
+            {canViewReport && (
+              <a
+                href={`/topics/${topic.id}/report`}
+                className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2"
+                style={{ borderColor: '#e5e7eb', color: '#374151' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 3v18h18"/>
+                  <path d="M18 17V9M13 17V5M8 17v-3"/>
+                </svg>
+                View training report
+              </a>
+            )}
+            {topic.isActive && canEdit && topic.trainingType === 'MATERIAL_MCQ' && (
+              <a
+                href={
+                  topic.questionBank
+                    ? `/assessments/banks/${topic.questionBank.id}`
+                    : `/assessments/banks/new?topicId=${topic.id}`
+                }
+                className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2"
+                style={{ borderColor: '#2d6a4f', color: '#2d6a4f' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Add question
+              </a>
+            )}
+            {topic.isActive && canAssign && (
+              <a
+                href={`/assignments/new?topicId=${topic.id}`}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center gap-2"
+                style={{ background: '#2d6a4f' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Assign training
+              </a>
+            )}
+          </div>
+        )}
 
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-4 mb-6">
@@ -76,22 +129,32 @@ export default async function TopicDetailPage({
           ))}
         </div>
 
-        {/* Departments */}
+        {/* Scope + training type */}
         <div
           className="bg-white rounded-xl border p-5 mb-4"
           style={{ borderColor: '#e5e7eb' }}
         >
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">
-            Applicable departments
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-700">
+              Compulsory for
+            </h2>
+            <span
+              className="px-2.5 py-1 rounded text-xs font-semibold"
+              style={{ background: '#fefce8', color: '#854d0e' }}
+            >
+              {topic.trainingType.replace(/_/g, ' ')}
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2">
-            {topic.topicDepartments.map((td) => (
+            {topic.topicScopes.map((ts, i) => (
               <span
-                key={td.department.id}
+                key={i}
                 className="px-3 py-1 rounded-full text-xs font-medium"
                 style={{ background: '#eff6ff', color: '#1d4ed8' }}
               >
-                {td.department.name}
+                {ts.department.name}
+                {ts.unit ? ` → ${ts.unit.name}` : ''}
+                {ts.section ? ` → ${ts.section.name}` : ''}
               </span>
             ))}
           </div>

@@ -20,6 +20,12 @@ enum AppRole {
   CONTRACTUAL_EMPLOYEE
 }
 
+enum TrainingType {
+  MATERIAL_MCQ          // material + assessment — completes only after passing
+  MATERIAL_ONLY         // completes when the material has been opened/read
+  ACKNOWLEDGEMENT_ONLY  // completes when the trainee clicks acknowledge
+}
+
 enum TrainingTrigger {
   INDUCTION
   UPGRADE
@@ -173,10 +179,10 @@ model Department {
   updatedAt DateTime @updatedAt
 
   // Relations
-  units            Unit[]
-  persons          Person[]
-  techniques       Technique[]
-  topicDepartments TopicDepartment[]
+  units       Unit[]
+  persons     Person[]
+  techniques  Technique[]
+  topicScopes TopicScope[]
 
   @@map("departments")
 }
@@ -191,9 +197,10 @@ model Unit {
   updatedAt    DateTime @updatedAt
 
   // Relations
-  department Department @relation(fields: [departmentId], references: [id])
-  sections   Section[]
-  persons    Person[]
+  department  Department   @relation(fields: [departmentId], references: [id])
+  sections    Section[]
+  persons     Person[]
+  topicScopes TopicScope[]
 
   @@unique([departmentId, code])
   @@map("units")
@@ -209,8 +216,9 @@ model Section {
   updatedAt DateTime @updatedAt
 
   // Relations
-  unit    Unit     @relation(fields: [unitId], references: [id])
-  persons Person[]
+  unit        Unit         @relation(fields: [unitId], references: [id])
+  persons     Person[]
+  topicScopes TopicScope[]
 
   @@unique([unitId, code])
   @@map("sections")
@@ -293,36 +301,42 @@ model Person {
 // ─────────────────────────────────────────────
 
 model TrainingTopic {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  isActive    Boolean  @default(true)
-  createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String       @id @default(cuid())
+  name         String
+  description  String?
+  trainingType TrainingType @default(MATERIAL_MCQ)
+  isActive     Boolean      @default(true)
+  createdById  String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  createdBy        Person            @relation(fields: [createdById], references: [id])
-  topicDepartments TopicDepartment[]
-  materials        TrainingMaterial[]
-  questionBank     QuestionBank?
-  assignments      TrainingAssignment[]
-  refreshers       RefresherTrigger[]
+  createdBy   Person               @relation(fields: [createdById], references: [id])
+  topicScopes TopicScope[]
+  materials   TrainingMaterial[]
+  questionBank QuestionBank?
+  assignments TrainingAssignment[]
+  refreshers  RefresherTrigger[]
 
   @@map("training_topics")
 }
 
-// Topic → Department mapping (for induction auto-assign)
-model TopicDepartment {
+// Topic → Department/Unit/Section scope (compulsory-training targeting +
+// induction auto-assign). unitId/sectionId narrow the scope when set;
+// department-only (unitId/sectionId both null) means "whole department".
+model TopicScope {
   id           String   @id @default(cuid())
   topicId      String
   departmentId String
+  unitId       String?
+  sectionId    String?
   createdAt    DateTime @default(now())
 
   topic      TrainingTopic @relation(fields: [topicId], references: [id])
   department Department    @relation(fields: [departmentId], references: [id])
+  unit       Unit?         @relation(fields: [unitId], references: [id])
+  section    Section?      @relation(fields: [sectionId], references: [id])
 
-  @@unique([topicId, departmentId])
-  @@map("topic_departments")
+  @@map("topic_scopes")
 }
 
 model TrainingMaterial {
@@ -397,6 +411,7 @@ model TrainingAssignment {
   assignedById       String
   dueDate            DateTime
   startedAt          DateTime?
+  viewedAt           DateTime?
   completedAt        DateTime?
   acknowledged       Boolean          @default(false)
   needIdentifiedById String?

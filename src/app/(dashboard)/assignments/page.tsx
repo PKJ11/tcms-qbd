@@ -45,7 +45,11 @@ export default async function AssignmentsPage() {
           )}
         </div>
 
-        <AssignmentsTabs canMonitor={hasSubordinates} isManager={!isOrgWide && hasSubordinates} />
+        <AssignmentsTabs
+          canMonitor={hasSubordinates}
+          isManager={!isOrgWide && hasSubordinates}
+          canAssign={canAssign}
+        />
       </div>
     </div>
   )

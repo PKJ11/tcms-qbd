@@ -20,6 +20,7 @@ const ASSIGNMENT_SELECT = {
   status:       true,
   dueDate:      true,
   startedAt:    true,
+  viewedAt:     true,
   completedAt:  true,
   acknowledged: true,
   createdAt:    true,
@@ -27,7 +28,7 @@ const ASSIGNMENT_SELECT = {
     select: { id: true, name: true, employeeId: true },
   },
   topic: {
-    select: { id: true, name: true },
+    select: { id: true, name: true, trainingType: true },
   },
   assignedBy: {
     select: { id: true, name: true },
@@ -56,15 +57,17 @@ export async function getAssignments(filters?: {
   departmentId?: string
   sectionId?:    string
   managerId?:    string   // ← filters to this manager's direct reports
+  assignedById?: string   // ← filters to trainings a specific trainer assigned
 }) {
   await refreshOverdueStatuses()
 
   const where: Record<string, unknown> = {}
 
-  if (filters?.personId) where.personId = filters.personId
-  if (filters?.topicId)  where.topicId  = filters.topicId
-  if (filters?.status)   where.status   = filters.status
-  if (filters?.trigger)  where.trigger  = filters.trigger
+  if (filters?.personId)     where.personId     = filters.personId
+  if (filters?.topicId)      where.topicId       = filters.topicId
+  if (filters?.status)       where.status        = filters.status
+  if (filters?.trigger)      where.trigger        = filters.trigger
+  if (filters?.assignedById) where.assignedById   = filters.assignedById
 
   // Manager scope — subordinates only, regardless of department (per URS role matrix)
   if (filters?.managerId) {
@@ -94,9 +97,10 @@ export async function getMyAssignments(personId: string) {
       ...ASSIGNMENT_SELECT,
       topic: {
         select: {
-          id:          true,
-          name:        true,
-          description: true,
+          id:           true,
+          name:         true,
+          description:  true,
+          trainingType: true,
           materials: {
             where:  { status: 'APPROVED' },
             select: {
@@ -133,9 +137,10 @@ export async function getAssignmentById(id: string) {
       ...ASSIGNMENT_SELECT,
       topic: {
         select: {
-          id:          true,
-          name:        true,
-          description: true,
+          id:           true,
+          name:         true,
+          description:  true,
+          trainingType: true,
           materials: {
             where:  { status: 'APPROVED' },
             select: {
@@ -192,18 +197,37 @@ export async function createAssignments(
     throw new Error('No valid active persons found')
   }
 
-  // Check for existing incomplete assignments for same topic
-  // to avoid duplicate active assignments
+  // Check for existing incomplete assignments for same topic made by THIS
+  // trainer — other trainers may independently assign the same topic
   const existing = await prisma.trainingAssignment.findMany({
     where: {
-      personId: { in: persons.map((p) => p.id) },
-      topicId:  input.topicId,
-      status:   { in: ['NOT_STARTED', 'IN_PROGRESS', 'OVERDUE'] },
+      personId:     { in: persons.map((p) => p.id) },
+      topicId:      input.topicId,
+      assignedById: actorId,
+      status:       { in: ['NOT_STARTED', 'IN_PROGRESS', 'OVERDUE'] },
     },
     select: { personId: true },
   })
   const existingPersonIds = new Set(existing.map((e) => e.personId))
   const newPersons = persons.filter((p) => !existingPersonIds.has(p.id))
+
+  // Notify the assigning trainer if any selected persons were skipped because
+  // this topic is already due for them — fires even when everyone was skipped
+  if (existingPersonIds.size > 0) {
+    const skippedNames = persons
+      .filter((p) => existingPersonIds.has(p.id))
+      .map((p) => p.name)
+
+    await prisma.notification.create({
+      data: {
+        personId: actorId,
+        type:     'ASSIGNMENT',
+        channel:  'IN_APP',
+        title:    `"${topic.name}" already due for some people`,
+        message:  `${skippedNames.length} of the selected people already have an active assignment for "${topic.name}" and were skipped: ${skippedNames.join(', ')}.`,
+      },
+    })
+  }
 
   if (newPersons.length === 0) {
     throw new Error('All selected persons already have an active assignment for this topic')
@@ -315,13 +339,30 @@ export async function bulkAssignByDepartment(
 export async function autoAssignInductionTraining(
   personId:     string,
   departmentId: string,
-  actorId:      string
+  unitId:       string,
+  actorId:      string,
+  sectionId?:   string
 ) {
-  // Find all topics mapped to this department
+  // Find all topics whose compulsory scope covers this person — a scope row
+  // matches when its department matches and (its unit is unset or matches)
+  // and (its section is unset or matches). Department-only scope rows apply
+  // to everyone in the department; unit/section rows narrow it further.
+  const sectionCond = sectionId
+    ? { OR: [{ sectionId: null }, { sectionId }] }
+    : { sectionId: null }
+
   const topics = await prisma.trainingTopic.findMany({
     where: {
       isActive: true,
-      topicDepartments: { some: { departmentId } },
+      topicScopes: {
+        some: {
+          departmentId,
+          AND: [
+            { OR: [{ unitId: null }, { unitId }] },
+            sectionCond,
+          ],
+        },
+      },
     },
     select: { id: true, name: true },
   })
@@ -402,7 +443,7 @@ export async function startAssignment(
   })
 }
 
-// ── Acknowledge (read & understood) — for minor version materials ──
+// ── Acknowledge (read & understood) — completes Acknowledgement-Only topics ──
 
 export async function acknowledgeAssignment(
   assignmentId: string,
@@ -410,18 +451,18 @@ export async function acknowledgeAssignment(
 ) {
   const assignment = await prisma.trainingAssignment.findUnique({
     where:  { id: assignmentId },
-    select: { id: true, personId: true, status: true, topicId: true, trigger: true },
+    select: {
+      id: true, personId: true, status: true, topicId: true, trigger: true,
+      topic: { select: { trainingType: true } },
+    },
   })
 
   if (!assignment)                     throw new Error('Assignment not found')
   if (assignment.personId !== actorId) throw new Error('Not authorised')
 
-  const hasQuestionBank = await prisma.questionBank.findUnique({
-    where:  { topicId: assignment.topicId },
-    select: { id: true, isActive: true },
-  })
-
-  const willComplete = !hasQuestionBank || !hasQuestionBank.isActive
+  // Only Acknowledgement-Only topics complete on the ack button itself —
+  // Material-Only completes on view, Material+MCQ completes on passing the assessment.
+  const willComplete = assignment.topic.trainingType === 'ACKNOWLEDGEMENT_ONLY'
 
   await prisma.trainingAssignment.update({
     where: { id: assignmentId },
@@ -452,6 +493,63 @@ export async function acknowledgeAssignment(
     },
     justification: 'User acknowledged reading and understanding the training material',
   })
+
+  return { completed: willComplete }
+}
+
+// ── Mark material viewed — completes Material-Only topics ──────────
+
+export async function markAssignmentViewed(
+  assignmentId: string,
+  actorId:      string
+) {
+  const assignment = await prisma.trainingAssignment.findUnique({
+    where:  { id: assignmentId },
+    select: {
+      id: true, personId: true, status: true, viewedAt: true,
+      topicId: true, trigger: true,
+      topic: { select: { trainingType: true } },
+    },
+  })
+
+  if (!assignment)                     throw new Error('Assignment not found')
+  if (assignment.personId !== actorId) throw new Error('Not authorised')
+
+  const willComplete =
+    assignment.topic.trainingType === 'MATERIAL_ONLY' &&
+    assignment.status !== 'COMPLETED'
+
+  await prisma.trainingAssignment.update({
+    where: { id: assignmentId },
+    data: {
+      ...(assignment.viewedAt ? {} : { viewedAt: new Date() }),
+      ...(assignment.status === 'NOT_STARTED' && {
+        status:    'IN_PROGRESS',
+        startedAt: new Date(),
+      }),
+      ...(willComplete && {
+        status:      'COMPLETED',
+        completedAt: new Date(),
+      }),
+    },
+  })
+
+  if (willComplete && assignment.trigger === 'REFRESHER') {
+    await syncRefresherCompletion(assignment.personId, assignment.topicId)
+  }
+
+  if (!assignment.viewedAt) {
+    await logAuditEvent({
+      userId:        actorId,
+      action:        'UPDATE',
+      module:        'TRAINING_ASSIGNMENT',
+      recordId:      assignmentId,
+      recordType:    'TrainingAssignment',
+      beforeValue:   { viewedAt: null },
+      afterValue:    { viewedAt: new Date().toISOString(), completed: willComplete },
+      justification: 'User opened the training material',
+    })
+  }
 
   return { completed: willComplete }
 }

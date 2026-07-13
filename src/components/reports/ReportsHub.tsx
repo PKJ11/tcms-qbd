@@ -5,36 +5,75 @@ import { TrainingMatrixReport }      from './TrainingMatrixReport'
 import { OverdueReport }             from './OverdueReport'
 import { QualificationStatusReport } from './QualificationStatusReport'
 import { TrainingIndexReport }       from './TrainingIndexReport'
+import { TopicCompletionReport }     from './TopicCompletionReport'
+import { AttendanceChart }           from './AttendanceChart'
 import type { AppRole } from '@/lib/types'
 
 interface Props {
-  roles:           AppRole[]
-  userId:          string
-  isOrgWide:       boolean
-  subordinateIds:  string[]
+  roles:            AppRole[]
+  userId:           string
+  canViewAll:       boolean   // Training Head and above — org-wide "All data"
+  directReportIds:  string[]  // "My reportees" — direct reports only
+  teamIds:          string[]  // "My team" — direct reports + their reports, to the end
 }
+
+export type ReportScope = 'all' | 'team' | 'reportees'
 
 type ReportTab =
   | 'matrix'
   | 'overdue'
   | 'qualification'
   | 'training-index'
+  | 'topic-completion'
+  | 'attendance-chart'
 
-// All roles now see all tabs
-// Data is scoped server-side per role
 const ALL_TABS = [
-  { key: 'matrix',         label: 'Training Matrix'      },
-  { key: 'overdue',        label: 'Overdue Report'       },
-  { key: 'qualification',  label: 'Qualification Status' },
-  { key: 'training-index', label: 'Training Index'       },
+  { key: 'matrix',            label: 'Training Matrix'      },
+  { key: 'overdue',           label: 'Overdue Report'       },
+  { key: 'qualification',     label: 'Qualification Status' },
+  { key: 'training-index',    label: 'Training Index'       },
+  { key: 'topic-completion',  label: 'Topic Completion'     },
+  { key: 'attendance-chart',  label: 'Attendance Chart'     },
 ] as const
 
-export function ReportsHub({ roles, userId, isOrgWide, subordinateIds }: Props) {
+const SCOPE_TABS: { key: ReportScope; label: string; description: string }[] = [
+  { key: 'all',       label: 'All data',      description: 'Organisation-wide — everyone, and who assigned each training' },
+  { key: 'team',      label: 'My team',       description: 'Your reports, and their reports, all the way down' },
+  { key: 'reportees', label: 'My reportees',  description: 'Only the people who report to you directly' },
+]
+
+export function ReportsHub({ roles, userId, canViewAll, directReportIds, teamIds }: Props) {
   const [activeTab, setActiveTab] = useState<ReportTab>('matrix')
+  const [scope,     setScope]     = useState<ReportScope>(canViewAll ? 'all' : 'team')
+
+  const visibleScopeTabs = SCOPE_TABS.filter((s) => s.key !== 'all' || canViewAll)
+  const scopedIds = scope === 'team' ? teamIds : scope === 'reportees' ? directReportIds : []
+  const isOrgWide = scope === 'all'
 
   return (
     <>
-      {/* Scope banner for managers/trainers */}
+      {/* Scope selector — All data / My team / My reportees */}
+      <div
+        className="flex gap-1 mb-3 bg-white rounded-xl border p-1 max-w-xl"
+        style={{ borderColor: '#e5e7eb' }}
+      >
+        {visibleScopeTabs.map((s) => (
+          <button
+            key={s.key}
+            onClick={() => setScope(s.key)}
+            title={s.description}
+            className="flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all"
+            style={{
+              background: scope === s.key ? '#1d4ed8' : 'transparent',
+              color:      scope === s.key ? '#fff'    : '#6b7280',
+            }}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Scope banner for team/reportees views */}
       {!isOrgWide && (
         <div
           className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-4 text-sm"
@@ -47,8 +86,12 @@ export function ReportsHub({ roles, userId, isOrgWide, subordinateIds }: Props) 
             <path d="M16 3.13a4 4 0 010 7.75"/>
           </svg>
           <span>
-            Showing data for your <strong>{subordinateIds.length} direct report{subordinateIds.length !== 1 ? 's' : ''}</strong> only.
-            Training Head and above can see org-wide data.
+            Showing data for{' '}
+            <strong>
+              {scopedIds.length} {scope === 'team' ? 'team member' : 'direct report'}{scopedIds.length !== 1 ? 's' : ''}
+            </strong>
+            {scope === 'team' ? ' (your reports, and theirs, all the way down).' : ' (direct reports only).'}
+            {!canViewAll && ' Training Head and above can see org-wide data.'}
           </span>
         </div>
       )}
@@ -75,21 +118,27 @@ export function ReportsHub({ roles, userId, isOrgWide, subordinateIds }: Props) 
 
       {/* Report content */}
       {activeTab === 'matrix'        && (
-        <TrainingMatrixReport isOrgWide={isOrgWide} />
+        <TrainingMatrixReport scope={scope} />
       )}
       {activeTab === 'overdue'       && (
-        <OverdueReport isOrgWide={isOrgWide} />
+        <OverdueReport scope={scope} />
       )}
       {activeTab === 'qualification' && (
-        <QualificationStatusReport isOrgWide={isOrgWide} />
+        <QualificationStatusReport scope={scope} />
       )}
       {activeTab === 'training-index' && (
         <TrainingIndexReport
           userId={userId}
           roles={roles}
-          isOrgWide={isOrgWide}
-          subordinateIds={subordinateIds}
+          scope={scope}
+          scopedIds={scopedIds}
         />
+      )}
+      {activeTab === 'topic-completion' && (
+        <TopicCompletionReport scope={scope} />
+      )}
+      {activeTab === 'attendance-chart' && (
+        <AttendanceChart />
       )}
     </>
   )

@@ -4,7 +4,11 @@ import { getTopicsWithoutBank } from '@/modules/assessment'
 import { CreateBankForm }      from '@/components/assessments/CreateBankForm'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
-export default async function NewBankPage() {
+export default async function NewBankPage({
+  searchParams,
+}: {
+  searchParams: { topicId?: string }
+}) {
   const session = await getSession()
   if (!session) redirect('/login')
 
@@ -28,7 +32,7 @@ export default async function NewBankPage() {
           </p>
         </div>
 
-        <CreateBankForm topics={topics} />
+        <CreateBankForm topics={topics} initialTopicId={searchParams.topicId} />
       </div>
     </div>
   )

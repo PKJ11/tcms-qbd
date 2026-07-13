@@ -4,23 +4,22 @@ import { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '@/lib/utils'
 import { JustificationModal } from '@/components/JustificationModal'
 
-interface Department {
-  department: {
-    id:   string
-    name: string
-    
-  }
+interface TopicScope {
+  department: { id: string; name: string }
+  unit:       { id: string; name: string } | null
+  section:    { id: string; name: string } | null
 }
 
 interface Topic {
-  id:          string
-  name:        string
-  description: string | null
-  isActive:    boolean
-  createdAt:   string
-  createdBy:   { id: string; name: string }
-  topicDepartments: Department[]
-  _count:      { assignments: number; materials: number }
+  id:           string
+  name:         string
+  description:  string | null
+  trainingType: string
+  isActive:     boolean
+  createdAt:    string
+  createdBy:    { id: string; name: string }
+  topicScopes:  TopicScope[]
+  _count:       { assignments: number; materials: number }
 }
 
 export function TopicsList({ canCreate }: { canCreate: boolean }) {
@@ -156,18 +155,28 @@ export function TopicsList({ canCreate }: { canCreate: boolean }) {
                 </span>
               </div>
 
-              {/* Departments */}
+              {/* Training type */}
+              <span
+                className="self-start px-2 py-0.5 rounded text-xs font-semibold"
+                style={{ background: '#fefce8', color: '#854d0e' }}
+              >
+                {topic.trainingType.replace(/_/g, ' ')}
+              </span>
+
+              {/* Scopes */}
               <div className="flex flex-wrap gap-1.5">
-                {topic.topicDepartments.length === 0 ? (
-                  <span className="text-xs text-gray-400">No departments assigned</span>
+                {topic.topicScopes.length === 0 ? (
+                  <span className="text-xs text-gray-400">No scope assigned</span>
                 ) : (
-                  topic.topicDepartments.map((td) => (
+                  topic.topicScopes.map((ts, i) => (
                     <span
-                      key={td.department.id}
+                      key={i}
                       className="px-2 py-0.5 rounded-full text-xs"
                       style={{ background: '#eff6ff', color: '#1d4ed8' }}
                     >
-                      {td.department.name} 
+                      {ts.department.name}
+                      {ts.unit ? ` → ${ts.unit.name}` : ''}
+                      {ts.section ? ` → ${ts.section.name}` : ''}
                     </span>
                   ))
                 )}

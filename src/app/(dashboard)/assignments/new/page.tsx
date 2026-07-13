@@ -4,7 +4,11 @@ import { getActiveTopicsForAssignment } from '@/modules/assignments'
 import { AssignTrainingForm } from '@/components/assignments/AssignTrainingForm'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
-export default async function NewAssignmentPage() {
+export default async function NewAssignmentPage({
+  searchParams,
+}: {
+  searchParams: { topicId?: string }
+}) {
   const session = await getSession()
   if (!session) redirect('/login')
 
@@ -32,7 +36,7 @@ export default async function NewAssignmentPage() {
           </p>
         </div>
 
-        <AssignTrainingForm topics={topics} />
+        <AssignTrainingForm topics={topics} initialTopicId={searchParams.topicId} />
       </div>
     </div>
   )

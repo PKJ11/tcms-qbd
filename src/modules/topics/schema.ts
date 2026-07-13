@@ -1,5 +1,15 @@
 import { z } from 'zod'
 
+const scopeSchema = z.object({
+  departmentId: z.string().min(1),
+  unitId:       z.string().optional(),
+  sectionId:    z.string().optional(),
+})
+
+export const trainingTypeSchema = z.enum([
+  'MATERIAL_MCQ', 'MATERIAL_ONLY', 'ACKNOWLEDGEMENT_ONLY',
+])
+
 export const createTopicSchema = z.object({
   name: z
     .string()
@@ -11,9 +21,13 @@ export const createTopicSchema = z.object({
     .max(500, 'Description too long')
     .optional(),
 
-  departmentIds: z
-    .array(z.string())
-    .min(1, 'At least one department must be selected'),
+  trainingType: trainingTypeSchema.default('MATERIAL_MCQ'),
+
+  // Optional — a topic doesn't have to be compulsory for anyone. When scopes
+  // ARE given, matching new joiners are auto-assigned this training.
+  scopes: z
+    .array(scopeSchema)
+    .default([]),
 })
 
 export const updateTopicSchema = z.object({
@@ -28,9 +42,10 @@ export const updateTopicSchema = z.object({
     .max(500)
     .optional(),
 
-  departmentIds: z
-    .array(z.string())
-    .min(1)
+  trainingType: trainingTypeSchema.optional(),
+
+  scopes: z
+    .array(scopeSchema)
     .optional(),
 
   isActive: z

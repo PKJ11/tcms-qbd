@@ -6,6 +6,8 @@ import type {
   TrainingIndexEntry,
   OverdueReportRow,
   QualificationStatusRow,
+  TopicCompletionReport,
+  AttendanceChartBucket,
 } from './types'
 import type { QualStatus } from '@prisma/client'
 // At top of src/modules/reports/actions.ts
@@ -51,6 +53,7 @@ export async function getTrainingMatrix(filters?: {
           completedAt: true,
           startedAt:   true,
           topic:       { select: { id: true, name: true } },
+          assignedBy:  { select: { name: true } },
           attempts: {
             orderBy: { submittedAt: 'desc' },
             take:    1,
@@ -68,8 +71,8 @@ export async function getTrainingMatrix(filters?: {
   })
 
   // Training topics are intentionally NOT filtered by department/section —
-  // a TrainingTopic is only linked to departments via TopicDepartment
-  // (used for induction auto-assign), it isn't owned by one.
+  // a TrainingTopic is only linked to departments/units/sections via TopicScope
+  // (used for induction auto-assign / compulsory targeting), it isn't owned by one.
   const topicsWhere = filters?.topicId
     ? { id: filters.topicId, isActive: true }
     : { isActive: true }
@@ -111,6 +114,7 @@ export async function getTrainingMatrix(filters?: {
         score:       latestAttempt?.score    ?? undefined,
         completedAt: assignment.completedAt,
         dueDate:     assignment.dueDate,
+        assignedBy:  assignment.assignedBy.name,
       }
     }),
   }))
@@ -462,4 +466,119 @@ export async function getReviewerStats() {
     activeTopics,
     completedThisYear,
   }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TOPIC COMPLETION REPORT — Topic, Trainer, sequential trainee list
+// ─────────────────────────────────────────────────────────────────
+
+export async function getTopicsForReport() {
+  return prisma.trainingTopic.findMany({
+    select:  { id: true, name: true },
+    orderBy: { name: 'asc' },
+  })
+}
+
+export async function getTopicCompletionReport(
+  topicId: string,
+  filters?: { subordinateIds?: string[]; assignedById?: string }
+): Promise<TopicCompletionReport | null> {
+  const assignmentsWhere: Record<string, unknown> = {}
+  if (filters?.subordinateIds && filters.subordinateIds.length > 0) {
+    assignmentsWhere.personId = { in: filters.subordinateIds }
+  }
+  if (filters?.assignedById) {
+    assignmentsWhere.assignedById = filters.assignedById
+  }
+
+  const topic = await prisma.trainingTopic.findUnique({
+    where:  { id: topicId },
+    select: {
+      id:        true,
+      name:      true,
+      createdBy: { select: { name: true } },
+      assignments: {
+        select: {
+          personId:    true,
+          status:      true,
+          createdAt:   true,
+          dueDate:     true,
+          completedAt: true,
+          person:      { select: { id: true, name: true, employeeId: true } },
+          assignedBy:  { select: { name: true } },
+        },
+        ...(Object.keys(assignmentsWhere).length > 0 ? { where: assignmentsWhere } : {}),
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  })
+
+  if (!topic) return null
+
+  return {
+    topicId:     topic.id,
+    topicName:   topic.name,
+    trainerName: topic.createdBy.name,
+    trainees: topic.assignments.map((a) => ({
+      personId:    a.person.id,
+      name:        a.person.name,
+      employeeId:  a.person.employeeId,
+      status:      a.status,
+      assignedAt:  a.createdAt,
+      dueDate:     a.dueDate,
+      completedAt: a.completedAt,
+      assignedBy:  a.assignedBy.name,
+    })),
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ATTENDANCE CHART — month-wise + section-wise, attended vs not
+// ─────────────────────────────────────────────────────────────────
+
+export async function getSectionsForReport() {
+  return prisma.section.findMany({
+    where:   { isActive: true },
+    select:  { id: true, name: true, unit: { select: { name: true, department: { select: { name: true } } } } },
+    orderBy: { name: 'asc' },
+  })
+}
+
+export async function getAttendanceChartData(filters?: {
+  sectionId?: string
+  months?:    number
+}): Promise<AttendanceChartBucket[]> {
+  const monthCount = filters?.months ?? 6
+
+  // Build the last N calendar-month windows, oldest first
+  const windows: { start: Date; end: Date; key: string; label: string }[] = []
+  const now = new Date()
+  for (let i = monthCount - 1; i >= 0; i--) {
+    const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const end   = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
+    windows.push({
+      start,
+      end,
+      key:   `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
+      label: start.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+    })
+  }
+
+  const assignments = await prisma.trainingAssignment.findMany({
+    where: {
+      dueDate: { gte: windows[0].start, lt: windows[windows.length - 1].end },
+      ...(filters?.sectionId && { person: { sectionId: filters.sectionId } }),
+    },
+    select: { dueDate: true, status: true },
+  })
+
+  return windows.map((w) => {
+    const inWindow = assignments.filter((a) => a.dueDate >= w.start && a.dueDate < w.end)
+    return {
+      month:       w.key,
+      monthLabel:  w.label,
+      attended:    inWindow.filter((a) => a.status === 'COMPLETED').length,
+      notAttended: inWindow.filter((a) => a.status !== 'COMPLETED').length,
+    }
+  })
 }

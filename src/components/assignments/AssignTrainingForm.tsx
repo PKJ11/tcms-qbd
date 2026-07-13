@@ -20,7 +20,8 @@ interface Person {
 }
 
 interface Props {
-  topics: Topic[]
+  topics:          Topic[]
+  initialTopicId?: string
 }
 
 const TRIGGERS = [
@@ -32,18 +33,20 @@ const TRIGGERS = [
   { value: 'EXTERNAL',   label: 'External training', description: 'Director-approved external programme' },
 ]
 
-export function AssignTrainingForm({ topics }: Props) {
+export function AssignTrainingForm({ topics, initialTopicId }: Props) {
   const router = useRouter()
 
   const [mode, setMode] = useState<'bulk' | 'individual'>('bulk')
 
   const [form, setForm] = useState({
-    topicId:            '',
+    topicId:            initialTopicId ?? '',
     trigger:            'INDUCTION',
     dueDate:            '',
     needIdentifiedById: '',
     needBasis:          '',
   })
+
+  const preselectedTopic = topics.find((t) => t.id === initialTopicId)
 
   // ── Multi-department + per-department section selection (bulk mode) ──
   const [departments,      setDepartments]     = useState<Department[]>([])
@@ -278,6 +281,11 @@ export function AssignTrainingForm({ topics }: Props) {
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
+            {preselectedTopic && form.topicId === preselectedTopic.id && (
+              <p className="text-xs mt-1.5" style={{ color: '#2d6a4f' }}>
+                Pre-selected from "{preselectedTopic.name}" — change it above if needed.
+              </p>
+            )}
           </div>
 
           {/* Trigger + Due date */}

@@ -19,11 +19,18 @@ const ASSESSMENT_TYPES = [
   },
 ]
 
-export function CreateBankForm({ topics }: { topics: Topic[] }) {
+interface Props {
+  topics:          Topic[]
+  initialTopicId?: string
+}
+
+export function CreateBankForm({ topics, initialTopicId }: Props) {
   const router = useRouter()
 
+  const hasInitialTopic = !!initialTopicId && topics.some((t) => t.id === initialTopicId)
+
   const [form, setForm] = useState({
-    topicId:             '',
+    topicId:             hasInitialTopic ? initialTopicId! : '',
     passingPercentage:   80,   // SOP mandates 80%
     questionsPerAttempt: 10,
     maxAttempts:         3,

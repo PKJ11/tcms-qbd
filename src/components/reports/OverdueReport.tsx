@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '@/lib/utils'
+import type { ReportScope } from './ReportsHub'
 
 interface OverdueRow {
   person: {
@@ -14,22 +15,23 @@ interface OverdueRow {
   }
 }
 
-export function OverdueReport({ isOrgWide }: { isOrgWide: boolean }) {
+export function OverdueReport({ scope }: { scope: ReportScope }) {
   const [rows,    setRows]    = useState<OverdueRow[]>([])
   const [loading, setLoading] = useState(true)
+  const isOrgWide = scope === 'all'
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
-    const res  = await fetch('/api/reports/overdue')
+    const res  = await fetch(`/api/reports/overdue?scope=${scope}`)
     const data = await res.json()
     setRows(data.rows ?? [])
     setLoading(false)
-  }, [])
+  }, [scope])
 
   useEffect(() => { fetchRows() }, [fetchRows])
 
   function handleExport() {
-    window.open('/api/reports/overdue?format=csv', '_blank')
+    window.open(`/api/reports/overdue?scope=${scope}&format=csv`, '_blank')
   }
 
   return (
@@ -44,7 +46,7 @@ export function OverdueReport({ isOrgWide }: { isOrgWide: boolean }) {
                 className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold"
                 style={{ background: '#eff6ff', color: '#1d4ed8' }}
               >
-                Direct reports only
+                {scope === 'team' ? 'My team' : 'My reportees'}
               </span>
             )}
           </p>

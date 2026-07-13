@@ -265,11 +265,14 @@ export async function getAttemptQuestions(
   // Verify assignment belongs to this person and is in valid state
   const assignment = await prisma.trainingAssignment.findUnique({
     where:  { id: assignmentId },
-    select: { id: true, personId: true, status: true },
+    select: { id: true, personId: true, status: true, viewedAt: true },
   })
   if (!assignment)                    throw new Error('Assignment not found')
   if (assignment.personId !== personId) throw new Error('Not authorised')
   if (assignment.status === 'COMPLETED') throw new Error('This training is already completed')
+  if (!assignment.viewedAt) {
+    throw new Error('You must open and read the training material before attempting the assessment')
+  }
 
   // Check attempt count
   const previousAttempts = await prisma.assessmentAttempt.count({
@@ -385,11 +388,6 @@ export async function submitAttempt(
         where: { id: input.assignmentId },
         data:  { status: 'COMPLETED', completedAt: new Date() },
       })
-      // Sync linked refresher trigger if this was a refresher-driven assessment
-  if (assignment.trigger === 'REFRESHER') {
-    // Note: syncRefresherCompletion uses its own prisma client call,
-    // safe to call after the transaction since it's a simple lookup+update
-  }
     } else if (outcome === 'NEEDS_RETRAINING') {
   // Mark current assignment as FAILED
   await tx.trainingAssignment.update({
@@ -502,6 +500,11 @@ export async function submitAttempt(
       })
     }
   })
+
+  // Sync linked refresher trigger if this was a refresher-driven assessment
+  if (outcome === 'PASS' && assignment.trigger === 'REFRESHER') {
+    await syncRefresherCompletion(assignment.personId, assignment.topicId)
+  }
 
   // Audit log
   await logAuditEvent({

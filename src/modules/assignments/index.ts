@@ -7,6 +7,7 @@ export {
   autoAssignInductionTraining,
   startAssignment,
   acknowledgeAssignment,
+  markAssignmentViewed,
   getPersonsForAssignment,
   getDepartmentsForAssignment,
   getActiveTopicsForAssignment,

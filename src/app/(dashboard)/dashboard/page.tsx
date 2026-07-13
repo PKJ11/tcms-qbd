@@ -231,7 +231,7 @@ async function MyTrainingSection({ userId }: { userId: string }) {
             {assignments.map((a) => (
               <a
                 key={a.id}
-                href="/assignments"
+                href={`/assignments?openId=${a.id}`}
                 className="bg-white rounded-xl border p-4 flex items-center justify-between hover:shadow-sm transition-shadow"
                 style={{ borderColor: a.status === 'OVERDUE' ? '#fecaca' : '#e5e7eb' }}
               >

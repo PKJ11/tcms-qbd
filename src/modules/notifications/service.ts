@@ -274,30 +274,42 @@ export async function scanAndNotifyOverdue(): Promise<{
   }
 
   // ── Overdue (past due date, not yet flagged today) ─────────────
+  // Notifies the Trainee themselves, the Trainer who assigned it, and the
+  // Trainee's reporting manager (if any) — all three parties per the SOP.
   const overdueAssignments = await prisma.trainingAssignment.findMany({
     where: {
       status:  { in: ['NOT_STARTED', 'IN_PROGRESS'] },
       dueDate: { lt: now },
     },
     select: {
-      id:       true,
-      dueDate:  true,
-      personId: true,
-      topic:    { select: { name: true } },
+      id:           true,
+      dueDate:      true,
+      personId:     true,
+      assignedById: true,
+      person:       { select: { name: true, employeeId: true, managerId: true } },
+      topic:        { select: { name: true } },
     },
   })
 
-  let overdueCount = 0
-  for (const assignment of overdueAssignments) {
-    const alreadySent = await prisma.notification.findFirst({
+  const startOfToday = new Date(now.setHours(0, 0, 0, 0))
+
+  async function alreadyNotifiedToday(personId: string, topicName: string) {
+    const existing = await prisma.notification.findFirst({
       where: {
-        personId: assignment.personId,
-        type:     'OVERDUE',
-        message:  { contains: assignment.topic.name },
-        sentAt:   { gte: new Date(now.setHours(0, 0, 0, 0)) },
+        personId,
+        type:    'OVERDUE',
+        message: { contains: topicName },
+        sentAt:  { gte: startOfToday },
       },
     })
-    if (alreadySent) continue
+    return !!existing
+  }
+
+  let overdueCount = 0
+  for (const assignment of overdueAssignments) {
+    if (await alreadyNotifiedToday(assignment.personId, assignment.topic.name)) continue
+
+    const dueDateStr = assignment.dueDate.toLocaleDateString('en-IN')
 
     await prisma.notification.create({
       data: {
@@ -305,10 +317,36 @@ export async function scanAndNotifyOverdue(): Promise<{
         type:     'OVERDUE',
         channel:  'IN_APP',
         title:    'Training overdue',
-        message:  `"${assignment.topic.name}" was due on ${assignment.dueDate.toLocaleDateString('en-IN')} and has not been completed. Please complete it immediately.`,
+        message:  `"${assignment.topic.name}" was due on ${dueDateStr} and has not been completed. Please complete it immediately.`,
       },
     })
     overdueCount++
+
+    // Trainer who assigned it
+    if (assignment.assignedById !== assignment.personId) {
+      await prisma.notification.create({
+        data: {
+          personId: assignment.assignedById,
+          type:     'OVERDUE',
+          channel:  'IN_APP',
+          title:    'A training you assigned is overdue',
+          message:  `${assignment.person.name} (${assignment.person.employeeId}) has not completed "${assignment.topic.name}", due ${dueDateStr}.`,
+        },
+      })
+    }
+
+    // Reporting manager
+    if (assignment.person.managerId) {
+      await prisma.notification.create({
+        data: {
+          personId: assignment.person.managerId,
+          type:     'OVERDUE',
+          channel:  'IN_APP',
+          title:    'Your team member has an overdue training',
+          message:  `${assignment.person.name} (${assignment.person.employeeId}) has not completed "${assignment.topic.name}", due ${dueDateStr}.`,
+        },
+      })
+    }
   }
 
   // ── Qualification expiry (within 30 days) ──────────────────────

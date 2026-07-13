@@ -253,17 +253,8 @@ export function AssessmentPlayer({ assignmentId, bankId, topicName, onDone }: Pr
         </div>
       </div>
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => setCurrent((c) => Math.max(0, c - 1))}
-          disabled={current === 0}
-          className="px-4 py-2 rounded-lg text-sm border font-medium disabled:opacity-40"
-          style={{ borderColor: '#e5e7eb', color: '#374151' }}
-        >
-          Previous
-        </button>
-
+      {/* Navigation — forward only, no going back to change a previous answer */}
+      <div className="flex items-center justify-end">
         {current < questions.length - 1 ? (
           <button
             onClick={() => setCurrent((c) => c + 1)}

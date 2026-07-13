@@ -5,6 +5,7 @@ import {
   convertToCSV,
 } from '@/modules/reports'
 import { hasAnyRole } from '@/lib/permissions'
+import { isInTeam, REPORT_OVERSIGHT_ROLES } from '@/lib/subordinates'
 
 export async function GET(
   req: NextRequest,
@@ -15,10 +16,12 @@ export async function GET(
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
 
-  const isOrgWide = hasAnyRole(session.user, ['VIEWER', 'TRAINER', 'GUEST_TRAINER'])
+  const isOversight = hasAnyRole(session.user, REPORT_OVERSIGHT_ROLES)
+  const isSelf       = params.personId === session.user.id
+  const isOwnTeam    = !isOversight && !isSelf && await isInTeam(session.user.id, params.personId)
 
-  // Non-elevated users can only view their own training index
-  if (!isOrgWide && params.personId !== session.user.id) {
+  // Non-oversight users can only view their own index or someone in their reporting chain
+  if (!isOversight && !isSelf && !isOwnTeam) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

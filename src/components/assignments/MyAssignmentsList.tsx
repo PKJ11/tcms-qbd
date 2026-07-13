@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 
 interface Material {
@@ -22,13 +23,15 @@ interface Assignment {
   status:       string
   dueDate:      string
   startedAt:    string | null
+  viewedAt:     string | null
   completedAt:  string | null
   acknowledged: boolean
   topic: {
-    id:          string
-    name:        string
-    description: string | null
-    materials:   Material[]
+    id:           string
+    name:         string
+    description:  string | null
+    trainingType: string
+    materials:    Material[]
   }
   assignedBy: { id: string; name: string }
 }
@@ -48,10 +51,19 @@ const TRIGGER_LABELS: Record<string, string> = {
   REFRESHER:  'Refresher',
 }
 
+const TRAINING_TYPE_LABELS: Record<string, string> = {
+  MATERIAL_MCQ:         'Material + MCQ Assessment',
+  MATERIAL_ONLY:        'Material Only',
+  ACKNOWLEDGEMENT_ONLY: 'Acknowledgement Only',
+}
+
 export function MyAssignmentsList() {
+  const searchParams = useSearchParams()
+  const openId = searchParams.get('openId')
+
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading,     setLoading]     = useState(true)
-  const [expanded,    setExpanded]    = useState<string | null>(null)
+  const [expanded,    setExpanded]    = useState<string | null>(openId)
   const [ackLoading,  setAckLoading]  = useState<string | null>(null)
 
   const fetchAssignments = useCallback(async () => {
@@ -64,15 +76,21 @@ export function MyAssignmentsList() {
 
   useEffect(() => { fetchAssignments() }, [fetchAssignments])
 
-  async function handleStart(assignmentId: string) {
-    await fetch(`/api/assignments/${assignmentId}/start`, { method: 'POST' })
-    fetchAssignments()
-  }
+  // Deep-linked from the dashboard's "pending training" list — scroll straight to it
+  useEffect(() => {
+    if (!openId || assignments.length === 0) return
+    const el = document.getElementById(`assignment-${openId}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [openId, assignments])
 
-  async function handleView(materialId: string, versionId: string) {
+  async function handleView(assignmentId: string, materialId: string, versionId: string) {
+    // Marks the assignment IN_PROGRESS + viewedAt, and auto-completes
+    // Material-Only topics — then opens the signed file URL.
+    await fetch(`/api/assignments/${assignmentId}/view`, { method: 'POST' })
     const res  = await fetch(`/api/content/${materialId}/versions/${versionId}/view`)
     const data = await res.json()
     if (data.url) window.open(data.url, '_blank')
+    fetchAssignments()
   }
 
   async function handleAcknowledge(assignmentId: string) {
@@ -132,13 +150,12 @@ export function MyAssignmentsList() {
             const approvedMaterials = a.topic.materials.filter(
               (m) => m.versions.length > 0
             )
-            const hasMajorUpdate = approvedMaterials.some(
-              (m) => m.versions[0]?.versionType === 'MAJOR'
-            )
+            const trainingType = a.topic.trainingType
 
             return (
               <div
                 key={a.id}
+                id={`assignment-${a.id}`}
                 className="bg-white rounded-xl border overflow-hidden"
                 style={{
                   borderColor: a.status === 'OVERDUE' ? '#fecaca' : '#e5e7eb',
@@ -162,6 +179,12 @@ export function MyAssignmentsList() {
                           style={{ background: '#f5f3ff', color: '#6d28d9' }}
                         >
                           {TRIGGER_LABELS[a.trigger]}
+                        </span>
+                        <span
+                          className="px-2 py-0.5 rounded-full text-xs font-medium"
+                          style={{ background: '#fefce8', color: '#854d0e' }}
+                        >
+                          {TRAINING_TYPE_LABELS[trainingType] ?? trainingType}
                         </span>
                       </div>
                       {a.topic.description && (
@@ -243,10 +266,7 @@ export function MyAssignmentsList() {
                                 </div>
                               </div>
                               <button
-                                onClick={() => {
-                                  if (a.status === 'NOT_STARTED') handleStart(a.id)
-                                  handleView(material.id, version.id)
-                                }}
+                                onClick={() => handleView(a.id, material.id, version.id)}
                                 className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
                                 style={{ background: '#2d6a4f' }}
                               >
@@ -256,8 +276,8 @@ export function MyAssignmentsList() {
                           )
                         })}
 
-                        {/* Acknowledge button — for non-completed, non-overdue */}
-                        {a.status !== 'COMPLETED' && (
+                        {/* Acknowledge button — only for Acknowledgement-Only topics */}
+                        {trainingType === 'ACKNOWLEDGEMENT_ONLY' && a.status !== 'COMPLETED' && (
                           <div
                             className="flex items-center justify-between mt-2 p-3 rounded-lg border"
                             style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}
@@ -278,6 +298,36 @@ export function MyAssignmentsList() {
                               </button>
                             )}
                           </div>
+                        )}
+
+                        {/* Material-Only hint — completes automatically on Open */}
+                        {trainingType === 'MATERIAL_ONLY' && a.status !== 'COMPLETED' && (
+                          <div
+                            className="mt-2 p-3 rounded-lg border text-xs"
+                            style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' }}
+                          >
+                            Opening the material above marks this training as completed.
+                          </div>
+                        )}
+
+                        {/* MCQ topics — direct link into the assessment once viewed */}
+                        {trainingType === 'MATERIAL_MCQ' && a.status !== 'COMPLETED' && (
+                          a.viewedAt ? (
+                            <a
+                              href={`/assessments?assignmentId=${a.id}`}
+                              className="flex items-center justify-between mt-2 p-3 rounded-lg border text-xs font-medium"
+                              style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}
+                            >
+                              Take the assessment for this topic →
+                            </a>
+                          ) : (
+                            <div
+                              className="mt-2 p-3 rounded-lg border text-xs"
+                              style={{ background: '#fefce8', borderColor: '#fde68a', color: '#854d0e' }}
+                            >
+                              Open the material above first — the assessment unlocks after reading.
+                            </div>
+                          )
                         )}
                       </div>
                     )}

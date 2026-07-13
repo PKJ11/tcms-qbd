@@ -2,29 +2,27 @@
 
 import { prisma } from '@/lib/prisma'
 import { logAuditEvent } from '@/modules/audit-trail'
+import { getDepartmentTree } from '@/modules/organization'
 import { createTopicSchema, updateTopicSchema } from './schema'
-import type { CreateTopicInput, UpdateTopicInput } from './types'
+import type { CreateTopicInput, UpdateTopicInput, TopicScopeItem } from './types'
 
 // ── Shared select ─────────────────────────────────────────────────
 
 const TOPIC_SELECT = {
-  id:          true,
-  name:        true,
-  description: true,
-  isActive:    true,
-  createdAt:   true,
+  id:           true,
+  name:         true,
+  description:  true,
+  trainingType: true,
+  isActive:     true,
+  createdAt:    true,
   createdBy: {
     select: { id: true, name: true },
   },
-  topicDepartments: {
+  topicScopes: {
     select: {
-      department: {
-        select: {
-          id:   true,
-          name: true,
-          
-        },
-      },
+      department: { select: { id: true, name: true } },
+      unit:       { select: { id: true, name: true } },
+      section:    { select: { id: true, name: true } },
     },
   },
   _count: {
@@ -34,6 +32,29 @@ const TOPIC_SELECT = {
     },
   },
 } as const
+
+// Validate every scope's department/unit/section actually exist and nest correctly
+async function validateScopes(scopes: TopicScopeItem[]) {
+  for (const scope of scopes) {
+    const department = await prisma.department.findUnique({ where: { id: scope.departmentId } })
+    if (!department) throw new Error('One or more departments not found')
+
+    if (scope.unitId) {
+      const unit = await prisma.unit.findUnique({ where: { id: scope.unitId } })
+      if (!unit || unit.departmentId !== scope.departmentId) {
+        throw new Error('Selected unit does not belong to the selected department')
+      }
+    }
+
+    if (scope.sectionId) {
+      if (!scope.unitId) throw new Error('A unit must be selected to scope by section')
+      const section = await prisma.section.findUnique({ where: { id: scope.sectionId } })
+      if (!section || section.unitId !== scope.unitId) {
+        throw new Error('Selected section does not belong to the selected unit')
+      }
+    }
+  }
+}
 
 // ── Get all topics ────────────────────────────────────────────────
 
@@ -56,7 +77,7 @@ export async function getTopics(filters?: {
   }
 
   if (filters?.departmentId) {
-    where.topicDepartments = {
+    where.topicScopes = {
       some: { departmentId: filters.departmentId },
     }
   }
@@ -119,31 +140,26 @@ export async function createTopic(
   })
   if (existing) throw new Error('A topic with this name already exists')
 
-  // Verify all departments exist
-  const departments = await prisma.department.findMany({
-    where: { id: { in: input.departmentIds } },
-    select: { id: true },
-  })
-  if (departments.length !== input.departmentIds.length) {
-    throw new Error('One or more departments not found')
-  }
+  await validateScopes(input.scopes)
 
-  // Create topic + department mappings in a transaction
+  // Create topic + scope mappings in a transaction
   const topic = await prisma.$transaction(async (tx) => {
     const created = await tx.trainingTopic.create({
       data: {
-        name:        input.name,
-        description: input.description ?? null,
-        createdById: actorId,
+        name:         input.name,
+        description:  input.description ?? null,
+        trainingType: input.trainingType ?? 'MATERIAL_MCQ',
+        createdById:  actorId,
       },
       select: { id: true, name: true },
     })
 
-    // Create TopicDepartment junction records
-    await tx.topicDepartment.createMany({
-      data: input.departmentIds.map((departmentId) => ({
-        topicId: created.id,
-        departmentId,
+    await tx.topicScope.createMany({
+      data: input.scopes.map((s) => ({
+        topicId:      created.id,
+        departmentId: s.departmentId,
+        unitId:       s.unitId    ?? null,
+        sectionId:    s.sectionId ?? null,
       })),
     })
 
@@ -159,9 +175,10 @@ export async function createTopic(
     recordType:    'TrainingTopic',
     beforeValue:   null,
     afterValue:    {
-      name:          input.name,
-      description:   input.description,
-      departmentIds: input.departmentIds,
+      name:         input.name,
+      description:  input.description,
+      trainingType: input.trainingType ?? 'MATERIAL_MCQ',
+      scopes:       input.scopes,
     },
     justification,
   })
@@ -182,15 +199,18 @@ export async function updateTopic(
     throw new Error(parsed.error.message)
   }
 
+  if (input.scopes) await validateScopes(input.scopes)
+
   // Snapshot before
   const before = await prisma.trainingTopic.findUnique({
     where:  { id },
     select: {
-      name:        true,
-      description: true,
-      isActive:    true,
-      topicDepartments: {
-        select: { departmentId: true },
+      name:         true,
+      description:  true,
+      trainingType: true,
+      isActive:     true,
+      topicScopes: {
+        select: { departmentId: true, unitId: true, sectionId: true },
       },
     },
   })
@@ -202,24 +222,23 @@ export async function updateTopic(
     const updated = await tx.trainingTopic.update({
       where: { id },
       data:  {
-        ...(input.name        !== undefined && { name:        input.name        }),
-        ...(input.description !== undefined && { description: input.description }),
-        ...(input.isActive    !== undefined && { isActive:    input.isActive    }),
+        ...(input.name         !== undefined && { name:         input.name         }),
+        ...(input.description  !== undefined && { description:  input.description  }),
+        ...(input.trainingType !== undefined && { trainingType: input.trainingType }),
+        ...(input.isActive     !== undefined && { isActive:     input.isActive     }),
       },
       select: { id: true, name: true },
     })
 
-    // Update department mappings if provided
-    if (input.departmentIds !== undefined) {
-      // Delete existing mappings
-      await tx.topicDepartment.deleteMany({
-        where: { topicId: id },
-      })
-      // Create new mappings
-      await tx.topicDepartment.createMany({
-        data: input.departmentIds.map((departmentId) => ({
-          topicId: id,
-          departmentId,
+    // Update scope mappings if provided
+    if (input.scopes !== undefined) {
+      await tx.topicScope.deleteMany({ where: { topicId: id } })
+      await tx.topicScope.createMany({
+        data: input.scopes.map((s) => ({
+          topicId:      id,
+          departmentId: s.departmentId,
+          unitId:       s.unitId    ?? null,
+          sectionId:    s.sectionId ?? null,
         })),
       })
     }
@@ -235,16 +254,18 @@ export async function updateTopic(
     recordId:      id,
     recordType:    'TrainingTopic',
     beforeValue:   {
-      name:          before.name,
-      description:   before.description,
-      isActive:      before.isActive,
-      departmentIds: before.topicDepartments.map((d) => d.departmentId),
+      name:         before.name,
+      description:  before.description,
+      trainingType: before.trainingType,
+      isActive:     before.isActive,
+      scopes:       before.topicScopes,
     },
     afterValue:    {
-      name:          input.name        ?? before.name,
-      description:   input.description ?? before.description,
-      isActive:      input.isActive    ?? before.isActive,
-      departmentIds: input.departmentIds ?? before.topicDepartments.map((d) => d.departmentId),
+      name:         input.name         ?? before.name,
+      description:  input.description  ?? before.description,
+      trainingType: input.trainingType ?? before.trainingType,
+      isActive:     input.isActive     ?? before.isActive,
+      scopes:       input.scopes       ?? before.topicScopes,
     },
     justification,
   })
@@ -284,12 +305,8 @@ export async function deactivateTopic(
   })
 }
 
-// ── Get departments for topic assignment ──────────────────────────
+// ── Get department → unit → section tree for topic scoping UI ─────
 
 export async function getAllDepartments() {
-  return prisma.department.findMany({
-    where:   { isActive: true },
-    orderBy: { name: 'asc' },
-    
-  })
+  return getDepartmentTree()
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '@/lib/utils'
+import type { ReportScope } from './ReportsHub'
 
 interface QualRow {
   person:      { id: string; name: string; employeeId: string; department: string | null }
@@ -22,25 +23,26 @@ const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   REVOKED:     { bg: '#f9fafb', color: '#6b7280' },
 }
 
-export function QualificationStatusReport({ isOrgWide }: { isOrgWide: boolean }) {
+export function QualificationStatusReport({ scope }: { scope: ReportScope }) {
   const [rows,    setRows]    = useState<QualRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filter,  setFilter]  = useState('')
+  const isOrgWide = scope === 'all'
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
-    const params = new URLSearchParams(filter ? { status: filter } : {})
+    const params = new URLSearchParams({ scope, ...(filter ? { status: filter } : {}) })
     const res    = await fetch(`/api/reports/qualification-status?${params}`)
     const data   = await res.json()
     setRows(data.rows ?? [])
     setLoading(false)
-  }, [filter])
+  }, [filter, scope])
 
   useEffect(() => { fetchRows() }, [fetchRows])
 
   function handleExport() {
-    const params = filter ? `?status=${filter}&format=csv` : '?format=csv'
-    window.open(`/api/reports/qualification-status${params}`, '_blank')
+    const params = new URLSearchParams({ scope, format: 'csv', ...(filter ? { status: filter } : {}) })
+    window.open(`/api/reports/qualification-status?${params}`, '_blank')
   }
 
   return (
@@ -55,7 +57,7 @@ export function QualificationStatusReport({ isOrgWide }: { isOrgWide: boolean })
                 className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold"
                 style={{ background: '#eff6ff', color: '#1d4ed8' }}
               >
-                Direct reports only
+                {scope === 'team' ? 'My team' : 'My reportees'}
               </span>
             )}
           </p>

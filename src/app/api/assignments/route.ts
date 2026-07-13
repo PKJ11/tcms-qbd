@@ -24,6 +24,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ assignments })
   }
 
+  // Trainings THIS trainer personally assigned, regardless of who they went to
+  if (view === 'assigned-by-me') {
+    if (!hasAnyRole(session.user, PERMISSIONS.ASSIGN_TRAINING)) {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
+    }
+    const assignments = await getAssignments({
+      assignedById: session.user.id,
+      topicId:      searchParams.get('topicId') ?? undefined,
+      status:       searchParams.get('status')  ?? undefined,
+    })
+    return NextResponse.json({ assignments })
+  }
+
   // Org-wide visibility — Trainer, Guest Trainer, Viewer
   if (hasAnyRole(session.user, [...CAN_VIEW_ALL_ORGS])) {
     const assignments = await getAssignments({

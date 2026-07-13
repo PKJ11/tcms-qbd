@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '@/lib/utils'
 import type { AppRole } from '@/lib/types'
+import type { ReportScope } from './ReportsHub'
 
 interface IndexEntry {
   id:          string
@@ -33,21 +34,22 @@ const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
 }
 
 interface Props {
-  userId:          string
-  roles:           AppRole[]
-  isOrgWide:       boolean
-  subordinateIds:  string[]
+  userId:    string
+  roles:     AppRole[]
+  scope:     ReportScope
+  scopedIds: string[]  // team or direct-report IDs, depending on scope — unused when scope==='all'
 }
 
-export function TrainingIndexReport({ userId, roles, isOrgWide, subordinateIds }: Props) {
+export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) {
   const [persons,   setPersons]   = useState<Person[]>([])
   const [selectedId, setSelectedId] = useState(userId)
   const [entries,   setEntries]   = useState<IndexEntry[]>([])
   const [loading,   setLoading]   = useState(true)
+  const isOrgWide = scope === 'all'
 
-  const canViewOthers = isOrgWide || roles.some((r) => r === 'TRAINER' || r === 'GUEST_TRAINER')
+  const canViewOthers = isOrgWide || scopedIds.length > 0
 
-  // Load persons for dropdown (admin only)
+  // Load persons for dropdown
   useEffect(() => {
     if (!canViewOthers) return
 
@@ -56,29 +58,38 @@ export function TrainingIndexReport({ userId, roles, isOrgWide, subordinateIds }
       const data = await res.json()
       const all  = data.persons ?? []
 
-      // For MANAGER/TRAINER — filter to subordinates only
+      // For team/reportees scope — filter to those IDs only
       const filtered = isOrgWide
         ? all
-        : all.filter((p: Person) => subordinateIds.includes(p.id))
+        : all.filter((p: Person) => scopedIds.includes(p.id))
 
       setPersons(filtered)
     }
     fetchPersons()
-  }, [canViewOthers, isOrgWide, subordinateIds])
+  }, [canViewOthers, isOrgWide, scopedIds])
+
+  // Reset selection back to self whenever the scope changes and the
+  // previously-selected person falls outside the new scope
+  useEffect(() => {
+    if (isOrgWide) return
+    if (selectedId !== userId && !scopedIds.includes(selectedId)) {
+      setSelectedId(userId)
+    }
+  }, [scope, scopedIds, isOrgWide, selectedId, userId])
 
   const fetchIndex = useCallback(async () => {
     if (!selectedId) return
     setLoading(true)
-    const res  = await fetch(`/api/reports/training-index/${selectedId}`)
+    const res  = await fetch(`/api/reports/training-index/${selectedId}?scope=${scope}`)
     const data = await res.json()
     setEntries(data.entries ?? [])
     setLoading(false)
-  }, [selectedId])
+  }, [selectedId, scope])
 
   useEffect(() => { fetchIndex() }, [fetchIndex])
 
   function handleExport() {
-    window.open(`/api/reports/training-index/${selectedId}?format=csv`, '_blank')
+    window.open(`/api/reports/training-index/${selectedId}?scope=${scope}&format=csv`, '_blank')
   }
 
   const selectedPerson = persons.find((p:any) => p.id === selectedId)
@@ -97,7 +108,7 @@ export function TrainingIndexReport({ userId, roles, isOrgWide, subordinateIds }
                 className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold"
                 style={{ background: '#eff6ff', color: '#1d4ed8' }}
               >
-                Direct reports only
+                {scope === 'team' ? 'My team' : 'My reportees'}
               </span>
             )}
           </p>
