@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 
 interface Material {
@@ -57,14 +57,22 @@ const TRAINING_TYPE_LABELS: Record<string, string> = {
   ACKNOWLEDGEMENT_ONLY: 'Acknowledgement Only',
 }
 
+const STATUS_TABS: { value: string; label: string }[] = [
+  { value: 'ALL',         label: 'All' },
+  { value: 'NOT_STARTED', label: 'Not started' },
+  { value: 'IN_PROGRESS', label: 'In progress' },
+  { value: 'OVERDUE',     label: 'Overdue' },
+  { value: 'COMPLETED',   label: 'Completed' },
+]
+
 export function MyAssignmentsList() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const openId = searchParams.get('openId')
 
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading,     setLoading]     = useState(true)
-  const [expanded,    setExpanded]    = useState<string | null>(openId)
-  const [ackLoading,  setAckLoading]  = useState<string | null>(null)
+  const [statusTab,   setStatusTab]   = useState('ALL')
 
   const fetchAssignments = useCallback(async () => {
     setLoading(true)
@@ -76,29 +84,11 @@ export function MyAssignmentsList() {
 
   useEffect(() => { fetchAssignments() }, [fetchAssignments])
 
-  // Deep-linked from the dashboard's "pending training" list — scroll straight to it
+  // Deep-linked from the dashboard's "pending training" list — go straight to its detail page
   useEffect(() => {
-    if (!openId || assignments.length === 0) return
-    const el = document.getElementById(`assignment-${openId}`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [openId, assignments])
-
-  async function handleView(assignmentId: string, materialId: string, versionId: string) {
-    // Marks the assignment IN_PROGRESS + viewedAt, and auto-completes
-    // Material-Only topics — then opens the signed file URL.
-    await fetch(`/api/assignments/${assignmentId}/view`, { method: 'POST' })
-    const res  = await fetch(`/api/content/${materialId}/versions/${versionId}/view`)
-    const data = await res.json()
-    if (data.url) window.open(data.url, '_blank')
-    fetchAssignments()
-  }
-
-  async function handleAcknowledge(assignmentId: string) {
-    setAckLoading(assignmentId)
-    await fetch(`/api/assignments/${assignmentId}/acknowledge`, { method: 'POST' })
-    setAckLoading(null)
-    fetchAssignments()
-  }
+    if (!openId) return
+    router.replace(`/assignments/${openId}`)
+  }, [openId, router])
 
   // Group by status for summary
   const counts = {
@@ -106,6 +96,10 @@ export function MyAssignmentsList() {
     overdue: assignments.filter((a) => a.status === 'OVERDUE').length,
     done:    assignments.filter((a) => a.status === 'COMPLETED').length,
   }
+
+  const filteredAssignments = statusTab === 'ALL'
+    ? assignments
+    : assignments.filter((a) => a.status === statusTab)
 
   return (
     <>
@@ -129,34 +123,50 @@ export function MyAssignmentsList() {
         ))}
       </div>
 
+      {/* Status sub-tabs */}
+      <div className="flex gap-1 mb-4 border-b" style={{ borderColor: '#e5e7eb' }}>
+        {STATUS_TABS.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setStatusTab(t.value)}
+            className="px-3 py-2 text-sm font-medium transition-all border-b-2 -mb-px"
+            style={{
+              borderColor: statusTab === t.value ? '#2d6a4f' : 'transparent',
+              color:       statusTab === t.value ? '#2d6a4f' : '#6b7280',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Assignment list */}
       {loading ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
           Loading your training...
         </div>
-      ) : assignments.length === 0 ? (
+      ) : filteredAssignments.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
             <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
             <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
           </svg>
-          <p className="text-sm text-gray-400">No training assigned yet</p>
+          <p className="text-sm text-gray-400">
+            {statusTab === 'ALL' ? 'No training assigned yet' : 'No training in this status'}
+          </p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {assignments.map((a) => {
-            const isExpanded = expanded === a.id
+          {filteredAssignments.map((a) => {
             const statusStyle = STATUS_STYLES[a.status] ?? STATUS_STYLES.NOT_STARTED
-            const approvedMaterials = a.topic.materials.filter(
-              (m) => m.versions.length > 0
-            )
             const trainingType = a.topic.trainingType
 
             return (
-              <div
+              <a
                 key={a.id}
                 id={`assignment-${a.id}`}
-                className="bg-white rounded-xl border overflow-hidden"
+                href={`/assignments/${a.id}`}
+                className="bg-white rounded-xl border overflow-hidden block hover:shadow-sm transition-shadow"
                 style={{
                   borderColor: a.status === 'OVERDUE' ? '#fecaca' : '#e5e7eb',
                 }}
@@ -198,20 +208,19 @@ export function MyAssignmentsList() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => setExpanded(isExpanded ? null : a.id)}
-                      className="px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors flex-shrink-0"
+                    <span
+                      className="px-3 py-1.5 rounded-lg border text-xs font-medium flex-shrink-0"
                       style={{ borderColor: '#e5e7eb', color: '#374151' }}
                     >
-                      {isExpanded ? 'Hide' : 'View material'}
-                    </button>
+                      View details →
+                    </span>
                   </div>
                 </div>
 
                 {/* Under review notice — shown when assignment is FAILED */}
                 {a.status === 'FAILED' && (
                   <div
-                    className="mx-5 mt-5 px-4 py-3 rounded-lg border text-xs"
+                    className="mx-5 mb-5 px-4 py-3 rounded-lg border text-xs"
                     style={{ background: '#fff7ed', borderColor: '#fed7aa', color: '#92400e' }}
                   >
                     <div className="font-semibold mb-0.5">
@@ -225,115 +234,7 @@ export function MyAssignmentsList() {
                     </div>
                   </div>
                 )}
-
-                {/* Expanded — materials */}
-                {isExpanded && (
-                  <div
-                    className="px-5 pb-5"
-                    style={{ borderTop: '1px solid #f3f4f6' }}
-                  >
-                    {approvedMaterials.length === 0 ? (
-                      <p className="text-sm text-gray-400 pt-4">
-                        No approved material available yet for this topic.
-                      </p>
-                    ) : (
-                      <div className="flex flex-col gap-2 pt-4">
-                        {approvedMaterials.map((material) => {
-                          const version = material.versions[0]
-                          return (
-                            <div
-                              key={material.id}
-                              className="flex items-center justify-between p-3 rounded-lg"
-                              style={{ background: '#fafafa' }}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div
-                                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                                  style={{ background: '#f0fdf4' }}
-                                >
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2d6a4f" strokeWidth="2">
-                                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                                    <polyline points="14 2 14 8 20 8"/>
-                                  </svg>
-                                </div>
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {material.title}
-                                  </div>
-                                  <div className="text-xs text-gray-400">
-                                    v{version.versionLabel} · {version.fileType}
-                                  </div>
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => handleView(a.id, material.id, version.id)}
-                                className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
-                                style={{ background: '#2d6a4f' }}
-                              >
-                                Open
-                              </button>
-                            </div>
-                          )
-                        })}
-
-                        {/* Acknowledge button — only for Acknowledgement-Only topics */}
-                        {trainingType === 'ACKNOWLEDGEMENT_ONLY' && a.status !== 'COMPLETED' && (
-                          <div
-                            className="flex items-center justify-between mt-2 p-3 rounded-lg border"
-                            style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}
-                          >
-                            <div className="text-xs" style={{ color: '#166534' }}>
-                              {a.acknowledged
-                                ? '✓ You have acknowledged this material'
-                                : 'After reviewing the material, confirm you have read and understood it'}
-                            </div>
-                            {!a.acknowledged && (
-                              <button
-                                onClick={() => handleAcknowledge(a.id)}
-                                disabled={ackLoading === a.id}
-                                className="px-3 py-1.5 rounded-lg text-xs font-medium text-white flex-shrink-0"
-                                style={{ background: '#2d6a4f' }}
-                              >
-                                {ackLoading === a.id ? 'Saving...' : 'Read & understood'}
-                              </button>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Material-Only hint — completes automatically on Open */}
-                        {trainingType === 'MATERIAL_ONLY' && a.status !== 'COMPLETED' && (
-                          <div
-                            className="mt-2 p-3 rounded-lg border text-xs"
-                            style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' }}
-                          >
-                            Opening the material above marks this training as completed.
-                          </div>
-                        )}
-
-                        {/* MCQ topics — direct link into the assessment once viewed */}
-                        {trainingType === 'MATERIAL_MCQ' && a.status !== 'COMPLETED' && (
-                          a.viewedAt ? (
-                            <a
-                              href={`/assessments?assignmentId=${a.id}`}
-                              className="flex items-center justify-between mt-2 p-3 rounded-lg border text-xs font-medium"
-                              style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}
-                            >
-                              Take the assessment for this topic →
-                            </a>
-                          ) : (
-                            <div
-                              className="mt-2 p-3 rounded-lg border text-xs"
-                              style={{ background: '#fefce8', borderColor: '#fde68a', color: '#854d0e' }}
-                            >
-                              Open the material above first — the assessment unlocks after reading.
-                            </div>
-                          )
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              </a>
             )
           })}
         </div>

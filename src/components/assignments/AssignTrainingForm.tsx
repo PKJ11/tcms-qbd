@@ -59,6 +59,7 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
   const [managers,        setManagers]        = useState<Person[]>([])
   const [selectedPersons, setSelectedPersons] = useState<string[]>([])
   const [loadingPersons,  setLoadingPersons]  = useState(false)
+  const [personSearch,    setPersonSearch]    = useState('')
 
   const [modalOpen, setModalOpen] = useState(false)
   const [loading,   setLoading]   = useState(false)
@@ -506,11 +507,29 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
               {loadingPersons ? (
                 <p className="text-sm text-gray-400">Loading personnel...</p>
               ) : (
-                <div
-                  className="border rounded-lg max-h-64 overflow-y-auto"
-                  style={{ borderColor: '#e5e7eb' }}
-                >
-                  {persons.map((p) => {
+                <>
+                  <input
+                    type="text"
+                    value={personSearch}
+                    onChange={(e) => setPersonSearch(e.target.value)}
+                    placeholder="Search by name or employee ID"
+                    className="w-full px-4 py-2.5 rounded-lg border text-sm outline-none mb-2"
+                    style={{ borderColor: '#d1d5db' }}
+                  />
+                  <div
+                    className="border rounded-lg max-h-64 overflow-y-auto"
+                    style={{ borderColor: '#e5e7eb' }}
+                  >
+                  {persons
+                    .filter((p) => {
+                      const q = personSearch.trim().toLowerCase()
+                      if (!q) return true
+                      return (
+                        p.name.toLowerCase().includes(q) ||
+                        p.employeeId.toLowerCase().includes(q)
+                      )
+                    })
+                    .map((p) => {
                     const selected = selectedPersons.includes(p.id)
                     return (
                       <label
@@ -538,7 +557,8 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
                       </label>
                     )
                   })}
-                </div>
+                  </div>
+                </>
               )}
               {selectedPersons.length > 0 && (
                 <p className="text-xs mt-2" style={{ color: '#2d6a4f' }}>

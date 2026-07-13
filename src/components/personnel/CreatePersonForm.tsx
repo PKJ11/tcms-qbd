@@ -48,10 +48,32 @@ export function CreatePersonForm({ departments }: Props) {
   const [units,     setUnits]     = useState<Unit[]>([])
   const [sections,  setSections]  = useState<Section[]>([])
   const [managers,  setManagers]  = useState<Manager[]>([])
+  const [previewId, setPreviewId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState<string | null>(null)
   const [success,   setSuccess]   = useState<string | null>(null)
+
+  // Fetch a live preview of the next auto-assigned ID for Guest/Contractual types
+  useEffect(() => {
+    if (employeeType !== 'GUEST' && employeeType !== 'CONTRACTUAL') {
+      setPreviewId(null)
+      return
+    }
+
+    let cancelled = false
+    setPreviewId(null)
+
+    async function fetchPreview() {
+      const res = await fetch(`/api/personnel/next-employee-id?type=${employeeType}`)
+      if (!res.ok || cancelled) return
+      const data = await res.json()
+      if (!cancelled) setPreviewId(data.employeeId)
+    }
+
+    fetchPreview()
+    return () => { cancelled = true }
+  }, [employeeType])
 
   // Fetch potential managers when department changes (Administrator + Trainer only)
   useEffect(() => {
@@ -253,7 +275,8 @@ export function CreatePersonForm({ departments }: Props) {
                   className="w-full px-4 py-2.5 rounded-lg border text-sm text-gray-500"
                   style={{ borderColor: '#e5e7eb', background: '#f9fafb' }}
                 >
-                  Will be auto-assigned as {employeeType === 'GUEST' ? 'G-XXX' : 'CR-XXX'} on save
+                  Will be auto-assigned as{' '}
+                  {previewId ?? (employeeType === 'GUEST' ? 'G-XXX' : 'CR-XXX')} on save
                 </div>
               )}
             </div>

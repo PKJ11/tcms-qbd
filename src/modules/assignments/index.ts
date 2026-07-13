@@ -8,6 +8,7 @@ export {
   startAssignment,
   acknowledgeAssignment,
   markAssignmentViewed,
+  confirmAssignmentMaterial,
   getPersonsForAssignment,
   getDepartmentsForAssignment,
   getActiveTopicsForAssignment,

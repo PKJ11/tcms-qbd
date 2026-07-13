@@ -46,6 +46,14 @@ async function getNextSequentialId(prefix: 'G' | 'CR'): Promise<string> {
   return `${prefix}-${String(max + 1).padStart(3, '0')}`
 }
 
+// Read-only preview of the next Guest/Contractual employee ID, for display
+// in the create-person form before the record is actually saved.
+export async function previewNextEmployeeId(
+  employeeType: 'GUEST' | 'CONTRACTUAL'
+): Promise<string> {
+  return getNextSequentialId(employeeType === 'GUEST' ? 'G' : 'CR')
+}
+
 // ── Get all persons ───────────────────────────────────────────────
 
 export async function getPersons(filters?: {

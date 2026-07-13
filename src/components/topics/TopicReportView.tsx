@@ -1,7 +1,16 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { TopicAssignmentsTable, type TopicTrainee } from '@/components/reports/TopicAssignmentsTable'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from '@/components/reports/ReportFilterBar'
+
+const STATUS_OPTIONS = [
+  { value: 'COMPLETED',   label: 'Completed' },
+  { value: 'IN_PROGRESS', label: 'In progress' },
+  { value: 'NOT_STARTED', label: 'Not started' },
+  { value: 'OVERDUE',     label: 'Overdue' },
+  { value: 'FAILED',      label: 'Failed' },
+]
 
 interface Report {
   topicId:     string
@@ -31,6 +40,7 @@ export function TopicReportView({ topicId, canViewAll, directReportIds, teamIds 
   const [view,    setView]    = useState<ViewKey>(canViewAll ? 'all' : 'team')
   const [report,  setReport]  = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
+  const [filters, setFilters] = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
 
   const fetchReport = useCallback(async () => {
     setLoading(true)
@@ -47,7 +57,16 @@ export function TopicReportView({ topicId, canViewAll, directReportIds, teamIds 
   }
 
   const scopedCount = view === 'team' ? teamIds.length : view === 'reportees' ? directReportIds.length : null
-  const completedCount = report?.trainees.filter((t) => t.status === 'COMPLETED').length ?? 0
+
+  const filteredTrainees = useMemo(() => {
+    if (!report) return []
+    return report.trainees.filter((t) => matchesReportFilters(filters, {
+      name: t.name, employeeId: t.employeeId, status: t.status,
+      dates: [t.assignedAt, t.dueDate, t.completedAt],
+    }))
+  }, [report, filters])
+
+  const completedCount = filteredTrainees.filter((t) => t.status === 'COMPLETED').length
 
   return (
     <div>
@@ -101,7 +120,7 @@ export function TopicReportView({ topicId, canViewAll, directReportIds, teamIds 
           style={{ borderBottom: '1px solid #f3f4f6', background: '#fafafa' }}
         >
           <div className="text-xs text-gray-500">
-            {report ? `${completedCount} / ${report.trainees.length} completed` : ''}
+            {report ? `${completedCount} / ${filteredTrainees.length} completed` : ''}
           </div>
           <button
             onClick={handleExport}
@@ -127,14 +146,21 @@ export function TopicReportView({ topicId, canViewAll, directReportIds, teamIds 
             Topic not found
           </div>
         ) : (
-          <TopicAssignmentsTable
-            trainees={report.trainees}
-            emptyMessage={
-              view === 'mine'
-                ? "You haven't assigned this training to anyone yet."
-                : 'No one in this scope has been assigned this topic yet.'
-            }
-          />
+          <>
+            <div className="px-5 pt-4">
+              <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} />
+            </div>
+            <TopicAssignmentsTable
+              trainees={filteredTrainees}
+              emptyMessage={
+                report.trainees.length > 0
+                  ? 'No trainees match the current filters.'
+                  : view === 'mine'
+                    ? "You haven't assigned this training to anyone yet."
+                    : 'No one in this scope has been assigned this topic yet.'
+              }
+            />
+          </>
         )}
       </div>
     </div>

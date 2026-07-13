@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { formatDate } from '@/lib/utils'
 import type { ReportScope } from './ReportsHub'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from './ReportFilterBar'
 
 interface OverdueRow {
   person: {
@@ -18,6 +19,7 @@ interface OverdueRow {
 export function OverdueReport({ scope }: { scope: ReportScope }) {
   const [rows,    setRows]    = useState<OverdueRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [filters, setFilters] = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
   const isOrgWide = scope === 'all'
 
   const fetchRows = useCallback(async () => {
@@ -34,13 +36,19 @@ export function OverdueReport({ scope }: { scope: ReportScope }) {
     window.open(`/api/reports/overdue?scope=${scope}&format=csv`, '_blank')
   }
 
+  const filteredRows = useMemo(() => rows.filter((row) => matchesReportFilters(filters, {
+    name: row.person.name,
+    employeeId: row.person.employeeId,
+    dates: [row.assignment.dueDate],
+  })), [rows, filters])
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-sm font-semibold text-gray-700">Overdue Training Report</h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            {rows.length} overdue assignment{rows.length !== 1 ? 's' : ''} · URS-RPT-003
+            {filteredRows.length} overdue assignment{filteredRows.length !== 1 ? 's' : ''} · URS-RPT-003
             {!isOrgWide && (
               <span
                 className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold"
@@ -65,6 +73,10 @@ export function OverdueReport({ scope }: { scope: ReportScope }) {
         </button>
       </div>
 
+      {rows.length > 0 && (
+        <ReportFilterBar filters={filters} onChange={setFilters} />
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
           Loading overdue report...
@@ -77,6 +89,10 @@ export function OverdueReport({ scope }: { scope: ReportScope }) {
           <p className="text-sm text-gray-400">
             No overdue assignments — great compliance!
           </p>
+        </div>
+      ) : filteredRows.length === 0 ? (
+        <div className="flex items-center justify-center py-16 text-sm text-gray-400">
+          No overdue assignments match the current filters.
         </div>
       ) : (
         <div
@@ -98,7 +114,7 @@ export function OverdueReport({ scope }: { scope: ReportScope }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
+              {filteredRows.map((row, i) => (
                 <tr
                   key={i}
                   style={{ borderBottom: '1px solid #f3f4f6' }}

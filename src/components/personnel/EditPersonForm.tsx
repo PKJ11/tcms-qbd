@@ -9,6 +9,7 @@ import type { AppRole } from '@/lib/types'
 interface Section    { id: string; name: string; code: string }
 interface Unit       { id: string; name: string; code: string; sections: Section[] }
 interface Department { id: string; name: string; code: string; units: Unit[] }
+interface Manager    { id: string; name: string; designation: string }
 
 interface Person {
   id:           string
@@ -16,6 +17,7 @@ interface Person {
   departmentId: string
   unitId:       string
   sectionId:    string
+  managerId:    string
 }
 
 interface Props {
@@ -43,9 +45,11 @@ export function EditPersonForm({ person, departments }: Props) {
   const [departmentId, setDepartmentId] = useState(person.departmentId)
   const [unitId,       setUnitId]       = useState(person.unitId)
   const [sectionId,    setSectionId]    = useState(person.sectionId)
+  const [managerId,    setManagerId]    = useState(person.managerId)
 
   const [units,    setUnits]    = useState<Unit[]>([])
   const [sections, setSections] = useState<Section[]>([])
+  const [managers, setManagers] = useState<Manager[]>([])
 
   const [modalOpen, setModalOpen] = useState(false)
   const [loading,   setLoading]   = useState(false)
@@ -64,11 +68,35 @@ export function EditPersonForm({ person, departments }: Props) {
     setSections(unit?.sections ?? [])
   }, [unitId, departmentId, departments])
 
+  // Fetch potential managers for the currently selected department
+  useEffect(() => {
+    if (!departmentId) {
+      setManagers([])
+      return
+    }
+
+    async function fetchManagers() {
+      const params = new URLSearchParams({ departmentId, isActive: 'true' })
+      const res  = await fetch(`/api/personnel?${params}`)
+      const data = await res.json()
+
+      const managerRoles: AppRole[] = ['ADMINISTRATOR', 'TRAINER']
+      const filtered = (data.persons ?? []).filter(
+        (p: { id: string; roles: AppRole[] }) =>
+          p.id !== person.id && p.roles.some((r) => managerRoles.includes(r))
+      )
+      setManagers(filtered)
+    }
+
+    fetchManagers()
+  }, [departmentId, person.id])
+
   function handleDepartmentChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const deptId = e.target.value
     setDepartmentId(deptId)
     setUnitId('')
     setSectionId('')
+    setManagerId('')
   }
 
   function handleUnitChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -119,6 +147,7 @@ export function EditPersonForm({ person, departments }: Props) {
         departmentId,
         unitId,
         sectionId:    sectionId || undefined,
+        managerId:    managerId || null,
         justification,
       }),
     })
@@ -273,6 +302,41 @@ export function EditPersonForm({ person, departments }: Props) {
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Manager */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Reporting Manager
+              <span className="text-gray-400 font-normal ml-1">(optional)</span>
+            </label>
+            <select
+              value={managerId}
+              onChange={(e) => setManagerId(e.target.value)}
+              disabled={!departmentId}
+              className={inputClass}
+              style={{
+                ...inputStyle,
+                opacity: departmentId ? 1 : 0.5,
+                cursor:  departmentId ? 'auto' : 'not-allowed',
+              }}
+            >
+              <option value="">
+                {!departmentId
+                  ? 'Select a department first'
+                  : managers.length === 0
+                  ? 'No managers available in this department'
+                  : 'No reporting manager'}
+              </option>
+              {managers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} — {m.designation}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Only active Administrators and Trainers are shown.
+            </p>
           </div>
 
           {error && (

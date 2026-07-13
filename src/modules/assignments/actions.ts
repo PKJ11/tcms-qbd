@@ -164,6 +164,9 @@ export async function getAssignmentById(id: string) {
           },
         },
       },
+      materialConfirmations: {
+        select: { materialId: true, confirmedAt: true },
+      },
     },
   })
 }
@@ -507,17 +510,11 @@ export async function markAssignmentViewed(
     where:  { id: assignmentId },
     select: {
       id: true, personId: true, status: true, viewedAt: true,
-      topicId: true, trigger: true,
-      topic: { select: { trainingType: true } },
     },
   })
 
   if (!assignment)                     throw new Error('Assignment not found')
   if (assignment.personId !== actorId) throw new Error('Not authorised')
-
-  const willComplete =
-    assignment.topic.trainingType === 'MATERIAL_ONLY' &&
-    assignment.status !== 'COMPLETED'
 
   await prisma.trainingAssignment.update({
     where: { id: assignmentId },
@@ -527,16 +524,8 @@ export async function markAssignmentViewed(
         status:    'IN_PROGRESS',
         startedAt: new Date(),
       }),
-      ...(willComplete && {
-        status:      'COMPLETED',
-        completedAt: new Date(),
-      }),
     },
   })
-
-  if (willComplete && assignment.trigger === 'REFRESHER') {
-    await syncRefresherCompletion(assignment.personId, assignment.topicId)
-  }
 
   if (!assignment.viewedAt) {
     await logAuditEvent({
@@ -546,12 +535,93 @@ export async function markAssignmentViewed(
       recordId:      assignmentId,
       recordType:    'TrainingAssignment',
       beforeValue:   { viewedAt: null },
-      afterValue:    { viewedAt: new Date().toISOString(), completed: willComplete },
+      afterValue:    { viewedAt: new Date().toISOString() },
       justification: 'User opened the training material',
     })
   }
 
-  return { completed: willComplete }
+  return { completed: false }
+}
+
+// ── Confirm a single material — completes Material-Only topics once ──
+// every approved material for the topic has been confirmed ────────────
+
+export async function confirmAssignmentMaterial(
+  assignmentId: string,
+  materialId:   string,
+  actorId:      string
+) {
+  const assignment = await prisma.trainingAssignment.findUnique({
+    where:  { id: assignmentId },
+    select: {
+      id: true, personId: true, status: true, topicId: true, trigger: true,
+      topic: {
+        select: {
+          trainingType: true,
+          materials: {
+            where:  { status: 'APPROVED' },
+            select: { id: true },
+          },
+        },
+      },
+    },
+  })
+
+  if (!assignment)                     throw new Error('Assignment not found')
+  if (assignment.personId !== actorId) throw new Error('Not authorised')
+
+  await prisma.assignmentMaterialConfirmation.upsert({
+    where:  { assignmentId_materialId: { assignmentId, materialId } },
+    create: { assignmentId, materialId },
+    update: {},
+  })
+
+  if (assignment.status === 'NOT_STARTED') {
+    await prisma.trainingAssignment.update({
+      where: { id: assignmentId },
+      data:  { status: 'IN_PROGRESS', startedAt: new Date() },
+    })
+  }
+
+  let allConfirmed = false
+  let completed     = false
+
+  if (assignment.topic.trainingType === 'MATERIAL_ONLY') {
+    const confirmedCount = await prisma.assignmentMaterialConfirmation.count({
+      where: { assignmentId },
+    })
+    allConfirmed = confirmedCount >= assignment.topic.materials.length
+
+    if (allConfirmed && assignment.status !== 'COMPLETED') {
+      completed = true
+      await prisma.trainingAssignment.update({
+        where: { id: assignmentId },
+        data:  { status: 'COMPLETED', completedAt: new Date() },
+      })
+
+      if (assignment.trigger === 'REFRESHER') {
+        await syncRefresherCompletion(assignment.personId, assignment.topicId)
+      }
+
+      await logAuditEvent({
+        userId:        actorId,
+        action:        'UPDATE',
+        module:        'TRAINING_ASSIGNMENT',
+        recordId:      assignmentId,
+        recordType:    'TrainingAssignment',
+        beforeValue:   { status: assignment.status },
+        afterValue:    { status: 'COMPLETED' },
+        justification: 'User confirmed all training material as reviewed',
+      })
+    }
+  } else {
+    const confirmedCount = await prisma.assignmentMaterialConfirmation.count({
+      where: { assignmentId },
+    })
+    allConfirmed = confirmedCount >= assignment.topic.materials.length
+  }
+
+  return { completed, allConfirmed }
 }
 
 // ── Get persons for assignment dropdown ────────────────────────────

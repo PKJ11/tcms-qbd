@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { ReportScope } from './ReportsHub'
 import { TopicAssignmentsTable, type TopicTrainee } from './TopicAssignmentsTable'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from './ReportFilterBar'
 
 interface Topic { id: string; name: string }
 
@@ -13,11 +14,20 @@ interface Report {
   trainees:    TopicTrainee[]
 }
 
+const STATUS_OPTIONS = [
+  { value: 'COMPLETED',   label: 'Completed' },
+  { value: 'IN_PROGRESS', label: 'In progress' },
+  { value: 'NOT_STARTED', label: 'Not started' },
+  { value: 'OVERDUE',     label: 'Overdue' },
+  { value: 'FAILED',      label: 'Failed' },
+]
+
 export function TopicCompletionReport({ scope }: { scope: ReportScope }) {
   const [topics,   setTopics]   = useState<Topic[]>([])
   const [topicId,  setTopicId]  = useState('')
   const [report,   setReport]   = useState<Report | null>(null)
   const [loading,  setLoading]  = useState(false)
+  const [filters,  setFilters]  = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
   const isOrgWide = scope === 'all'
 
   useEffect(() => {
@@ -39,13 +49,22 @@ export function TopicCompletionReport({ scope }: { scope: ReportScope }) {
   }, [scope])
 
   useEffect(() => { fetchReport(topicId) }, [topicId, fetchReport])
+  useEffect(() => { setFilters(EMPTY_REPORT_FILTERS) }, [topicId])
 
   function handleExport() {
     if (!topicId) return
     window.open(`/api/reports/topic-completion?topicId=${topicId}&scope=${scope}&format=csv`, '_blank')
   }
 
-  const completedCount = report?.trainees.filter((t) => t.status === 'COMPLETED').length ?? 0
+  const filteredTrainees = useMemo(() => {
+    if (!report) return []
+    return report.trainees.filter((t) => matchesReportFilters(filters, {
+      name: t.name, employeeId: t.employeeId, status: t.status,
+      dates: [t.assignedAt, t.dueDate, t.completedAt],
+    }))
+  }, [report, filters])
+
+  const completedCount = filteredTrainees.filter((t) => t.status === 'COMPLETED').length
 
   return (
     <div>
@@ -113,16 +132,22 @@ export function TopicCompletionReport({ scope }: { scope: ReportScope }) {
               <div className="text-xs text-gray-500 mt-0.5">Created by: {report.trainerName}</div>
             </div>
             <div className="text-xs text-gray-500">
-              {completedCount} / {report.trainees.length} completed
+              {completedCount} / {filteredTrainees.length} completed
             </div>
           </div>
 
+          <div className="px-5 pt-4">
+            <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} />
+          </div>
+
           <TopicAssignmentsTable
-            trainees={report.trainees}
+            trainees={filteredTrainees}
             emptyMessage={
-              isOrgWide
-                ? 'No one has been assigned this topic yet.'
-                : 'No one in this scope has been assigned this topic yet.'
+              report.trainees.length > 0
+                ? 'No trainees match the current filters.'
+                : isOrgWide
+                  ? 'No one has been assigned this topic yet.'
+                  : 'No one in this scope has been assigned this topic yet.'
             }
           />
         </div>

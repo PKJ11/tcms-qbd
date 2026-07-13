@@ -1,9 +1,18 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { formatDate } from '@/lib/utils'
 import type { AppRole } from '@/lib/types'
 import type { ReportScope } from './ReportsHub'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from './ReportFilterBar'
+
+const STATUS_OPTIONS = [
+  { value: 'COMPLETED',   label: 'Completed' },
+  { value: 'IN_PROGRESS', label: 'In progress' },
+  { value: 'NOT_STARTED', label: 'Not started' },
+  { value: 'OVERDUE',     label: 'Overdue' },
+  { value: 'FAILED',      label: 'Failed' },
+]
 
 interface IndexEntry {
   id:          string
@@ -45,6 +54,7 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
   const [selectedId, setSelectedId] = useState(userId)
   const [entries,   setEntries]   = useState<IndexEntry[]>([])
   const [loading,   setLoading]   = useState(true)
+  const [filters,   setFilters]   = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
   const isOrgWide = scope === 'all'
 
   const canViewOthers = isOrgWide || scopedIds.length > 0
@@ -87,14 +97,22 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
   }, [selectedId, scope])
 
   useEffect(() => { fetchIndex() }, [fetchIndex])
+  useEffect(() => { setFilters(EMPTY_REPORT_FILTERS) }, [selectedId])
 
   function handleExport() {
     window.open(`/api/reports/training-index/${selectedId}?scope=${scope}&format=csv`, '_blank')
   }
 
   const selectedPerson = persons.find((p:any) => p.id === selectedId)
-  const completed      = entries.filter((e:any) => e.status === 'COMPLETED').length
-  const overdue        = entries.filter((e:any) => e.status === 'OVERDUE').length
+
+  const filteredEntries = useMemo(() => entries.filter((e: IndexEntry) => matchesReportFilters(filters, {
+    name: e.topicName,
+    status: e.status,
+    dates: [e.assignedAt, e.dueDate, e.completedAt],
+  })), [entries, filters])
+
+  const completed = filteredEntries.filter((e:any) => e.status === 'COMPLETED').length
+  const overdue   = filteredEntries.filter((e:any) => e.status === 'OVERDUE').length
 
   return (
     <div>
@@ -152,7 +170,7 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-4">
         {[
-          { label: 'Total trainings', value: entries.length, color: '#374151' },
+          { label: 'Total trainings', value: filteredEntries.length, color: '#374151' },
           { label: 'Completed',       value: completed,      color: '#166534' },
           { label: 'Overdue',         value: overdue,        color: '#dc2626' },
         ].map((s) => (
@@ -169,6 +187,15 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
         ))}
       </div>
 
+      {entries.length > 0 && (
+        <ReportFilterBar
+          filters={filters}
+          onChange={setFilters}
+          statusOptions={STATUS_OPTIONS}
+          searchPlaceholder="Search topic..."
+        />
+      )}
+
       {/* Index table */}
       {loading ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
@@ -177,6 +204,10 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
       ) : entries.length === 0 ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
           No training records found for this person
+        </div>
+      ) : filteredEntries.length === 0 ? (
+        <div className="flex items-center justify-center py-16 text-sm text-gray-400">
+          No training records match the current filters.
         </div>
       ) : (
         <div
@@ -213,7 +244,7 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry:any, idx:number) => {
+              {filteredEntries.map((entry:any, idx:number) => {
                 const statusStyle = STATUS_STYLES[entry.status] ?? STATUS_STYLES.NOT_STARTED
                 return (
                   <tr

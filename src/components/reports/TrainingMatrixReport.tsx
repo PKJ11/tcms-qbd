@@ -1,7 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { ReportScope } from './ReportsHub'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from './ReportFilterBar'
+
+const STATUS_OPTIONS = [
+  { value: 'COMPLETED',    label: 'Completed' },
+  { value: 'IN_PROGRESS',  label: 'In progress' },
+  { value: 'NOT_STARTED',  label: 'Not started' },
+  { value: 'OVERDUE',      label: 'Overdue' },
+  { value: 'FAILED',       label: 'Failed' },
+  { value: 'NOT_ASSIGNED', label: 'Not assigned' },
+]
 
 interface MatrixRow {
   person: {
@@ -27,6 +37,7 @@ const STATUS_CELL: Record<string, { bg: string; color: string; label: string }> 
 export function TrainingMatrixReport({ scope }: { scope: ReportScope }) {
   const [matrix,  setMatrix]  = useState<MatrixRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [filters, setFilters] = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
   const isOrgWide = scope === 'all'
 
   const fetchMatrix = useCallback(async () => {
@@ -61,6 +72,19 @@ export function TrainingMatrixReport({ scope }: { scope: ReportScope }) {
 
   const topics = matrix[0]?.topics ?? []
 
+  const filteredMatrix = matrix.filter((row) => matchesReportFilters(filters, {
+    name: row.person.name,
+    employeeId: row.person.employeeId,
+    dates: [],
+  }) && (
+    !filters.status && !filters.date && !filters.month
+      ? true
+      : row.topics.some((t) => matchesReportFilters(
+          { ...filters, search: '' },
+          { name: '', status: t.status, dates: [t.dueDate, t.completedAt] },
+        ))
+  ))
+
   return (
     <div>
       {/* Header */}
@@ -68,7 +92,7 @@ export function TrainingMatrixReport({ scope }: { scope: ReportScope }) {
         <div>
           <h2 className="text-sm font-semibold text-gray-700">Training Matrix</h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            {matrix.length} person{matrix.length !== 1 ? 's' : ''} ·{' '}
+            {filteredMatrix.length} person{filteredMatrix.length !== 1 ? 's' : ''} ·{' '}
             {(matrix[0]?.topics ?? []).length} topic{(matrix[0]?.topics ?? []).length !== 1 ? 's' : ''} ·{' '}
             Format QbD/QA/F/007-13
             {!isOrgWide && (
@@ -94,6 +118,8 @@ export function TrainingMatrixReport({ scope }: { scope: ReportScope }) {
           Export CSV
         </button>
       </div>
+
+      <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} />
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3 mb-4">
@@ -151,7 +177,14 @@ export function TrainingMatrixReport({ scope }: { scope: ReportScope }) {
               </tr>
             </thead>
             <tbody>
-              {matrix.map((row) => (
+              {filteredMatrix.length === 0 && (
+                <tr>
+                  <td colSpan={topics.length + 1} className="px-4 py-8 text-center text-sm text-gray-400">
+                    No people match the current filters.
+                  </td>
+                </tr>
+              )}
+              {filteredMatrix.map((row) => (
                 <tr
                   key={row.person.id}
                   style={{ borderBottom: '1px solid #f3f4f6' }}

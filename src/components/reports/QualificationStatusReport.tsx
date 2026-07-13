@@ -1,8 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { formatDate } from '@/lib/utils'
 import type { ReportScope } from './ReportsHub'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from './ReportFilterBar'
+
+const STATUS_OPTIONS = [
+  { value: 'INITIATED',   label: 'Initiated' },
+  { value: 'IN_PROGRESS', label: 'In progress' },
+  { value: 'APPROVED',    label: 'Approved' },
+  { value: 'EXPIRED',     label: 'Expired' },
+  { value: 'REVOKED',     label: 'Revoked' },
+]
 
 interface QualRow {
   person:      { id: string; name: string; employeeId: string; department: string | null }
@@ -26,24 +35,31 @@ const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
 export function QualificationStatusReport({ scope }: { scope: ReportScope }) {
   const [rows,    setRows]    = useState<QualRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter,  setFilter]  = useState('')
+  const [filters, setFilters] = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
   const isOrgWide = scope === 'all'
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
-    const params = new URLSearchParams({ scope, ...(filter ? { status: filter } : {}) })
+    const params = new URLSearchParams({ scope, ...(filters.status ? { status: filters.status } : {}) })
     const res    = await fetch(`/api/reports/qualification-status?${params}`)
     const data   = await res.json()
     setRows(data.rows ?? [])
     setLoading(false)
-  }, [filter, scope])
+  }, [filters.status, scope])
 
   useEffect(() => { fetchRows() }, [fetchRows])
 
   function handleExport() {
-    const params = new URLSearchParams({ scope, format: 'csv', ...(filter ? { status: filter } : {}) })
+    const params = new URLSearchParams({ scope, format: 'csv', ...(filters.status ? { status: filters.status } : {}) })
     window.open(`/api/reports/qualification-status?${params}`, '_blank')
   }
+
+  const filteredRows = useMemo(() => rows.filter((row) => matchesReportFilters(filters, {
+    name: row.person.name,
+    employeeId: row.person.employeeId,
+    status: row.status,
+    dates: [row.approvedAt, row.expiryDate],
+  })), [rows, filters])
 
   return (
     <div>
@@ -51,7 +67,7 @@ export function QualificationStatusReport({ scope }: { scope: ReportScope }) {
         <div>
           <h2 className="text-sm font-semibold text-gray-700">Qualification Status Board</h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            {rows.length} record{rows.length !== 1 ? 's' : ''} · URS-RPT-004
+            {filteredRows.length} record{filteredRows.length !== 1 ? 's' : ''} · URS-RPT-004
             {!isOrgWide && (
               <span
                 className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold"
@@ -63,18 +79,6 @@ export function QualificationStatusReport({ scope }: { scope: ReportScope }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg border text-sm outline-none"
-            style={{ borderColor: '#e5e7eb' }}
-          >
-            <option value="">All statuses</option>
-            <option value="APPROVED">Approved</option>
-            <option value="EXPIRED">Expired</option>
-            <option value="IN_PROGRESS">In progress</option>
-            <option value="REVOKED">Revoked</option>
-          </select>
           <button
             onClick={handleExport}
             className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2"
@@ -90,6 +94,10 @@ export function QualificationStatusReport({ scope }: { scope: ReportScope }) {
         </div>
       </div>
 
+      {rows.length > 0 && (
+        <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} />
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
           Loading qualification status...
@@ -97,6 +105,10 @@ export function QualificationStatusReport({ scope }: { scope: ReportScope }) {
       ) : rows.length === 0 ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
           No qualification records found
+        </div>
+      ) : filteredRows.length === 0 ? (
+        <div className="flex items-center justify-center py-16 text-sm text-gray-400">
+          No records match the current filters.
         </div>
       ) : (
         <div
@@ -117,7 +129,7 @@ export function QualificationStatusReport({ scope }: { scope: ReportScope }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => {
+              {filteredRows.map((row, i) => {
                 const statusStyle  = STATUS_STYLES[row.status] ?? STATUS_STYLES.IN_PROGRESS
                 const isExpiringSoon = row.daysToExpiry !== null && row.daysToExpiry <= 30 && row.daysToExpiry > 0
                 const isExpired      = row.status === 'EXPIRED' || (row.daysToExpiry !== null && row.daysToExpiry <= 0)

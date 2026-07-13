@@ -350,6 +350,7 @@ model TrainingMaterial {
 
   topic    TrainingTopic     @relation(fields: [topicId], references: [id])
   versions MaterialVersion[]
+  materialConfirmations AssignmentMaterialConfirmation[]
 
   @@map("training_materials")
 }
@@ -423,8 +424,22 @@ model TrainingAssignment {
   topic      TrainingTopic       @relation(fields: [topicId],      references: [id])
   assignedBy Person              @relation("assignedBy", fields: [assignedById], references: [id])
   attempts   AssessmentAttempt[]
+  materialConfirmations AssignmentMaterialConfirmation[]
 
   @@map("training_assignments")
+}
+
+model AssignmentMaterialConfirmation {
+  id           String   @id @default(cuid())
+  assignmentId String
+  materialId   String
+  confirmedAt  DateTime @default(now())
+
+  assignment TrainingAssignment @relation(fields: [assignmentId], references: [id])
+  material   TrainingMaterial   @relation(fields: [materialId],   references: [id])
+
+  @@unique([assignmentId, materialId])
+  @@map("assignment_material_confirmations")
 }
 
 // ─────────────────────────────────────────────

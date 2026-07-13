@@ -104,6 +104,7 @@ export default async function PersonDetailPage({
                 departmentId: person.department?.id ?? '',
                 unitId:       person.unit?.id ?? '',
                 sectionId:    person.section?.id ?? '',
+                managerId:    person.manager?.id ?? '',
               }}
               departments={departments}
             />

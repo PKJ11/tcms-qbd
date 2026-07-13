@@ -51,7 +51,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Assessments',
     href:  '/assessments',
     icon:  'check-square',
-    roles: [],  // all roles
+    roles: ['ADMINISTRATOR', 'VIEWER', 'TRAINER', 'GUEST_TRAINER'],
   },
   {
     label: 'Qualifications',
@@ -69,13 +69,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Reports',
     href:  '/reports',
     icon:  'bar-chart-2',
-    roles: ['VIEWER'],
+    roles: ['VIEWER', 'TRAINER'],
   },
   {
     label: 'Audit Trail',
     href:  '/audit-trail',
     icon:  'shield',
-    roles: ['VIEWER'],
+    roles: ['ADMINISTRATOR', 'VIEWER'],
   },
   {
     label: 'Admin',

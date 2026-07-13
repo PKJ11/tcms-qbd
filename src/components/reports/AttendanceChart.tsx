@@ -26,6 +26,8 @@ export function AttendanceChart() {
   const [loading,   setLoading]   = useState(true)
   const [showTable, setShowTable] = useState(false)
   const [hover,      setHover]    = useState<{ month: string; series: 'attended' | 'notAttended' } | null>(null)
+  const [fromMonth,  setFromMonth] = useState('')
+  const [toMonth,    setToMonth]   = useState('')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -40,15 +42,19 @@ export function AttendanceChart() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  const filteredBuckets = useMemo(() => buckets.filter((b) =>
+    (!fromMonth || b.month >= fromMonth) && (!toMonth || b.month <= toMonth)
+  ), [buckets, fromMonth, toMonth])
+
   const maxTotal = useMemo(
-    () => Math.max(1, ...buckets.map((b) => b.attended + b.notAttended)),
-    [buckets]
+    () => Math.max(1, ...filteredBuckets.map((b) => b.attended + b.notAttended)),
+    [filteredBuckets]
   )
 
   const totals = useMemo(() => ({
-    attended:    buckets.reduce((sum, b) => sum + b.attended, 0),
-    notAttended: buckets.reduce((sum, b) => sum + b.notAttended, 0),
-  }), [buckets])
+    attended:    filteredBuckets.reduce((sum, b) => sum + b.attended, 0),
+    notAttended: filteredBuckets.reduce((sum, b) => sum + b.notAttended, 0),
+  }), [filteredBuckets])
 
   return (
     <div>
@@ -73,6 +79,31 @@ export function AttendanceChart() {
               </option>
             ))}
           </select>
+          <input
+            type="month"
+            value={fromMonth}
+            onChange={(e) => setFromMonth(e.target.value)}
+            title="From month"
+            className="px-3 py-2 rounded-lg border text-sm outline-none"
+            style={{ borderColor: '#e5e7eb' }}
+          />
+          <input
+            type="month"
+            value={toMonth}
+            onChange={(e) => setToMonth(e.target.value)}
+            title="To month"
+            className="px-3 py-2 rounded-lg border text-sm outline-none"
+            style={{ borderColor: '#e5e7eb' }}
+          />
+          {(fromMonth || toMonth) && (
+            <button
+              onClick={() => { setFromMonth(''); setToMonth('') }}
+              className="px-3 py-2 rounded-lg text-xs font-medium border"
+              style={{ borderColor: '#e5e7eb', color: '#6b7280' }}
+            >
+              Clear
+            </button>
+          )}
           <button
             onClick={() => setShowTable((v) => !v)}
             className="px-3 py-2 rounded-lg border text-xs font-medium"
@@ -100,7 +131,7 @@ export function AttendanceChart() {
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
           Loading chart...
         </div>
-      ) : buckets.every((b) => b.attended + b.notAttended === 0) ? (
+      ) : filteredBuckets.length === 0 || filteredBuckets.every((b) => b.attended + b.notAttended === 0) ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
           No assignments due in this window.
         </div>
@@ -117,7 +148,7 @@ export function AttendanceChart() {
               </tr>
             </thead>
             <tbody>
-              {buckets.map((b) => (
+              {filteredBuckets.map((b) => (
                 <tr key={b.month} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td className="px-4 py-3 text-gray-900">{b.monthLabel}</td>
                   <td className="px-4 py-3" style={{ color: COLOR_ATTENDED }}>{b.attended}</td>
@@ -134,7 +165,7 @@ export function AttendanceChart() {
           style={{ borderColor: '#e5e7eb' }}
         >
           <div className="flex items-end gap-4" style={{ height: BAR_AREA_HEIGHT + 40 }}>
-            {buckets.map((b) => {
+            {filteredBuckets.map((b) => {
               const total          = b.attended + b.notAttended
               const totalHeight    = total === 0 ? 0 : Math.max(4, (total / maxTotal) * BAR_AREA_HEIGHT)
               const attendedHeight = total === 0 ? 0 : (b.attended / total) * totalHeight

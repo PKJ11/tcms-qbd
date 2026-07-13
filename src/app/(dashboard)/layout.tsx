@@ -2,6 +2,7 @@ import { getSession } from '@/lib/auth'
 import { redirect }   from 'next/navigation'
 import { Sidebar }    from '@/components/layout/Sidebar'
 import { TopBar }     from '@/components/layout/TopBar'
+import { ActiveTrainingsModal } from '@/components/notifications/ActiveTrainingsModal'
 
 export default async function DashboardLayout({
   children,
@@ -30,6 +31,8 @@ export default async function DashboardLayout({
 
         {/* Top bar */}
         <TopBar user={session.user} />
+
+        <ActiveTrainingsModal />
 
         {/* Scrollable page content */}
         <main

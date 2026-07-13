@@ -265,13 +265,26 @@ export async function getAttemptQuestions(
   // Verify assignment belongs to this person and is in valid state
   const assignment = await prisma.trainingAssignment.findUnique({
     where:  { id: assignmentId },
-    select: { id: true, personId: true, status: true, viewedAt: true },
+    select: {
+      id: true, personId: true, status: true, topicId: true,
+      topic: {
+        select: {
+          materials: { where: { status: 'APPROVED' }, select: { id: true } },
+        },
+      },
+    },
   })
   if (!assignment)                    throw new Error('Assignment not found')
   if (assignment.personId !== personId) throw new Error('Not authorised')
   if (assignment.status === 'COMPLETED') throw new Error('This training is already completed')
-  if (!assignment.viewedAt) {
-    throw new Error('You must open and read the training material before attempting the assessment')
+
+  if (assignment.topic.materials.length > 0) {
+    const confirmedCount = await prisma.assignmentMaterialConfirmation.count({
+      where: { assignmentId },
+    })
+    if (confirmedCount < assignment.topic.materials.length) {
+      throw new Error('You must review and confirm all training material before attempting the assessment')
+    }
   }
 
   // Check attempt count
@@ -321,10 +334,26 @@ export async function submitAttempt(
 
   const assignment = await prisma.trainingAssignment.findUnique({
   where:  { id: input.assignmentId },
-  select: { id: true, personId: true, topicId: true, status: true, trigger: true },
+  select: {
+    id: true, personId: true, topicId: true, status: true, trigger: true,
+    topic: {
+      select: {
+        materials: { where: { status: 'APPROVED' }, select: { id: true } },
+      },
+    },
+  },
 })
   if (!assignment)                       throw new Error('Assignment not found')
   if (assignment.personId !== actorId)   throw new Error('Not authorised')
+
+  if (assignment.topic.materials.length > 0) {
+    const confirmedCount = await prisma.assignmentMaterialConfirmation.count({
+      where: { assignmentId: input.assignmentId },
+    })
+    if (confirmedCount < assignment.topic.materials.length) {
+      throw new Error('You must review and confirm all training material before attempting the assessment')
+    }
+  }
 
   const bank = await prisma.questionBank.findUnique({
     where:  { id: input.bankId },

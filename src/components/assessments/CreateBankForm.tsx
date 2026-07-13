@@ -6,19 +6,6 @@ import { JustificationModal } from '@/components/JustificationModal'
 
 interface Topic { id: string; name: string }
 
-const ASSESSMENT_TYPES = [
-  {
-    value:       'MCQ',
-    label:       'Written assessment (MCQ)',
-    description: 'Randomised multiple-choice questions with auto-grading',
-  },
-  {
-    value:       'ORAL',
-    label:       'Oral / practical assessment',
-    description: 'Trainer manually records outcome after verbal or practical evaluation',
-  },
-]
-
 interface Props {
   topics:          Topic[]
   initialTopicId?: string
@@ -80,33 +67,6 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
       <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
         <form onSubmit={handleSubmitClick} className="flex flex-col gap-5">
 
-          {/* Assessment type */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Assessment type <span className="text-red-500">*</span>
-            </label>
-            <div className="flex flex-col gap-2">
-              {ASSESSMENT_TYPES.map((t) => {
-                const selected = form.assessmentType === t.value
-                return (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setForm({ ...form, assessmentType: t.value })}
-                    className="p-3 rounded-lg border text-left transition-all"
-                    style={{
-                      borderColor: selected ? '#2d6a4f' : '#e5e7eb',
-                      background:  selected ? '#f0fdf4' : '#fff',
-                    }}
-                  >
-                    <div className="text-sm font-medium text-gray-900">{t.label}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{t.description}</div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
           {/* Topic */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -130,61 +90,47 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
             )}
           </div>
 
-          {/* MCQ-specific settings — hide for ORAL */}
-          {form.assessmentType === 'MCQ' && (
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Pass mark (%)
-                  <span className="text-xs text-gray-400 font-normal ml-1">SOP: 80%</span>
-                </label>
-                <input
-                  type="number" min={1} max={100}
-                  value={form.passingPercentage}
-                  onChange={(e) => setForm({ ...form, passingPercentage: Number(e.target.value) })}
-                  className={inputClass}
-                  style={inputStyle}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Questions / attempt
-                </label>
-                <input
-                  type="number" min={1}
-                  value={form.questionsPerAttempt}
-                  onChange={(e) => setForm({ ...form, questionsPerAttempt: Number(e.target.value) })}
-                  className={inputClass}
-                  style={inputStyle}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Max attempts
-                  <span className="text-xs text-gray-400 font-normal ml-1">SOP: 3</span>
-                </label>
-                <input
-                  type="number" min={1} max={10}
-                  value={form.maxAttempts}
-                  onChange={(e) => setForm({ ...form, maxAttempts: Number(e.target.value) })}
-                  className={inputClass}
-                  style={inputStyle}
-                />
-              </div>
+          {/* MCQ settings */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Pass mark (%)
+                <span className="text-xs text-gray-400 font-normal ml-1">SOP: 80%</span>
+              </label>
+              <input
+                type="number" min={1} max={100}
+                value={form.passingPercentage}
+                onChange={(e) => setForm({ ...form, passingPercentage: Number(e.target.value) })}
+                className={inputClass}
+                style={inputStyle}
+              />
             </div>
-          )}
-
-          {/* ORAL info box */}
-          {form.assessmentType === 'ORAL' && (
-            <div
-              className="text-xs px-4 py-3 rounded-lg"
-              style={{ background: '#eff6ff', color: '#1d4ed8' }}
-            >
-              For oral assessments, the Trainer manually records Pass or Fail after
-              verbally or practically evaluating the trainee. No question bank is needed.
-              The SOP 80% mark criterion is applied by the Trainer's judgement.
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Questions / attempt
+              </label>
+              <input
+                type="number" min={1}
+                value={form.questionsPerAttempt}
+                onChange={(e) => setForm({ ...form, questionsPerAttempt: Number(e.target.value) })}
+                className={inputClass}
+                style={inputStyle}
+              />
             </div>
-          )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Max attempts
+                <span className="text-xs text-gray-400 font-normal ml-1">SOP: 3</span>
+              </label>
+              <input
+                type="number" min={1} max={10}
+                value={form.maxAttempts}
+                onChange={(e) => setForm({ ...form, maxAttempts: Number(e.target.value) })}
+                className={inputClass}
+                style={inputStyle}
+              />
+            </div>
+          </div>
 
           {error && (
             <div
@@ -218,11 +164,7 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
       <JustificationModal
         isOpen={modalOpen}
         title="Confirm assessment bank creation"
-        description={
-          form.assessmentType === 'ORAL'
-            ? 'This creates an oral assessment bank. Trainer will manually record outcomes.'
-            : `This creates an MCQ bank with ${form.passingPercentage}% pass mark and ${form.maxAttempts} max attempts.`
-        }
+        description={`This creates an MCQ bank with ${form.passingPercentage}% pass mark and ${form.maxAttempts} max attempts.`}
         onConfirm={handleConfirm}
         onCancel={() => setModalOpen(false)}
         loading={loading}
