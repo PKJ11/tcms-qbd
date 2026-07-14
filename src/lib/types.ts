@@ -12,6 +12,7 @@ export interface TCMSUser {
   mustChangePassword: boolean
   departmentId:       string
   department:         string
+  departmentCode:     string
   unitId:             string
   unit:               string
   sectionId:          string
@@ -35,6 +36,7 @@ declare module 'next-auth/jwt' {
     mustChangePassword: boolean
     departmentId:       string
     department:         string
+    departmentCode:     string
     unitId:             string
     unit:               string
     sectionId:          string

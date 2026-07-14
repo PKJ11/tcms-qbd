@@ -39,10 +39,7 @@ export interface QuestionItemSafe {
 }
 
 export interface CreateQuestionBankInput {
-  topicId:             string
-  passingPercentage:   number
-  questionsPerAttempt: number
-  maxAttempts:         number
+  topicId: string
 }
 
 export interface CreateQuestionInput {

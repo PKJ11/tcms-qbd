@@ -17,12 +17,6 @@ export const createTechniqueSchema = z.object({
   departmentId: z
     .string()
     .min(1, 'Department is required'),
-
-  qualificationPeriodDays: z
-    .number()
-    .int()
-    .min(30,  'Minimum 30 days validity')
-    .max(1095, 'Maximum 3 years validity'),
 })
 
 export const createQualificationSchema = z.object({

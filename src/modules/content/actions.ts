@@ -306,14 +306,23 @@ export async function approveMaterialVersion(
       data:  { status: 'APPROVED' },
     })
 
-    // If MAJOR version — trigger retraining for previously trained users
     if (version.versionType === 'MAJOR') {
+      // Reassign the test — creates a new mandatory assignment for everyone
+      // who previously completed this training.
       await triggerRetrainingForMajorVersion(
         tx,
         version.material.topicId,
         version.materialId,
         actorId,
         justification
+      )
+    } else {
+      // Acknowledge only — just notify everyone who previously completed
+      // this training that the document changed, no new assignment.
+      await notifyDocumentChanged(
+        tx,
+        version.material.topicId,
+        version.material.title
       )
     }
   })
@@ -379,6 +388,33 @@ async function triggerRetrainingForMajorVersion(
       channel:  'IN_APP'     as const,
       title:    'Retraining required',
       message:  `Training material has been updated (major version). Please complete retraining within 30 days.`,
+    })),
+  })
+}
+
+// ── Notify on acknowledge-only version change ────────────────────
+// Everyone who already completed this topic's training is just informed
+// the document changed — no new assignment is created.
+
+async function notifyDocumentChanged(
+  tx:          Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>,
+  topicId:     string,
+  materialTitle: string
+) {
+  const completedAssignments = await tx.trainingAssignment.findMany({
+    where:  { topicId, status: 'COMPLETED' },
+    select: { personId: true },
+  })
+
+  if (completedAssignments.length === 0) return
+
+  await tx.notification.createMany({
+    data: completedAssignments.map((a) => ({
+      personId: a.personId,
+      type:     'DOCUMENT_UPDATED' as const,
+      channel:  'IN_APP'           as const,
+      title:    'Training document changed',
+      message:  `"${materialTitle}" has been updated. Please review the latest version.`,
     })),
   })
 }

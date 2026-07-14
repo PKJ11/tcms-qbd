@@ -92,10 +92,8 @@ enum TechniqueType {
 }
 
 enum SignatoryRole {
-  TRAINER
-  QA
-  QA_MANAGER
-  TRAINING_HEAD
+  QC_TRAINER
+  QA_TRAINER
 }
 
 enum SignatoryStatus {
@@ -112,6 +110,7 @@ enum NotificationType {
   RETRAINING
   QUALIFICATION_EXPIRY
   PASSWORD_RESET
+  DOCUMENT_UPDATED
 }
 
 enum NotificationChannel {
@@ -531,15 +530,14 @@ model RefresherTrigger {
 // ─────────────────────────────────────────────
 
 model Technique {
-  id                      String        @id @default(cuid())
-  name                    String
-  code                    String        @unique
-  type                    TechniqueType
-  departmentId            String
-  qualificationPeriodDays Int           @default(365)
-  isActive                Boolean       @default(true)
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
+  id           String        @id @default(cuid())
+  name         String
+  code         String        @unique
+  type         TechniqueType
+  departmentId String
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   department     Department            @relation(fields: [departmentId], references: [id])
   qualifications QualificationRecord[]
@@ -618,7 +616,7 @@ model Certificate {
   issuedById      String
   issuedAt        DateTime @default(now())
   fileUrl         String
-  validUntil      DateTime
+  validUntil      DateTime?
 
   qualification QualificationRecord @relation(fields: [qualificationId], references: [id])
   person        Person              @relation("certPerson", fields: [personId],   references: [id])

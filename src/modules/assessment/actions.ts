@@ -21,6 +21,11 @@ import { syncRefresherCompletion } from '@/modules/refresher'
 // QUESTION BANK MANAGEMENT
 // ─────────────────────────────────────────────────────────────────
 
+// SOP-mandated assessment settings — fixed for every bank, not user-configurable.
+const PASSING_PERCENTAGE   = 80
+const QUESTIONS_PER_ATTEMPT = 5
+const MAX_ATTEMPTS          = 3
+
 export async function getQuestionBankByTopic(topicId: string) {
   return prisma.questionBank.findUnique({
     where:  { topicId },
@@ -62,9 +67,9 @@ export async function createQuestionBank(
   const bank = await prisma.questionBank.create({
     data: {
       topicId:             input.topicId,
-      passingPercentage:   input.passingPercentage,
-      questionsPerAttempt: input.questionsPerAttempt,
-      maxAttempts:         input.maxAttempts,
+      passingPercentage:   PASSING_PERCENTAGE,
+      questionsPerAttempt: QUESTIONS_PER_ATTEMPT,
+      maxAttempts:         MAX_ATTEMPTS,
     },
   })
 
@@ -77,53 +82,14 @@ export async function createQuestionBank(
     beforeValue:   null,
     afterValue:    {
       topicName:           topic.name,
-      passingPercentage:   input.passingPercentage,
-      questionsPerAttempt: input.questionsPerAttempt,
-      maxAttempts:         input.maxAttempts,
+      passingPercentage:   PASSING_PERCENTAGE,
+      questionsPerAttempt: QUESTIONS_PER_ATTEMPT,
+      maxAttempts:         MAX_ATTEMPTS,
     },
     justification,
   })
 
   return bank
-}
-
-export async function updateQuestionBank(
-  bankId:        string,
-  input:         Partial<CreateQuestionBankInput>,
-  justification: string,
-  actorId:       string
-) {
-  const before = await prisma.questionBank.findUnique({
-    where:  { id: bankId },
-    select: { passingPercentage: true, questionsPerAttempt: true, maxAttempts: true },
-  })
-  if (!before) throw new Error('Question bank not found')
-
-  const after = await prisma.questionBank.update({
-    where: { id: bankId },
-    data:  {
-      ...(input.passingPercentage   !== undefined && { passingPercentage:   input.passingPercentage   }),
-      ...(input.questionsPerAttempt !== undefined && { questionsPerAttempt: input.questionsPerAttempt }),
-      ...(input.maxAttempts         !== undefined && { maxAttempts:         input.maxAttempts          }),
-    },
-  })
-
-  await logAuditEvent({
-    userId:        actorId,
-    action:        'UPDATE',
-    module:        'ASSESSMENT',
-    recordId:      bankId,
-    recordType:    'QuestionBank',
-    beforeValue:   before,
-    afterValue:    {
-      passingPercentage:   after.passingPercentage,
-      questionsPerAttempt: after.questionsPerAttempt,
-      maxAttempts:         after.maxAttempts,
-    },
-    justification,
-  })
-
-  return after
 }
 
 // ─────────────────────────────────────────────────────────────────

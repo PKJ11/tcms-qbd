@@ -2,22 +2,6 @@ import { z } from 'zod'
 
 export const createQuestionBankSchema = z.object({
   topicId: z.string().min(1, 'Topic is required'),
-
-  passingPercentage: z
-    .number()
-    .min(1,   'Must be at least 1%')
-    .max(100, 'Cannot exceed 100%'),
-
-  questionsPerAttempt: z
-    .number()
-    .int()
-    .min(1, 'Must have at least 1 question per attempt'),
-
-  maxAttempts: z
-    .number()
-    .int()
-    .min(1, 'Must allow at least 1 attempt')
-    .max(10, 'Maximum 10 attempts allowed'),
 })
 
 export const createQuestionSchema = z.object({

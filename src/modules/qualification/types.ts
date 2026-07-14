@@ -1,20 +1,19 @@
 export type QualStatus  = 'INITIATED' | 'IN_PROGRESS' | 'APPROVED' | 'EXPIRED' | 'REVOKED'
 export type QualOutcome = 'COMPETENT' | 'NOT_YET_COMPETENT'
 export type TechniqueType = 'METHOD' | 'INSTRUMENT' | 'TECHNIQUE'
-export type SignatoryRole   = 'TRAINER' | 'QA' | 'QA_MANAGER' | 'TRAINING_HEAD'
+export type SignatoryRole   = 'QC_TRAINER' | 'QA_TRAINER'
 export type SignatoryStatus = 'PENDING' | 'SIGNED' | 'REJECTED'
 
 export interface TechniqueItem {
-  id:                      string
-  name:                    string
-  code:                    string
-  type:                    TechniqueType
-  qualificationPeriodDays: number
-  isActive:                boolean
+  id:        string
+  name:      string
+  code:      string
+  type:      TechniqueType
+  isActive:  boolean
   department: {
     id:   string
     name: string
-    
+
   }
   _count: {
     qualifications: number
@@ -76,11 +75,10 @@ export interface SignatoryEntry {
 }
 
 export interface CreateTechniqueInput {
-  name:                    string
-  code:                    string
-  type:                    TechniqueType
-  departmentId:            string
-  qualificationPeriodDays: number
+  name:         string
+  code:         string
+  type:         TechniqueType
+  departmentId: string
 }
 
 export interface CreateQualificationInput {

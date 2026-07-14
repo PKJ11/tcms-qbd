@@ -32,7 +32,7 @@ export const authOptions: NextAuthOptions = {
             departmentId:       true,
             unitId:             true,
             sectionId:          true,
-            department:         { select: { id: true, name: true } },
+            department:         { select: { id: true, name: true, code: true } },
             unit:               { select: { id: true, name: true } },
             section:            { select: { id: true, name: true } },
             roles:              { select: { role: true } },
@@ -55,6 +55,7 @@ export const authOptions: NextAuthOptions = {
           mustChangePassword: person.mustChangePassword,
           departmentId:       person.departmentId,
           department:         person.department?.name ?? '',
+          departmentCode:     person.department?.code ?? '',
           unitId:             person.unitId,
           unit:               person.unit?.name ?? '',
           sectionId:          person.sectionId ?? '',
@@ -78,6 +79,7 @@ export const authOptions: NextAuthOptions = {
         token.mustChangePassword = u.mustChangePassword
         token.departmentId       = u.departmentId
         token.department         = u.department
+        token.departmentCode     = u.departmentCode
         token.unitId             = u.unitId
         token.unit               = u.unit
         token.sectionId          = u.sectionId
@@ -96,6 +98,7 @@ export const authOptions: NextAuthOptions = {
         mustChangePassword: token.mustChangePassword as boolean,
         departmentId:       token.departmentId       as string,
         department:         token.department         as string,
+        departmentCode:     token.departmentCode     as string,
         unitId:             token.unitId             as string,
         unit:               token.unit               as string,
         sectionId:          token.sectionId          as string,
@@ -136,4 +139,13 @@ export default NextAuth(authOptions)
 import { getServerSession } from 'next-auth'
 export async function getSession() {
   return getServerSession(authOptions)
+}
+
+export async function verifyUserPassword(userId: string, password: string): Promise<boolean> {
+  const person = await prisma.person.findUnique({
+    where:  { id: userId },
+    select: { passwordHash: true },
+  })
+  if (!person?.passwordHash) return false
+  return bcrypt.compare(password, person.passwordHash)
 }

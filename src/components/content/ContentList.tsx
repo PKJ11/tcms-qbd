@@ -30,9 +30,9 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   RETIRED:  { bg: '#f9fafb', color: '#6b7280' },
 }
 
-const VERSION_COLORS: Record<string, { bg: string; color: string }> = {
-  MAJOR: { bg: '#fef2f2', color: '#dc2626' },
-  MINOR: { bg: '#eff6ff', color: '#1d4ed8' },
+const VERSION_COLORS: Record<string, { bg: string; color: string; label: string }> = {
+  MAJOR: { bg: '#fef2f2', color: '#dc2626', label: 'Assign the test' },
+  MINOR: { bg: '#eff6ff', color: '#1d4ed8', label: 'Acknowledge everyone' },
 }
 
 export function ContentList({
@@ -302,7 +302,7 @@ export function ContentList({
                                   className="px-2 py-0.5 rounded-full text-xs font-semibold"
                                   style={vStyle}
                                 >
-                                  {version.versionType}
+                                  {vStyle.label}
                                 </span>
                               </td>
                               <td className="px-4 py-3">
@@ -372,7 +372,11 @@ export function ContentList({
       <JustificationModal
         isOpen={!!approveTarget}
         title={`Approve version v${approveTarget?.versionLabel ?? ''}`}
-        description="Approving this version makes it available for training. A major version triggers retraining for previously trained personnel."
+        description={
+          approveTarget?.versionType === 'MAJOR'
+            ? 'Approving this version makes it available for training and assigns the test again to everyone who already completed it.'
+            : 'Approving this version makes it available for training and notifies everyone who already completed it that the document changed.'
+        }
         onConfirm={handleApprove}
         onCancel={() => setApproveTarget(null)}
         loading={modalLoading}

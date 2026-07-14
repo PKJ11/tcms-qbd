@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getAllTechniques, createTechnique } from '@/modules/qualification'
-import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+import { canManageQualifications } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_QUALIFICATIONS)) {
+  if (!canManageQualifications(session.user)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

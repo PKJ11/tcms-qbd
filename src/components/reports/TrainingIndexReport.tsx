@@ -64,7 +64,7 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
     if (!canViewOthers) return
 
     async function fetchPersons() {
-      const res  = await fetch('/api/personnel?isActive=true')
+      const res  = await fetch(`/api/personnel?isActive=true${isOrgWide ? '&scope=all' : ''}`)
       const data = await res.json()
       const all  = data.persons ?? []
 

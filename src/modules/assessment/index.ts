@@ -1,7 +1,6 @@
 export {
   getQuestionBankByTopic,
   createQuestionBank,
-  updateQuestionBank,
   createQuestion,
   updateQuestion,
   deactivateQuestion,

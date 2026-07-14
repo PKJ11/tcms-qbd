@@ -5,6 +5,7 @@ import {
   signQualification,
   rejectQualification,
 } from '@/modules/qualification'
+import { canManageQualifications } from '@/lib/permissions'
 
 export async function GET(
   _req: NextRequest,
@@ -33,7 +34,7 @@ export async function PATCH(
   }
 
   const body = await req.json()
-  const { justification, action } = body
+  const { justification, action, password } = body
 
   if (!justification) {
     return NextResponse.json(
@@ -44,7 +45,13 @@ export async function PATCH(
 
   try {
     if (action === 'sign') {
-      const result = await signQualification(params.id, justification, session.user.id)
+      if (!password) {
+        return NextResponse.json(
+          { message: 'Password is required to sign off' },
+          { status: 400 }
+        )
+      }
+      const result = await signQualification(params.id, justification, password, session.user.id)
       return NextResponse.json({
         message:      result.willApprove ? 'Qualification fully approved' : 'Step signed successfully',
         fullyApproved: result.willApprove,
@@ -52,6 +59,9 @@ export async function PATCH(
     }
 
     if (action === 'reject') {
+      if (!canManageQualifications(session.user)) {
+        return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
+      }
       await rejectQualification(params.id, justification, session.user.id)
       return NextResponse.json({ message: 'Qualification rejected' })
     }

@@ -6,6 +6,7 @@ export type NotificationType =
   | 'RETRAINING'
   | 'QUALIFICATION_EXPIRY'
   | 'PASSWORD_RESET'
+  | 'DOCUMENT_UPDATED'
 
 export type NotificationChannel = 'IN_APP' | 'EMAIL'
 

@@ -31,6 +31,25 @@ export function can(user: SessionUser, permission: Permission): boolean {
   return hasAnyRole(user, PERMISSIONS[permission] as AppRole[])
 }
 
+// ── Qualification workflow: department-scoped authorization ────────
+// QA department Trainer/Trainee create techniques & qualifications and
+// upload evidence. QC department Trainer signs step 1. QA department
+// Trainer signs the final step 2.
+
+export type QualificationUser = SessionUser & { departmentCode: string }
+
+export function canManageQualifications(user: QualificationUser): boolean {
+  return user.departmentCode === 'QA' && hasAnyRole(user, ['TRAINER', 'TRAINEE'])
+}
+
+export function canSignQcStep(user: QualificationUser): boolean {
+  return user.departmentCode === 'QC' && hasRole(user, 'TRAINER')
+}
+
+export function canSignQaStep(user: QualificationUser): boolean {
+  return user.departmentCode === 'QA' && hasRole(user, 'TRAINER')
+}
+
 export const ROLE_LABELS: Record<AppRole, string> = {
   ADMINISTRATOR:        'Administrator',
   VIEWER:               'Viewer',

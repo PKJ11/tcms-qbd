@@ -1,7 +1,7 @@
 import { getSession }          from '@/lib/auth'
 import { redirect }            from 'next/navigation'
 import { QualificationsView }  from '@/components/qualifications/QualificationsView'
-import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+import { PERMISSIONS, hasAnyRole, canManageQualifications } from '@/lib/permissions'
 
 export default async function QualificationsPage() {
   const session = await getSession()
@@ -9,8 +9,8 @@ export default async function QualificationsPage() {
 
   // Every authenticated user can access qualifications — Trainee/Contractual
   // Employee see only their own records; elevated roles see the org-wide view.
-  const canManage = hasAnyRole(session.user, PERMISSIONS.MANAGE_QUALIFICATIONS)
-  const canCreate = hasAnyRole(session.user, PERMISSIONS.MANAGE_QUALIFICATIONS)
+  const canManage = canManageQualifications(session.user)
+  const canCreate = canManageQualifications(session.user)
   const isOrgWide = hasAnyRole(session.user, PERMISSIONS.VIEW_QUALIFICATIONS)
 
   return (
@@ -23,9 +23,8 @@ export default async function QualificationsPage() {
               Scientist Qualifications
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              {isOrgWide
-                ? 'On-job training competency records, certificates, and the competency matrix. URS-SQF-001 to 005 · URS-CRT-001 to 003.'
-                : 'Your qualification records and certificates.'}
+              On-job training competency records, certificates, and the competency matrix.
+              Use the filters to view your own, your team&apos;s, or every record. URS-SQF-001 to 005 · URS-CRT-001 to 003.
             </p>
           </div>
 
@@ -56,9 +55,7 @@ export default async function QualificationsPage() {
         </div>
 
         <QualificationsView
-          canManage={canManage}
           canCreate={canCreate}
-          currentUserId={session.user.id}
           isOrgWide={isOrgWide}
           isSubScope={false}
         />

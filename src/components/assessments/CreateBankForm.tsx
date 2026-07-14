@@ -17,11 +17,8 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
   const hasInitialTopic = !!initialTopicId && topics.some((t) => t.id === initialTopicId)
 
   const [form, setForm] = useState({
-    topicId:             hasInitialTopic ? initialTopicId! : '',
-    passingPercentage:   80,   // SOP mandates 80%
-    questionsPerAttempt: 10,
-    maxAttempts:         3,
-    assessmentType:      'MCQ',
+    topicId:        hasInitialTopic ? initialTopicId! : '',
+    assessmentType: 'MCQ',
   })
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -90,46 +87,9 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
             )}
           </div>
 
-          {/* MCQ settings */}
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Pass mark (%)
-                <span className="text-xs text-gray-400 font-normal ml-1">SOP: 80%</span>
-              </label>
-              <input
-                type="number" min={1} max={100}
-                value={form.passingPercentage}
-                onChange={(e) => setForm({ ...form, passingPercentage: Number(e.target.value) })}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Questions / attempt
-              </label>
-              <input
-                type="number" min={1}
-                value={form.questionsPerAttempt}
-                onChange={(e) => setForm({ ...form, questionsPerAttempt: Number(e.target.value) })}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Max attempts
-                <span className="text-xs text-gray-400 font-normal ml-1">SOP: 3</span>
-              </label>
-              <input
-                type="number" min={1} max={10}
-                value={form.maxAttempts}
-                onChange={(e) => setForm({ ...form, maxAttempts: Number(e.target.value) })}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
+          {/* MCQ settings — fixed by SOP, not configurable */}
+          <div className="flex items-center gap-2 px-4 py-3 rounded-lg border text-sm text-gray-600" style={{ borderColor: '#e5e7eb', background: '#f9fafb' }}>
+            Every assessment uses the SOP-fixed settings: <strong>80%</strong> pass mark, <strong>5</strong> questions per attempt, <strong>3</strong> max attempts.
           </div>
 
           {error && (
@@ -164,7 +124,7 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
       <JustificationModal
         isOpen={modalOpen}
         title="Confirm assessment bank creation"
-        description={`This creates an MCQ bank with ${form.passingPercentage}% pass mark and ${form.maxAttempts} max attempts.`}
+        description="This creates an MCQ bank with the SOP-fixed 80% pass mark, 5 questions per attempt, and 3 max attempts."
         onConfirm={handleConfirm}
         onCancel={() => setModalOpen(false)}
         loading={loading}

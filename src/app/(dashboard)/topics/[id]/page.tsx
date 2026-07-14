@@ -3,6 +3,7 @@ import { redirect }         from 'next/navigation'
 import { getTopicById, getAllDepartments } from '@/modules/topics'
 import { formatDate }       from '@/lib/utils'
 import { TopicDetailView } from '@/modules/topics/TopicDetailView'
+import { TopicMaterialsList } from '@/components/content/TopicMaterialsList'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export default async function TopicDetailPage({
@@ -185,78 +186,11 @@ export default async function TopicDetailPage({
             )}
           </div>
 
-          {topic.materials.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 gap-2">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
-              <p className="text-sm text-gray-400">No materials uploaded yet</p>
-              {canEdit && (
-                <a
-                  href={`/content/upload?topicId=${topic.id}`}
-                  className="text-xs font-medium mt-1"
-                  style={{ color: '#2d6a4f' }}
-                >
-                  Upload the first material →
-                </a>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {topic.materials.map((material) => {
-                const statusStyle =
-                  material.status === 'APPROVED'
-                    ? { background: '#f0fdf4', color: '#166534' }
-                    : material.status === 'RETIRED'
-                    ? { background: '#f9fafb', color: '#6b7280' }
-                    : { background: '#fefce8', color: '#854d0e' }
-
-                return (
-                  <div
-                    key={material.id}
-                    className="flex items-center justify-between p-3 rounded-lg border"
-                    style={{ borderColor: '#f3f4f6', background: '#fafafa' }}
-                  >
-                    <div className="flex items-center gap-3">
-                      {/* File icon */}
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: '#f0fdf4' }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2d6a4f" strokeWidth="2">
-                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                          <polyline points="14 2 14 8 20 8"/>
-                        </svg>
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {material.title}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-0.5">
-                          v{material.currentVersion} &nbsp;·&nbsp;
-                          <span
-                            className="px-1.5 py-0.5 rounded text-xs font-semibold"
-                            style={statusStyle}
-                          >
-                            {material.status}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <a
-                      href={`/content?topicId=${topic.id}`}
-                      className="px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors"
-                      style={{ borderColor: '#e5e7eb', color: '#374151' }}
-                    >
-                      View
-                    </a>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+          <TopicMaterialsList
+            topicId={topic.id}
+            materials={topic.materials}
+            canEdit={canEdit}
+          />
         </div>
 
         {/* Assessment bank summary */}

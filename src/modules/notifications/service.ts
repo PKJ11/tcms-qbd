@@ -12,6 +12,7 @@ const EMAIL_SUBJECTS: Record<NotificationType, string> = {
   RETRAINING:          'Retraining required — TCMS',
   QUALIFICATION_EXPIRY: 'Qualification expiring — TCMS',
   PASSWORD_RESET:       'Your TCMS password has been reset',
+  DOCUMENT_UPDATED:     'Training document updated — TCMS',
 }
 
 function buildEmailHtml(title: string, message: string, personName: string): string {

@@ -17,13 +17,13 @@ const FILE_TYPES = [
 const VERSION_TYPES = [
   {
     value:       'MINOR',
-    label:       'Minor update',
-    description: 'Small correction or clarification — requires acknowledgement only',
+    label:       'Acknowledge everyone',
+    description: 'Everyone who already completed this training is notified the document changed — no retest required',
   },
   {
     value:       'MAJOR',
-    label:       'Major update',
-    description: 'Significant content change — triggers retraining for all previously trained staff',
+    label:       'Assign the test',
+    description: 'Everyone who already completed this training gets a new assignment and must redo it',
   },
 ]
 
@@ -208,7 +208,7 @@ export function UploadMaterialForm({ topics }: Props) {
           {/* Version type selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Version type <span className="text-red-500">*</span>
+              What should happen for previously trained staff? <span className="text-red-500">*</span>
             </label>
             <div className="grid grid-cols-2 gap-3">
               {VERSION_TYPES.map((vt) => {
@@ -403,7 +403,7 @@ export function UploadMaterialForm({ topics }: Props) {
       <JustificationModal
         isOpen={modalOpen}
         title="Confirm upload"
-        description={`Uploading "${form.title}" as a ${form.versionType.toLowerCase()} version. ${form.versionType === 'MAJOR' ? 'This will trigger retraining for all previously trained staff.' : ''}`}
+        description={`Uploading "${form.title}". Once approved, ${form.versionType === 'MAJOR' ? 'everyone who already completed this training will be assigned it again.' : 'everyone who already completed this training will just be notified the document changed.'}`}
         onConfirm={handleConfirm}
         onCancel={() => setModalOpen(false)}
         loading={loading}

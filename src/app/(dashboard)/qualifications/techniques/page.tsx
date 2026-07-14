@@ -2,16 +2,16 @@ import { getSession }    from '@/lib/auth'
 import { redirect }      from 'next/navigation'
 import { getAllTechniques } from '@/modules/qualification'
 import { TechniquesManager } from '@/components/qualifications/TechniquesManager'
-import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+import { canManageQualifications } from '@/lib/permissions'
 
 export default async function TechniquesPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_QUALIFICATIONS)) redirect('/unauthorised')
+  if (!canManageQualifications(session.user)) redirect('/unauthorised')
 
   const techniques = await getAllTechniques()
-  const canCreate  = hasAnyRole(session.user, PERMISSIONS.MANAGE_QUALIFICATIONS)
+  const canCreate  = canManageQualifications(session.user)
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>

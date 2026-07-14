@@ -4,8 +4,19 @@ import {
   getQualifications,
   createQualification,
 } from '@/modules/qualification'
-import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+import { canManageQualifications } from '@/lib/permissions'
+import { getSubordinateIds, getTeamIds } from '@/lib/subordinates'
 
+// Every authenticated user can browse every qualification record — the
+// "scope" query param just narrows which slice they're looking at, it is
+// not an access-control gate. Valid values:
+//   relevant   (default) — about me, created by me, or supervised by me
+//   mine       — I am the analyst being qualified
+//   created    — I initiated the record
+//   supervised — I am recorded as the supervisor
+//   reportees  — the analyst is one of my direct reports
+//   team       — the analyst is anywhere under me in the reporting chain
+//   all        — every record, org-wide
 export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session) {
@@ -13,21 +24,45 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const isOrgWide = hasAnyRole(session.user, [...PERMISSIONS.VIEW_QUALIFICATIONS])
+  const scope  = searchParams.get('scope') ?? 'relevant'
+  const userId = session.user.id
 
-  if (!isOrgWide) {
-    // Non-elevated users (e.g. Trainee) see only their own qualifications
-    const qualifications = await getQualifications({
-      personId: session.user.id,
-    })
-    return NextResponse.json({ qualifications })
-  }
-
-  const qualifications = await getQualifications({
-    personId:    searchParams.get('personId')    ?? undefined,
+  const baseFilters = {
     techniqueId: searchParams.get('techniqueId') ?? undefined,
     status:      searchParams.get('status')      ?? undefined,
-  })
+  }
+
+  let qualifications
+  switch (scope) {
+    case 'all':
+      qualifications = await getQualifications(baseFilters)
+      break
+    case 'mine':
+      qualifications = await getQualifications({ ...baseFilters, personId: userId })
+      break
+    case 'created':
+      qualifications = await getQualifications({ ...baseFilters, initiatedById: userId })
+      break
+    case 'supervised':
+      qualifications = await getQualifications({ ...baseFilters, supervisorId: userId })
+      break
+    case 'reportees':
+      qualifications = await getQualifications({
+        ...baseFilters,
+        subordinateIds: await getSubordinateIds(userId),
+      })
+      break
+    case 'team':
+      qualifications = await getQualifications({
+        ...baseFilters,
+        subordinateIds: await getTeamIds(userId),
+      })
+      break
+    case 'relevant':
+    default:
+      qualifications = await getQualifications({ ...baseFilters, relevantToId: userId })
+      break
+  }
 
   return NextResponse.json({ qualifications })
 }
@@ -38,7 +73,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_QUALIFICATIONS)) {
+  if (!canManageQualifications(session.user)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 

@@ -11,17 +11,17 @@ import type {
   CreateTechniqueInput,
   CreateQualificationInput,
 } from './types'
-import { hasAnyRole } from '@/lib/permissions'
+import { canSignQcStep, canSignQaStep } from '@/lib/permissions'
+import { verifyUserPassword } from '@/lib/auth'
 
 // ── Shared selects ────────────────────────────────────────────────
 
 const TECHNIQUE_SELECT = {
-  id:                      true,
-  name:                    true,
-  code:                    true,
-  type:                    true,
-  qualificationPeriodDays: true,
-  isActive:                true,
+  id:       true,
+  name:     true,
+  code:     true,
+  type:     true,
+  isActive: true,
   department: {
     select: {
       id:   true,
@@ -127,11 +127,10 @@ export async function createTechnique(
 
   const technique = await prisma.technique.create({
     data: {
-      name:                    input.name,
-      code:                    input.code,
-      type:                    input.type,
-      departmentId:            input.departmentId,
-      qualificationPeriodDays: input.qualificationPeriodDays,
+      name:         input.name,
+      code:         input.code,
+      type:         input.type,
+      departmentId: input.departmentId,
     },
   })
 
@@ -146,7 +145,6 @@ export async function createTechnique(
       name: input.name,
       code: input.code,
       type: input.type,
-      qualificationPeriodDays: input.qualificationPeriodDays,
     },
     justification,
   })
@@ -159,10 +157,13 @@ export async function createTechnique(
 // ─────────────────────────────────────────────────────────────────
 
 export async function getQualifications(filters?: {
-  personId?:      string
-  techniqueId?:   string
-  status?:        string
-  subordinateIds?: string[]   // ← new
+  personId?:       string   // qualifications about this person (they are the analyst)
+  initiatedById?:  string   // qualifications this person created
+  supervisorId?:   string   // qualifications this person supervised
+  relevantToId?:   string   // personId OR initiatedById OR supervisorId matches this person
+  techniqueId?:    string
+  status?:         string
+  subordinateIds?: string[] // scope to this exact set of analyst IDs (e.g. "my team")
 }) {
   // Auto-expire overdue qualifications
   await prisma.qualificationRecord.updateMany({
@@ -175,10 +176,20 @@ export async function getQualifications(filters?: {
 
   const where: Record<string, unknown> = {}
 
-  if (filters?.personId) {
+  if (filters?.relevantToId) {
+    where.OR = [
+      { personId:      filters.relevantToId },
+      { initiatedById: filters.relevantToId },
+      { supervisorId:  filters.relevantToId },
+    ]
+  } else if (filters?.personId) {
     where.personId = filters.personId
-  } else if (filters?.subordinateIds && filters.subordinateIds.length > 0) {
-    // Scope to subordinates only
+  } else if (filters?.initiatedById) {
+    where.initiatedById = filters.initiatedById
+  } else if (filters?.supervisorId) {
+    where.supervisorId = filters.supervisorId
+  } else if (filters?.subordinateIds !== undefined) {
+    // Scope to an exact set of analysts — an empty set means no matches
     where.personId = { in: filters.subordinateIds }
   }
 
@@ -229,7 +240,7 @@ export async function createQualification(
     }),
     prisma.technique.findUnique({
       where:  { id: input.techniqueId },
-      select: { id: true, name: true, isActive: true, qualificationPeriodDays: true },
+      select: { id: true, name: true, isActive: true },
     }),
   ])
 
@@ -266,20 +277,20 @@ export async function createQualification(
     })
 
     // Create 2-step signatory chain per SOP:
-    // Step 1 — Trainer/Supervisor signs off (observed competency)
-    // Step 2 — Training Head gives final QA approval
+    // Step 1 — QC department Trainer signs off (observed competency)
+    // Step 2 — QA department Trainer gives final approval
     await tx.signatoryEntry.createMany({
       data: [
         {
           qualificationId: qual.id,
           stepOrder:       1,
-          requiredRole:    'TRAINER',
+          requiredRole:    'QC_TRAINER',
           status:          'PENDING',
         },
         {
           qualificationId: qual.id,
           stepOrder:       2,
-          requiredRole:    'TRAINING_HEAD',
+          requiredRole:    'QA_TRAINER',
           status:          'PENDING',
         },
       ],
@@ -312,6 +323,7 @@ export async function createQualification(
 export async function signQualification(
   qualificationId: string,
   justification:   string,
+  password:        string,
   actorId:         string
 ) {
   // Get the full qualification with signatories
@@ -321,12 +333,11 @@ export async function signQualification(
       id:     true,
       status: true,
       person: { select: { id: true, name: true } },
-      technique: { select: {
-        id: true, name: true, qualificationPeriodDays: true
-      } },
+      technique: { select: { id: true, name: true } },
       signatories: {
         orderBy: { stepOrder: 'asc' },
       },
+      _count: { select: { scannedDocuments: true } },
     },
   })
 
@@ -334,24 +345,42 @@ export async function signQualification(
   if (qual.status === 'APPROVED') throw new Error('Already fully approved')
   if (qual.status === 'REVOKED')  throw new Error('This qualification has been revoked')
 
-  // Get the actor's roles
+  // Get the actor's roles + department
   const actor = await prisma.person.findUnique({
     where:  { id: actorId },
-    select: { id: true, name: true, roles: { select: { role: true } } },
+    select: {
+      id:    true,
+      name:  true,
+      roles: { select: { role: true } },
+      department: { select: { code: true } },
+    },
   })
   if (!actor) throw new Error('Actor not found')
-  const actorRoles = actor.roles.map((r) => r.role)
+  const actorForAuthz = {
+    roles:          actor.roles.map((r) => r.role),
+    departmentCode: actor.department?.code ?? '',
+  }
+
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
 
   // Find the next pending step
   const nextStep = qual.signatories.find((s) => s.status === 'PENDING')
   if (!nextStep) throw new Error('No pending signature steps remaining')
 
-  // Role check — only Trainer/Guest Trainer can sign any step (Administrator
-  // is scoped to user/org management only and has no qualification sign-off authority)
-  if (!hasAnyRole({ roles: actorRoles }, ['TRAINER', 'GUEST_TRAINER'])) {
-    throw new Error(
-      `Only a Trainer can sign step ${nextStep.stepOrder}`
-    )
+  // Department + role gating — step 1 is QC-department Trainer,
+  // step 2 is the final QA-department Trainer approval
+  if (nextStep.stepOrder === 1) {
+    if (!canSignQcStep(actorForAuthz)) {
+      throw new Error('Only a QC department Trainer can sign step 1')
+    }
+    if (qual._count.scannedDocuments === 0) {
+      throw new Error('Upload evidence documents before requesting QC sign-off')
+    }
+  } else {
+    if (!canSignQaStep(actorForAuthz)) {
+      throw new Error('Only a QA department Trainer can sign step 2')
+    }
   }
 
   // Check if this is the final step
@@ -371,20 +400,13 @@ export async function signQualification(
     })
 
     if (willApprove) {
-      // Calculate expiry date
-      const expiryDate = new Date()
-      expiryDate.setDate(
-        expiryDate.getDate() + qual.technique.qualificationPeriodDays
-      )
-
-      // Final approval
+      // Final approval — qualifications carry no expiry
       await tx.qualificationRecord.update({
         where: { id: qualificationId },
         data:  {
           status:     'APPROVED',
           outcome:    'COMPETENT',
           approvedAt: new Date(),
-          expiryDate,
         },
       })
 
@@ -398,7 +420,7 @@ export async function signQualification(
           personId:   qual.person.id,
           issuedById: actorId,
           fileUrl:    `certificates/${qualificationId}-${certNumber}.pdf`,
-          validUntil: expiryDate,
+          validUntil: null,
         },
       })
 
@@ -409,7 +431,7 @@ export async function signQualification(
           type:     'ASSIGNMENT',
           channel:  'IN_APP',
           title:    'Qualification approved',
-          message:  `You are now qualified on "${qual.technique.name}". Certificate issued. Valid until ${expiryDate.toLocaleDateString('en-IN')}.`,
+          message:  `You are now qualified on "${qual.technique.name}". Certificate issued.`,
         },
       })
     }

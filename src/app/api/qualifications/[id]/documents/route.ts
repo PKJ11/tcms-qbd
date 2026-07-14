@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { uploadScannedDocument } from '@/modules/qualification'
 import { prisma } from '@/lib/prisma'
-import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+import { canManageQualifications } from '@/lib/permissions'
 
 export async function GET(
   _req: NextRequest,
@@ -38,7 +38,7 @@ export async function POST(
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
   }
-  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_QUALIFICATIONS)) {
+  if (!canManageQualifications(session.user)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
