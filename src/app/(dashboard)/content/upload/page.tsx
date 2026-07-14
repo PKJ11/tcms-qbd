@@ -4,7 +4,11 @@ import { getActiveTopics } from '@/modules/content'
 import { UploadMaterialForm } from '@/components/content/UploadMaterialForm'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
-export default async function UploadMaterialPage() {
+export default async function UploadMaterialPage({
+  searchParams,
+}: {
+  searchParams: { topicId?: string }
+}) {
   const session = await getSession()
   if (!session) redirect('/login')
 
@@ -34,7 +38,7 @@ export default async function UploadMaterialPage() {
           </p>
         </div>
 
-        <UploadMaterialForm topics={topics} />
+        <UploadMaterialForm topics={topics} initialTopicId={searchParams.topicId} />
       </div>
     </div>
   )

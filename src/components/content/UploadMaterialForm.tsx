@@ -5,7 +5,7 @@ import { useRouter }        from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
 
 interface Topic { id: string; name: string }
-interface Props  { topics: Topic[] }
+interface Props  { topics: Topic[]; initialTopicId?: string }
 
 const FILE_TYPES = [
   { value: 'PPT',   label: 'PowerPoint (PPT/PPTX)', accept: '.ppt,.pptx'           },
@@ -27,13 +27,15 @@ const VERSION_TYPES = [
   },
 ]
 
-export function UploadMaterialForm({ topics }: Props) {
+export function UploadMaterialForm({ topics, initialTopicId }: Props) {
   const router   = useRouter()
   const fileRef  = useRef<HTMLInputElement>(null)
 
+  const hasInitialTopic = !!initialTopicId && topics.some((t) => t.id === initialTopicId)
+
   const [form, setForm] = useState({
     title:         '',
-    topicId:       '',
+    topicId:       hasInitialTopic ? initialTopicId! : '',
     changeSummary: '',
     effectiveDate: '',
     versionType:   'MINOR',
