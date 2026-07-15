@@ -196,7 +196,7 @@ async function TrainingHeadDashboard({ userId }: { userId: string }) {
 // so this section always renders, on top of any role-specific dashboard below.
 async function MyTrainingSection({ userId }: { userId: string }) {
   const assignments = await prisma.trainingAssignment.findMany({
-    where:   { personId: userId, status: { not: 'COMPLETED' } },
+    where:   { personId: userId, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
     select:  { id: true, status: true, dueDate: true, topic: { select: { name: true } } },
     orderBy: { dueDate: 'asc' },
     take:    5,

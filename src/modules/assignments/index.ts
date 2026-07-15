@@ -6,6 +6,8 @@ export {
   bulkAssignByDepartment,
   autoAssignInductionTraining,
   startAssignment,
+  revertAssignment,
+  revertAssignments,
   acknowledgeAssignment,
   markAssignmentViewed,
   confirmAssignmentMaterial,

@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
 
   const rows = await getOverdueReport({
     departmentId: searchParams.get('departmentId') ?? undefined,
+    unitId:       searchParams.get('unitId')       ?? undefined,
     sectionId:    searchParams.get('sectionId')    ?? undefined,
     subordinateIds,
   })

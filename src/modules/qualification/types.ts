@@ -72,6 +72,16 @@ export interface SignatoryEntry {
     id:   string
     name: string
   } | null
+  assignedTo: {
+    id:   string
+    name: string
+  } | null
+}
+
+export interface EligibleSignatory {
+  id:         string
+  name:       string
+  employeeId: string
 }
 
 export interface CreateTechniqueInput {

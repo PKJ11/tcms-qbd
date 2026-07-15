@@ -46,6 +46,7 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
   COMPLETED:    { bg: '#f0fdf4', color: '#166534', label: 'Completed'     },
   OVERDUE:      { bg: '#fef2f2', color: '#dc2626', label: 'Overdue'       },
   FAILED:       { bg: '#fff7ed', color: '#c2410c', label: 'Under review'  },
+  CANCELLED:    { bg: '#fef2f2', color: '#dc2626', label: 'Withdrawn'      },
 }
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -159,6 +160,16 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
             </div>
           </div>
         )}
+
+        {assignment.status === 'CANCELLED' && (
+          <div
+            className="mt-4 px-4 py-3 rounded-lg border text-xs"
+            style={{ background: '#fef2f2', borderColor: '#fecaca', color: '#dc2626' }}
+          >
+            <div className="font-semibold">This training assignment was withdrawn.</div>
+            <div>No action is needed from you.</div>
+          </div>
+        )}
       </div>
 
       {trainingType === 'MATERIAL_MCQ' && attempts.length > 0 && (
@@ -259,7 +270,7 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
         )}
 
         {/* Bottom action, branched by training type */}
-        {assignment.status !== 'COMPLETED' && (
+        {assignment.status !== 'COMPLETED' && assignment.status !== 'CANCELLED' && (
           <div className="mt-4">
             {trainingType === 'MATERIAL_MCQ' && (
               allConfirmed ? (

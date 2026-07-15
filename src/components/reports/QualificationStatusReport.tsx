@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { formatDate } from '@/lib/utils'
 import type { ReportScope } from './ReportsHub'
-import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from './ReportFilterBar'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters, type DateFilterConfig } from './ReportFilterBar'
+import { orgFilterParams, type OrgFilterValue } from '@/components/shared/OrgFilterBar'
 
 const STATUS_OPTIONS = [
   { value: 'INITIATED',   label: 'Initiated' },
@@ -24,6 +25,11 @@ interface QualRow {
   certNumber:  string | null
 }
 
+const DATE_FILTERS: DateFilterConfig[] = [
+  { key: 'approved', label: 'Approved' },
+  { key: 'expiry',   label: 'Expiry' },
+]
+
 const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   INITIATED:   { bg: '#f5f3ff', color: '#6d28d9' },
   IN_PROGRESS: { bg: '#eff6ff', color: '#1d4ed8' },
@@ -32,7 +38,7 @@ const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   REVOKED:     { bg: '#f9fafb', color: '#6b7280' },
 }
 
-export function QualificationStatusReport({ scope }: { scope: ReportScope }) {
+export function QualificationStatusReport({ scope, orgFilter }: { scope: ReportScope; orgFilter: OrgFilterValue }) {
   const [rows,    setRows]    = useState<QualRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
@@ -40,17 +46,26 @@ export function QualificationStatusReport({ scope }: { scope: ReportScope }) {
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
-    const params = new URLSearchParams({ scope, ...(filters.status ? { status: filters.status } : {}) })
+    const params = new URLSearchParams({
+      scope,
+      ...(filters.status ? { status: filters.status } : {}),
+      ...orgFilterParams(orgFilter),
+    })
     const res    = await fetch(`/api/reports/qualification-status?${params}`)
     const data   = await res.json()
     setRows(data.rows ?? [])
     setLoading(false)
-  }, [filters.status, scope])
+  }, [filters.status, scope, orgFilter])
 
   useEffect(() => { fetchRows() }, [fetchRows])
 
   function handleExport() {
-    const params = new URLSearchParams({ scope, format: 'csv', ...(filters.status ? { status: filters.status } : {}) })
+    const params = new URLSearchParams({
+      scope,
+      format: 'csv',
+      ...(filters.status ? { status: filters.status } : {}),
+      ...orgFilterParams(orgFilter),
+    })
     window.open(`/api/reports/qualification-status?${params}`, '_blank')
   }
 
@@ -58,7 +73,7 @@ export function QualificationStatusReport({ scope }: { scope: ReportScope }) {
     name: row.person.name,
     employeeId: row.person.employeeId,
     status: row.status,
-    dates: [row.approvedAt, row.expiryDate],
+    dateValues: { approved: row.approvedAt, expiry: row.expiryDate },
   })), [rows, filters])
 
   return (
@@ -95,7 +110,7 @@ export function QualificationStatusReport({ scope }: { scope: ReportScope }) {
       </div>
 
       {rows.length > 0 && (
-        <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} />
+        <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} dateFilters={DATE_FILTERS} />
       )}
 
       {loading ? (

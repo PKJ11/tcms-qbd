@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
+import { OrgFilterBar, EMPTY_ORG_FILTER, orgFilterParams, type OrgFilterValue } from '@/components/shared/OrgFilterBar'
 
 interface Signatory {
   id:           string
   stepOrder:    number
   requiredRole: string
   status:       string
+  assignedTo:   { id: string; name: string } | null
 }
 
 interface Qualification {
@@ -35,10 +37,11 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
   REVOKED:     { bg: '#f9fafb', color: '#6b7280', label: 'Revoked'     },
 }
 
-type Scope = 'relevant' | 'mine' | 'created' | 'supervised' | 'reportees' | 'team' | 'all'
+type Scope = 'relevant' | 'mine' | 'created' | 'supervised' | 'reportees' | 'team' | 'all' | 'pendingSignoff'
 
 const SCOPE_TABS: { key: Scope; label: string; description: string }[] = [
   { key: 'relevant',   label: 'Relevant to me', description: 'About me, created by me, or supervised by me' },
+  { key: 'pendingSignoff', label: 'Pending my sign-off', description: 'Qualifications where I am the assigned approver for the next step' },
   { key: 'mine',       label: 'Mine',           description: 'Records where I am the analyst being qualified' },
   { key: 'created',    label: 'Created by me',  description: 'Records I initiated' },
   { key: 'supervised', label: 'Supervised by me', description: 'Records where I am the supervisor' },
@@ -56,19 +59,30 @@ export function QualificationsList({ canCreate }: Props) {
   const [qualifications, setQualifications] = useState<Qualification[]>([])
   const [loading,      setLoading]      = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
+  const [fromDate,     setFromDate]     = useState('')
+  const [toDate,       setToDate]       = useState('')
   const [scope,        setScope]        = useState<Scope>('relevant')
+  const [orgFilter,    setOrgFilter]    = useState<OrgFilterValue>(EMPTY_ORG_FILTER)
+
+  function handleScopeChange(next: Scope) {
+    setScope(next)
+    if (next !== 'all') setOrgFilter(EMPTY_ORG_FILTER)
+  }
 
   const fetchQualifications = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams({
       scope,
       ...(statusFilter ? { status: statusFilter } : {}),
+      ...(fromDate ? { fromDate } : {}),
+      ...(toDate   ? { toDate }   : {}),
+      ...(scope === 'all' ? orgFilterParams(orgFilter) : {}),
     })
     const res  = await fetch(`/api/qualifications?${params}`)
     const data = await res.json()
     setQualifications(data.qualifications ?? [])
     setLoading(false)
-  }, [statusFilter, scope])
+  }, [statusFilter, fromDate, toDate, scope, orgFilter])
 
   useEffect(() => { fetchQualifications() }, [fetchQualifications])
 
@@ -82,7 +96,7 @@ export function QualificationsList({ canCreate }: Props) {
         {SCOPE_TABS.map((s) => (
           <button
             key={s.key}
-            onClick={() => setScope(s.key)}
+            onClick={() => handleScopeChange(s.key)}
             title={s.description}
             className="py-2 px-3 rounded-lg text-sm font-medium transition-all"
             style={{
@@ -94,6 +108,11 @@ export function QualificationsList({ canCreate }: Props) {
           </button>
         ))}
       </div>
+
+      {/* Department → Unit → Section filter — "All" scope only */}
+      {scope === 'all' && (
+        <OrgFilterBar value={orgFilter} onChange={setOrgFilter} />
+      )}
 
       {/* Filters */}
       <div
@@ -113,6 +132,25 @@ export function QualificationsList({ canCreate }: Props) {
           <option value="EXPIRED">Expired</option>
           <option value="REVOKED">Revoked</option>
         </select>
+
+        <input
+          type="date"
+          value={fromDate}
+          onChange={(e) => setFromDate(e.target.value)}
+          title="From date"
+          max={toDate || undefined}
+          className="px-3 py-2 rounded-lg border text-sm outline-none"
+          style={{ borderColor: '#e5e7eb' }}
+        />
+        <input
+          type="date"
+          value={toDate}
+          onChange={(e) => setToDate(e.target.value)}
+          title="To date"
+          min={fromDate || undefined}
+          className="px-3 py-2 rounded-lg border text-sm outline-none"
+          style={{ borderColor: '#e5e7eb' }}
+        />
 
         <div className="ml-auto flex items-center gap-3">
           <span className="text-sm text-gray-400">
@@ -197,7 +235,10 @@ export function QualificationsList({ canCreate }: Props) {
                       &nbsp;·&nbsp;
                       {q._count.scannedDocuments} document(s)
                       {nextStep && q.status === 'IN_PROGRESS' && (
-                        <> &nbsp;·&nbsp; Awaiting step {nextStep.stepOrder === 1 ? 'QC sign-off' : 'QA final approval'}</>
+                        <>
+                          &nbsp;·&nbsp; Awaiting step {nextStep.stepOrder === 1 ? 'QC sign-off' : 'QA final approval'}
+                          {nextStep.assignedTo && <> (assigned to {nextStep.assignedTo.name})</>}
+                        </>
                       )}
                     </div>
 

@@ -42,6 +42,7 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
   COMPLETED:    { bg: '#f0fdf4', color: '#166534', label: 'Completed'     },
   OVERDUE:      { bg: '#fef2f2', color: '#dc2626', label: 'Overdue'       },
   FAILED:       { bg: '#fff7ed', color: '#c2410c', label: 'Under review'  }, // ← changed label
+  CANCELLED:    { bg: '#fef2f2', color: '#dc2626', label: 'Withdrawn'      },
 }
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -92,7 +93,7 @@ export function MyAssignmentsList() {
 
   // Group by status for summary
   const counts = {
-    pending: assignments.filter((a) => a.status !== 'COMPLETED').length,
+    pending: assignments.filter((a) => a.status !== 'COMPLETED' && a.status !== 'CANCELLED').length,
     overdue: assignments.filter((a) => a.status === 'OVERDUE').length,
     done:    assignments.filter((a) => a.status === 'COMPLETED').length,
   }

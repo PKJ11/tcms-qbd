@@ -181,6 +181,7 @@ export async function deactivateQuestion(
 ) {
   const question = await prisma.question.findUnique({ where: { id: questionId } })
   if (!question) throw new Error('Question not found')
+  if (!question.isActive) throw new Error('Question is already archived')
 
   await prisma.question.update({
     where: { id: questionId },
@@ -195,6 +196,32 @@ export async function deactivateQuestion(
     recordType:    'Question',
     beforeValue:   { isActive: true  },
     afterValue:    { isActive: false },
+    justification,
+  })
+}
+
+export async function reactivateQuestion(
+  questionId:    string,
+  justification: string,
+  actorId:       string
+) {
+  const question = await prisma.question.findUnique({ where: { id: questionId } })
+  if (!question) throw new Error('Question not found')
+  if (question.isActive) throw new Error('Question is already active')
+
+  await prisma.question.update({
+    where: { id: questionId },
+    data:  { isActive: true },
+  })
+
+  await logAuditEvent({
+    userId:        actorId,
+    action:        'UPDATE',
+    module:        'ASSESSMENT',
+    recordId:      questionId,
+    recordType:    'Question',
+    beforeValue:   { isActive: false },
+    afterValue:    { isActive: true  },
     justification,
   })
 }

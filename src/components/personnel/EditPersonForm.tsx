@@ -129,7 +129,7 @@ export function EditPersonForm({ person, departments }: Props) {
     setModalOpen(true)
   }
 
-  async function handleConfirm(justification: string) {
+  async function handleConfirm(justification: string, password?: string) {
     setModalOpen(false)
     setLoading(true)
     setError(null)
@@ -149,6 +149,7 @@ export function EditPersonForm({ person, departments }: Props) {
         sectionId:    sectionId || undefined,
         managerId:    managerId || null,
         justification,
+        password,
       }),
     })
 
@@ -377,6 +378,7 @@ export function EditPersonForm({ person, departments }: Props) {
         onConfirm={handleConfirm}
         onCancel={() => setModalOpen(false)}
         loading={loading}
+        requirePassword
       />
     </>
   )

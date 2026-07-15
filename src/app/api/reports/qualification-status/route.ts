@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
 
   const rows = await getQualificationStatusBoard({
     departmentId: searchParams.get('departmentId') ?? undefined,
+    unitId:       searchParams.get('unitId')       ?? undefined,
+    sectionId:    searchParams.get('sectionId')    ?? undefined,
     status:       searchParams.get('status') ?? undefined,
     subordinateIds,
   })

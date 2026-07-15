@@ -32,14 +32,14 @@ export function PersonDetail({ person }: { person: Person }) {
     },
   }
 
-  async function handleConfirm(justification: string) {
+  async function handleConfirm(justification: string, password?: string) {
     if (!action) return
     setModalLoading(true)
 
     const res = await fetch(`/api/personnel/${person.id}`, {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ action, justification }),
+      body:    JSON.stringify({ action, justification, password }),
     })
 
     const data = await res.json()
@@ -110,6 +110,7 @@ export function PersonDetail({ person }: { person: Person }) {
         onConfirm={handleConfirm}
         onCancel={() => setAction(null)}
         loading={modalLoading}
+        requirePassword
       />
     </>
   )

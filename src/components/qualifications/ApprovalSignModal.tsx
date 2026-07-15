@@ -2,15 +2,23 @@
 
 import { useState } from 'react'
 
+interface NextApproverOption {
+  id:         string
+  name:       string
+  employeeId: string
+}
+
 interface ApprovalSignModalProps {
   isOpen:      boolean
   title:       string
   description: string
   error?:      string | null
   loading?:    boolean
-  onConfirm:   (justification: string, password: string) => void
+  onConfirm:   (justification: string, password: string, nextAssigneeId?: string) => void
   onCancel:    () => void
   minLength?:  number
+  nextApproverOptions?: NextApproverOption[]
+  nextApproverLabel?:   string
 }
 
 export function ApprovalSignModal({
@@ -22,20 +30,28 @@ export function ApprovalSignModal({
   onConfirm,
   onCancel,
   minLength = 10,
+  nextApproverOptions,
+  nextApproverLabel = 'Select the next approver',
 }: ApprovalSignModalProps) {
   const [justification, setJustification] = useState('')
   const [password,      setPassword]      = useState('')
+  const [nextAssigneeId, setNextAssigneeId] = useState('')
 
-  const isValid = justification.trim().length >= minLength && password.length > 0
+  const requiresNextApprover = !!nextApproverOptions
+  const isValid =
+    justification.trim().length >= minLength &&
+    password.length > 0 &&
+    (!requiresNextApprover || nextAssigneeId.length > 0)
 
   function handleConfirm() {
     if (!isValid) return
-    onConfirm(justification.trim(), password)
+    onConfirm(justification.trim(), password, requiresNextApprover ? nextAssigneeId : undefined)
   }
 
   function handleCancel() {
     setJustification('')
     setPassword('')
+    setNextAssigneeId('')
     onCancel()
   }
 
@@ -89,6 +105,27 @@ export function ApprovalSignModal({
               autoComplete="current-password"
             />
           </div>
+
+          {requiresNextApprover && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                {nextApproverLabel} <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={nextAssigneeId}
+                onChange={(e) => setNextAssigneeId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border text-sm outline-none"
+                style={{ borderColor: '#d1d5db' }}
+              >
+                <option value="">Select a trainer...</option>
+                {nextApproverOptions!.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.name} ({opt.employeeId})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div
             className="flex items-start gap-2 px-3 py-2.5 rounded-lg text-xs"

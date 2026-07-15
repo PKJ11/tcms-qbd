@@ -53,6 +53,7 @@ export function CreatePersonForm({ departments }: Props) {
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState<string | null>(null)
   const [success,   setSuccess]   = useState<string | null>(null)
+  const [tempPassword, setTempPassword] = useState<string | null>(null)
 
   // Fetch a live preview of the next auto-assigned ID for Guest/Contractual types
   useEffect(() => {
@@ -177,7 +178,7 @@ export function CreatePersonForm({ departments }: Props) {
     setModalOpen(true)
   }
 
-  async function handleConfirm(justification: string) {
+  async function handleConfirm(justification: string, password?: string) {
     setModalOpen(false)
     setLoading(true)
     setError(null)
@@ -195,6 +196,7 @@ export function CreatePersonForm({ departments }: Props) {
       managerId:    form.managerId || undefined,
       roles:        employeeType === 'GUEST' ? undefined : roles,
       justification,
+      password,
     }
 
     const res = await fetch('/api/personnel', {
@@ -213,10 +215,9 @@ export function CreatePersonForm({ departments }: Props) {
 
     setSuccess(
       `Person created successfully — Employee ID: ${data.person.employeeId}.` +
-      (form.email ? ' A temporary password has been emailed.' : '')
+      (form.email ? ' A temporary password has also been emailed.' : '')
     )
-
-    setTimeout(() => router.push('/personnel'), 2000)
+    setTempPassword(data.tempPassword ?? null)
   }
 
   const inputClass = "w-full px-4 py-2.5 rounded-lg border text-sm outline-none transition-all"
@@ -552,23 +553,53 @@ export function CreatePersonForm({ departments }: Props) {
             </div>
           )}
 
+          {/* Temporary password — shown once, admin must copy it before leaving */}
+          {tempPassword && (
+            <div
+              className="text-sm px-4 py-3 rounded-lg border font-mono"
+              style={{
+                background:  '#fefce8',
+                borderColor: '#fde68a',
+                color:       '#854d0e',
+              }}
+            >
+              Temporary password: <strong>{tempPassword}</strong>
+              <p className="text-xs mt-1" style={{ fontFamily: 'inherit' }}>
+                Share this with the new user now — it will not be shown again.
+              </p>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-2">
-            <a
-              href="/personnel"
-              className="px-4 py-2 rounded-lg text-sm border font-medium"
-              style={{ borderColor: '#e5e7eb', color: '#374151' }}
-            >
-              Cancel
-            </a>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-5 py-2 rounded-lg text-sm font-medium text-white"
-              style={{ background: loading ? '#4a9e6f' : '#2d6a4f' }}
-            >
-              {loading ? 'Creating...' : 'Create person'}
-            </button>
+            {tempPassword ? (
+              <button
+                type="button"
+                onClick={() => router.push('/personnel')}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white"
+                style={{ background: '#2d6a4f' }}
+              >
+                Go to personnel list
+              </button>
+            ) : (
+              <>
+                <a
+                  href="/personnel"
+                  className="px-4 py-2 rounded-lg text-sm border font-medium"
+                  style={{ borderColor: '#e5e7eb', color: '#374151' }}
+                >
+                  Cancel
+                </a>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 rounded-lg text-sm font-medium text-white"
+                  style={{ background: loading ? '#4a9e6f' : '#2d6a4f' }}
+                >
+                  {loading ? 'Creating...' : 'Create person'}
+                </button>
+              </>
+            )}
           </div>
         </form>
       </div>
@@ -580,6 +611,7 @@ export function CreatePersonForm({ departments }: Props) {
         onConfirm={handleConfirm}
         onCancel={() => setModalOpen(false)}
         loading={loading}
+        requirePassword
       />
     </>
   )

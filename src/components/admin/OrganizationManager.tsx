@@ -13,8 +13,8 @@ interface Props {
 }
 
 type PendingAction =
-  | { kind: 'unit';    name: string; code: string }
-  | { kind: 'section'; name: string; code: string }
+  | { kind: 'unit';    name: string }
+  | { kind: 'section'; name: string }
   | null
 
 export function OrganizationManager({ departments }: Props) {
@@ -23,8 +23,8 @@ export function OrganizationManager({ departments }: Props) {
   const [selectedDeptId, setSelectedDeptId] = useState('')
   const [selectedUnitId, setSelectedUnitId] = useState('')
 
-  const [unitForm,    setUnitForm]    = useState({ name: '', code: '' })
-  const [sectionForm, setSectionForm] = useState({ name: '', code: '' })
+  const [unitForm,    setUnitForm]    = useState({ name: '' })
+  const [sectionForm, setSectionForm] = useState({ name: '' })
 
   const [pending, setPending] = useState<PendingAction>(null)
   const [loading, setLoading] = useState(false)
@@ -50,33 +50,33 @@ export function OrganizationManager({ departments }: Props) {
     e.preventDefault()
     setError(null)
     if (!selectedDeptId) { setError('Select a department first.'); return }
-    if (!unitForm.name.trim() || !unitForm.code.trim()) {
-      setError('Unit name and code are required.')
+    if (!unitForm.name.trim()) {
+      setError('Unit name is required.')
       return
     }
-    setPending({ kind: 'unit', name: unitForm.name.trim(), code: unitForm.code.trim() })
+    setPending({ kind: 'unit', name: unitForm.name.trim() })
   }
 
   function handleAddSectionClick(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     if (!selectedUnitId) { setError('Select a unit first.'); return }
-    if (!sectionForm.name.trim() || !sectionForm.code.trim()) {
-      setError('Section name and code are required.')
+    if (!sectionForm.name.trim()) {
+      setError('Section name is required.')
       return
     }
-    setPending({ kind: 'section', name: sectionForm.name.trim(), code: sectionForm.code.trim() })
+    setPending({ kind: 'section', name: sectionForm.name.trim() })
   }
 
-  async function handleConfirm(justification: string) {
+  async function handleConfirm(justification: string, password?: string) {
     if (!pending) return
     setLoading(true)
     setError(null)
 
     const endpoint = pending.kind === 'unit' ? '/api/units' : '/api/sections'
     const body = pending.kind === 'unit'
-      ? { name: pending.name, code: pending.code, departmentId: selectedDeptId, justification }
-      : { name: pending.name, code: pending.code, unitId: selectedUnitId, justification }
+      ? { name: pending.name, departmentId: selectedDeptId, justification, password }
+      : { name: pending.name, unitId: selectedUnitId, justification, password }
 
     const res  = await fetch(endpoint, {
       method:  'POST',
@@ -93,9 +93,9 @@ export function OrganizationManager({ departments }: Props) {
     }
 
     if (pending.kind === 'unit') {
-      setUnitForm({ name: '', code: '' })
+      setUnitForm({ name: '' })
     } else {
-      setSectionForm({ name: '', code: '' })
+      setSectionForm({ name: '' })
     }
 
     router.refresh()
@@ -177,13 +177,7 @@ export function OrganizationManager({ departments }: Props) {
                   className={inputClass}
                   style={inputStyle}
                 />
-                <input
-                  placeholder="Code (e.g. U3)"
-                  value={unitForm.code}
-                  onChange={(e) => setUnitForm((p) => ({ ...p, code: e.target.value }))}
-                  className={inputClass}
-                  style={inputStyle}
-                />
+                <p className="text-xs text-gray-400">A unique code will be generated automatically.</p>
                 <button
                   type="submit"
                   className="px-3 py-2 rounded-lg text-sm font-medium text-white"
@@ -232,13 +226,7 @@ export function OrganizationManager({ departments }: Props) {
                   className={inputClass}
                   style={inputStyle}
                 />
-                <input
-                  placeholder="Code (e.g. LCMS)"
-                  value={sectionForm.code}
-                  onChange={(e) => setSectionForm((p) => ({ ...p, code: e.target.value }))}
-                  className={inputClass}
-                  style={inputStyle}
-                />
+                <p className="text-xs text-gray-400">A unique code will be generated automatically.</p>
                 <button
                   type="submit"
                   className="px-3 py-2 rounded-lg text-sm font-medium text-white"
@@ -266,14 +254,15 @@ export function OrganizationManager({ departments }: Props) {
         title={pending?.kind === 'unit' ? 'Confirm new unit' : 'Confirm new section'}
         description={
           pending?.kind === 'unit'
-            ? `Create unit "${pending.name}" (${pending.code}) under ${selectedDept?.name}.`
+            ? `Create unit "${pending.name}" under ${selectedDept?.name}.`
             : pending
-            ? `Create section "${pending.name}" (${pending.code}) under ${selectedUnit?.name}.`
+            ? `Create section "${pending.name}" under ${selectedUnit?.name}.`
             : ''
         }
         onConfirm={handleConfirm}
         onCancel={() => setPending(null)}
         loading={loading}
+        requirePassword
       />
     </>
   )

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { updateQuestion, deactivateQuestion } from '@/modules/assessment'
+import { updateQuestion, deactivateQuestion, reactivateQuestion } from '@/modules/assessment'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function PATCH(
@@ -26,7 +26,12 @@ export async function PATCH(
   try {
     if (action === 'deactivate') {
       await deactivateQuestion(params.id, justification, session.user.id)
-      return NextResponse.json({ message: 'Question deactivated' })
+      return NextResponse.json({ message: 'Question archived' })
+    }
+
+    if (action === 'reactivate') {
+      await reactivateQuestion(params.id, justification, session.user.id)
+      return NextResponse.json({ message: 'Question restored' })
     }
 
     const question = await updateQuestion(params.id, input, justification, session.user.id)

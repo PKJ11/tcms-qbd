@@ -4,6 +4,7 @@ export {
   createQuestion,
   updateQuestion,
   deactivateQuestion,
+  reactivateQuestion,
   getAttemptQuestions,
   submitAttempt,
   getAttemptHistory,

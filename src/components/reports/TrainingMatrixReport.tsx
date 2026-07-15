@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { ReportScope } from './ReportsHub'
-import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from './ReportFilterBar'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters, type DateFilterConfig } from './ReportFilterBar'
+import { orgFilterParams, type OrgFilterValue } from '@/components/shared/OrgFilterBar'
 
 const STATUS_OPTIONS = [
   { value: 'COMPLETED',    label: 'Completed' },
@@ -20,10 +21,16 @@ interface MatrixRow {
   }
   topics: {
     topicId: string; topicName: string; status: string
-    score?: number; completedAt?: string | null; dueDate?: string | null
+    score?: number; assignedAt?: string | null; completedAt?: string | null; dueDate?: string | null
     assignedBy?: string | null
   }[]
 }
+
+const DATE_FILTERS: DateFilterConfig[] = [
+  { key: 'assigned',  label: 'Assigned' },
+  { key: 'due',       label: 'Due' },
+  { key: 'completed', label: 'Completed' },
+]
 
 const STATUS_CELL: Record<string, { bg: string; color: string; label: string }> = {
   COMPLETED:    { bg: '#f0fdf4', color: '#166534', label: '✓'         },
@@ -34,7 +41,7 @@ const STATUS_CELL: Record<string, { bg: string; color: string; label: string }> 
   NOT_ASSIGNED: { bg: '#f9fafb', color: '#9ca3af', label: '—'         },
 }
 
-export function TrainingMatrixReport({ scope }: { scope: ReportScope }) {
+export function TrainingMatrixReport({ scope, orgFilter }: { scope: ReportScope; orgFilter: OrgFilterValue }) {
   const [matrix,  setMatrix]  = useState<MatrixRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
@@ -42,16 +49,18 @@ export function TrainingMatrixReport({ scope }: { scope: ReportScope }) {
 
   const fetchMatrix = useCallback(async () => {
     setLoading(true)
-    const res  = await fetch(`/api/reports/training-matrix?scope=${scope}`)
+    const params = new URLSearchParams({ scope, ...orgFilterParams(orgFilter) })
+    const res  = await fetch(`/api/reports/training-matrix?${params}`)
     const data = await res.json()
     setMatrix(data.matrix ?? [])
     setLoading(false)
-  }, [scope])
+  }, [scope, orgFilter])
 
   useEffect(() => { fetchMatrix() }, [fetchMatrix])
 
   function handleExport() {
-    window.open(`/api/reports/training-matrix?scope=${scope}&format=csv`, '_blank')
+    const params = new URLSearchParams({ scope, format: 'csv', ...orgFilterParams(orgFilter) })
+    window.open(`/api/reports/training-matrix?${params}`, '_blank')
   }
 
   if (loading) {
@@ -72,16 +81,19 @@ export function TrainingMatrixReport({ scope }: { scope: ReportScope }) {
 
   const topics = matrix[0]?.topics ?? []
 
+  const hasTopicLevelFilter =
+    !!filters.status || !!filters.month || Object.values(filters.dateRanges).some((r) => r.from || r.to)
+
   const filteredMatrix = matrix.filter((row) => matchesReportFilters(filters, {
     name: row.person.name,
     employeeId: row.person.employeeId,
-    dates: [],
+    dateValues: {},
   }) && (
-    !filters.status && !filters.date && !filters.month
+    !hasTopicLevelFilter
       ? true
       : row.topics.some((t) => matchesReportFilters(
           { ...filters, search: '' },
-          { name: '', status: t.status, dates: [t.dueDate, t.completedAt] },
+          { name: '', status: t.status, dateValues: { assigned: t.assignedAt, due: t.dueDate, completed: t.completedAt } },
         ))
   ))
 
@@ -119,7 +131,7 @@ export function TrainingMatrixReport({ scope }: { scope: ReportScope }) {
         </button>
       </div>
 
-      <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} />
+      <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} dateFilters={DATE_FILTERS} />
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3 mb-4">

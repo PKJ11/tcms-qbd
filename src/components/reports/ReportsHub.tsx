@@ -7,6 +7,7 @@ import { QualificationStatusReport } from './QualificationStatusReport'
 import { TrainingIndexReport }       from './TrainingIndexReport'
 import { TopicCompletionReport }     from './TopicCompletionReport'
 import { AttendanceChart }           from './AttendanceChart'
+import { OrgFilterBar, EMPTY_ORG_FILTER, type OrgFilterValue } from '@/components/shared/OrgFilterBar'
 import type { AppRole } from '@/lib/types'
 
 interface Props {
@@ -45,10 +46,16 @@ const SCOPE_TABS: { key: ReportScope; label: string; description: string }[] = [
 export function ReportsHub({ roles, userId, canViewAll, directReportIds, teamIds }: Props) {
   const [activeTab, setActiveTab] = useState<ReportTab>('matrix')
   const [scope,     setScope]     = useState<ReportScope>(canViewAll ? 'all' : 'team')
+  const [orgFilter, setOrgFilter] = useState<OrgFilterValue>(EMPTY_ORG_FILTER)
 
   const visibleScopeTabs = SCOPE_TABS.filter((s) => s.key !== 'all' || canViewAll)
   const scopedIds = scope === 'team' ? teamIds : scope === 'reportees' ? directReportIds : []
   const isOrgWide = scope === 'all'
+
+  function handleScopeChange(next: ReportScope) {
+    setScope(next)
+    if (next !== 'all') setOrgFilter(EMPTY_ORG_FILTER)
+  }
 
   return (
     <>
@@ -60,7 +67,7 @@ export function ReportsHub({ roles, userId, canViewAll, directReportIds, teamIds
         {visibleScopeTabs.map((s) => (
           <button
             key={s.key}
-            onClick={() => setScope(s.key)}
+            onClick={() => handleScopeChange(s.key)}
             title={s.description}
             className="flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all"
             style={{
@@ -116,15 +123,20 @@ export function ReportsHub({ roles, userId, canViewAll, directReportIds, teamIds
         ))}
       </div>
 
+      {/* Department → Unit → Section filter — org-wide "All data" scope only */}
+      {isOrgWide && (activeTab === 'matrix' || activeTab === 'overdue' || activeTab === 'qualification' || activeTab === 'topic-completion') && (
+        <OrgFilterBar value={orgFilter} onChange={setOrgFilter} />
+      )}
+
       {/* Report content */}
       {activeTab === 'matrix'        && (
-        <TrainingMatrixReport scope={scope} />
+        <TrainingMatrixReport scope={scope} orgFilter={orgFilter} />
       )}
       {activeTab === 'overdue'       && (
-        <OverdueReport scope={scope} />
+        <OverdueReport scope={scope} orgFilter={orgFilter} />
       )}
       {activeTab === 'qualification' && (
-        <QualificationStatusReport scope={scope} />
+        <QualificationStatusReport scope={scope} orgFilter={orgFilter} />
       )}
       {activeTab === 'training-index' && (
         <TrainingIndexReport
@@ -135,7 +147,7 @@ export function ReportsHub({ roles, userId, canViewAll, directReportIds, teamIds
         />
       )}
       {activeTab === 'topic-completion' && (
-        <TopicCompletionReport scope={scope} />
+        <TopicCompletionReport scope={scope} orgFilter={orgFilter} />
       )}
       {activeTab === 'attendance-chart' && (
         <AttendanceChart />

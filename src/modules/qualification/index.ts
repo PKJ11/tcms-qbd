@@ -13,12 +13,15 @@ export {
   getCompetencyMatrix,
   getUpcomingExpiries,
   getPersonsAndTechniques,
+  getEligibleSignatories,
+  assignSignatory,
 } from './actions'
 
 export type {
   TechniqueItem,
   QualificationListItem,
   SignatoryEntry,
+  EligibleSignatory,
   CreateTechniqueInput,
   CreateQualificationInput,
   QualStatus,

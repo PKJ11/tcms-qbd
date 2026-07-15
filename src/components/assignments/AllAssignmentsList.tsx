@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '@/lib/utils'
+import { JustificationModal } from '@/components/JustificationModal'
+import { OrgFilterBar, EMPTY_ORG_FILTER, orgFilterParams, type OrgFilterValue } from '@/components/shared/OrgFilterBar'
 
 interface Assignment {
   id:          string
@@ -15,12 +17,15 @@ interface Assignment {
   assignedBy:  { id: string; name: string }
 }
 
+interface Topic { id: string; name: string }
+
 const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
   NOT_STARTED: { bg: '#f9fafb', color: '#6b7280', label: 'Not started'  },
   IN_PROGRESS: { bg: '#eff6ff', color: '#1d4ed8', label: 'In progress'  },
   COMPLETED:   { bg: '#f0fdf4', color: '#166534', label: 'Completed'    },
   OVERDUE:     { bg: '#fef2f2', color: '#dc2626', label: 'Overdue'      },
   FAILED:      { bg: '#fef2f2', color: '#dc2626', label: 'Failed'       },
+  CANCELLED:   { bg: '#fef2f2', color: '#dc2626', label: 'Withdrawn'    },
 }
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -30,30 +35,93 @@ const TRIGGER_LABELS: Record<string, string> = {
   REFRESHER:  'Refresher',
 }
 
-export function AllAssignmentsList({ isManager }: { isManager: boolean }) {
-  const [assignments,  setAssignments]  = useState<Assignment[]>([])
-  const [loading,      setLoading]      = useState(true)
-  const [statusFilter, setStatusFilter] = useState('')
-  const [search,       setSearch]       = useState('')
+export function AllAssignmentsList({
+  isManager,
+  canRevert,
+}: {
+  isManager: boolean
+  canRevert?: boolean
+}) {
+  const [assignments,   setAssignments]   = useState<Assignment[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [statusFilter,  setStatusFilter]  = useState('')
+  const [orgFilter,     setOrgFilter]     = useState<OrgFilterValue>(EMPTY_ORG_FILTER)
+  const [topicId,       setTopicId]       = useState('')
+  const [search,        setSearch]        = useState('')
+  const [revertTarget,  setRevertTarget]  = useState<Assignment | null>(null)
+  const [modalLoading,  setModalLoading]  = useState(false)
+
+  const [topics,        setTopics]        = useState<Topic[]>([])
+  const [bulkModalOpen, setBulkModalOpen] = useState(false)
+  const [bulkLoading,   setBulkLoading]   = useState(false)
+  const [bulkResult,    setBulkResult]    = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/topics?isActive=true').then((r) => r.json()).then((d) => setTopics(d.topics ?? []))
+  }, [])
 
   const fetchAssignments = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams({
       ...(statusFilter ? { status: statusFilter } : {}),
+      ...(topicId      ? { topicId }              : {}),
+      ...orgFilterParams(orgFilter),
     })
     const res  = await fetch(`/api/assignments?${params}`)
     const data = await res.json()
     setAssignments(data.assignments ?? [])
     setLoading(false)
-  }, [statusFilter])
+  }, [statusFilter, orgFilter, topicId])
 
   useEffect(() => { fetchAssignments() }, [fetchAssignments])
+
+  async function handleRevert(justification: string) {
+    if (!revertTarget) return
+    setModalLoading(true)
+
+    await fetch(`/api/assignments/${revertTarget.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ action: 'revert', justification }),
+    })
+
+    setModalLoading(false)
+    setRevertTarget(null)
+    fetchAssignments()
+  }
 
   const filtered = assignments.filter((a) =>
     search === '' ||
     a.person.name.toLowerCase().includes(search.toLowerCase()) ||
     a.topic.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  const eligibleFiltered = filtered.filter((a) => a.status === 'NOT_STARTED')
+  const skippedCount     = filtered.length - eligibleFiltered.length
+
+  async function handleBulkRevert(justification: string) {
+    setBulkLoading(true)
+
+    const res  = await fetch('/api/assignments/bulk-revert', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ assignmentIds: eligibleFiltered.map((a) => a.id), justification }),
+    })
+    const data = await res.json()
+    setBulkLoading(false)
+    setBulkModalOpen(false)
+
+    if (!res.ok) {
+      setBulkResult(`Error: ${data.message}`)
+      return
+    }
+
+    setBulkResult(
+      `Reverted ${data.reverted} assignment${data.reverted !== 1 ? 's' : ''}.` +
+      (data.skipped?.length ? ` ${data.skipped.length} skipped — already in progress or completed.` : '')
+    )
+    fetchAssignments()
+  }
 
   return (
     <>
@@ -93,12 +161,47 @@ export function AllAssignmentsList({ isManager }: { isManager: boolean }) {
           <option value="IN_PROGRESS">In progress</option>
           <option value="COMPLETED">Completed</option>
           <option value="OVERDUE">Overdue</option>
+          <option value="CANCELLED">Withdrawn</option>
         </select>
 
-        <div className="ml-auto text-sm text-gray-400 self-center">
-          {filtered.length} assignment{filtered.length !== 1 ? 's' : ''}
+        <OrgFilterBar value={orgFilter} onChange={setOrgFilter} />
+
+        <select
+          value={topicId}
+          onChange={(e) => setTopicId(e.target.value)}
+          className="px-3 py-2 rounded-lg border text-sm outline-none"
+          style={{ borderColor: '#e5e7eb' }}
+        >
+          <option value="">All topics</option>
+          {topics.map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-sm text-gray-400">
+            {filtered.length} assignment{filtered.length !== 1 ? 's' : ''}
+          </span>
+          {canRevert && eligibleFiltered.length > 0 && (
+            <button
+              onClick={() => setBulkModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+              style={{ borderColor: '#fecaca', color: '#dc2626' }}
+            >
+              Revert all ({eligibleFiltered.length} eligible)
+            </button>
+          )}
         </div>
       </div>
+
+      {bulkResult && (
+        <div
+          className="text-sm px-4 py-3 rounded-lg border mb-4"
+          style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}
+        >
+          {bulkResult}
+        </div>
+      )}
 
       {/* Table */}
       <div
@@ -117,7 +220,7 @@ export function AllAssignmentsList({ isManager }: { isManager: boolean }) {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['Person','Topic','Trigger','Status','Due date','Assigned by'].map((h) => (
+                {['Person','Topic','Trigger','Status','Due date','Assigned by',''].map((h) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
@@ -163,6 +266,17 @@ export function AllAssignmentsList({ isManager }: { isManager: boolean }) {
                     <td className="px-4 py-3 text-xs text-gray-500">
                       {a.assignedBy.name}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      {canRevert && a.status === 'NOT_STARTED' && (
+                        <button
+                          onClick={() => setRevertTarget(a)}
+                          className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+                          style={{ borderColor: '#fecaca', color: '#dc2626' }}
+                        >
+                          Revert
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 )
               })}
@@ -170,6 +284,30 @@ export function AllAssignmentsList({ isManager }: { isManager: boolean }) {
           </table>
         )}
       </div>
+
+      <JustificationModal
+        isOpen={!!revertTarget}
+        title={`Revert assignment for ${revertTarget?.person.name ?? ''}`}
+        description={`"${revertTarget?.topic.name ?? ''}" will be withdrawn and ${revertTarget?.person.name ?? 'the trainee'} will be notified. This can only be done before they've started it.`}
+        onConfirm={handleRevert}
+        onCancel={() => setRevertTarget(null)}
+        loading={modalLoading}
+      />
+
+      <JustificationModal
+        isOpen={bulkModalOpen}
+        title="Revert all filtered assignments"
+        description={
+          `This will withdraw ${eligibleFiltered.length} assignment${eligibleFiltered.length !== 1 ? 's' : ''} ` +
+          `matching your current filters that haven't been started yet, and notify each trainee.` +
+          (skippedCount > 0
+            ? ` ${skippedCount} other filtered assignment${skippedCount !== 1 ? 's are' : ' is'} already in progress or completed and will be left untouched.`
+            : '')
+        }
+        onConfirm={handleBulkRevert}
+        onCancel={() => setBulkModalOpen(false)}
+        loading={bulkLoading}
+      />
     </>
   )
 }

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { formatDate } from '@/lib/utils'
 import type { AppRole } from '@/lib/types'
 import type { ReportScope } from './ReportsHub'
-import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from './ReportFilterBar'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters, type DateFilterConfig } from './ReportFilterBar'
 
 const STATUS_OPTIONS = [
   { value: 'COMPLETED',   label: 'Completed' },
@@ -12,6 +12,12 @@ const STATUS_OPTIONS = [
   { value: 'NOT_STARTED', label: 'Not started' },
   { value: 'OVERDUE',     label: 'Overdue' },
   { value: 'FAILED',      label: 'Failed' },
+]
+
+const DATE_FILTERS: DateFilterConfig[] = [
+  { key: 'assigned',  label: 'Assigned' },
+  { key: 'due',       label: 'Due' },
+  { key: 'completed', label: 'Completed' },
 ]
 
 interface IndexEntry {
@@ -108,7 +114,7 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
   const filteredEntries = useMemo(() => entries.filter((e: IndexEntry) => matchesReportFilters(filters, {
     name: e.topicName,
     status: e.status,
-    dates: [e.assignedAt, e.dueDate, e.completedAt],
+    dateValues: { assigned: e.assignedAt, due: e.dueDate, completed: e.completedAt },
   })), [entries, filters])
 
   const completed = filteredEntries.filter((e:any) => e.status === 'COMPLETED').length
@@ -192,6 +198,7 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
           filters={filters}
           onChange={setFilters}
           statusOptions={STATUS_OPTIONS}
+          dateFilters={DATE_FILTERS}
           searchPlaceholder="Search topic..."
         />
       )}

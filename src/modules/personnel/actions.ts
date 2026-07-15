@@ -9,6 +9,7 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { autoAssignInductionTraining } from '@/modules/assignments'
 import { sendEmail } from '@/lib/email'
+import { verifyUserPassword } from '@/lib/auth'
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -125,8 +126,12 @@ export async function getPersonById(id: string) {
 export async function createPerson(
   input: CreatePersonInput,
   justification: string,
-  actorId: string
+  actorId: string,
+  password: string
 ) {
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
+
   const parsed = createPersonSchema.safeParse(input)
   if (!parsed.success) throw new Error(parsed.error.message)
   const data = parsed.data
@@ -284,8 +289,12 @@ export async function updatePerson(
   id: string,
   input: UpdatePersonInput,
   justification: string,
-  actorId: string
+  actorId: string,
+  password: string
 ) {
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
+
   const parsed = updatePersonSchema.safeParse({ id, ...input })
   if (!parsed.success) {
     throw new Error(parsed.error.message)
@@ -364,8 +373,12 @@ export async function updatePerson(
 export async function deactivatePerson(
   id: string,
   justification: string,
-  actorId: string
+  actorId: string,
+  password: string
 ) {
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
+
   const person = await prisma.person.findUnique({
     where: { id },
     select: { id: true, name: true, isActive: true },
@@ -396,8 +409,12 @@ export async function deactivatePerson(
 export async function resetPersonPassword(
   id: string,
   justification: string,
-  actorId: string
+  actorId: string,
+  password: string
 ) {
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
+
   const person = await prisma.person.findUnique({
     where: { id },
     select: { id: true, name: true, email: true },

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { formatDate } from '@/lib/utils'
 import type { ReportScope } from './ReportsHub'
-import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from './ReportFilterBar'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters, type DateFilterConfig } from './ReportFilterBar'
+import { orgFilterParams, type OrgFilterValue } from '@/components/shared/OrgFilterBar'
 
 interface OverdueRow {
   person: {
@@ -12,11 +13,16 @@ interface OverdueRow {
   }
   assignment: {
     id: string; topicName: string; trigger: string
-    dueDate: string; daysOverdue: number
+    assignedAt: string; dueDate: string; daysOverdue: number
   }
 }
 
-export function OverdueReport({ scope }: { scope: ReportScope }) {
+const DATE_FILTERS: DateFilterConfig[] = [
+  { key: 'assigned', label: 'Assigned' },
+  { key: 'due',      label: 'Due' },
+]
+
+export function OverdueReport({ scope, orgFilter }: { scope: ReportScope; orgFilter: OrgFilterValue }) {
   const [rows,    setRows]    = useState<OverdueRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
@@ -24,22 +30,24 @@ export function OverdueReport({ scope }: { scope: ReportScope }) {
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
-    const res  = await fetch(`/api/reports/overdue?scope=${scope}`)
+    const params = new URLSearchParams({ scope, ...orgFilterParams(orgFilter) })
+    const res  = await fetch(`/api/reports/overdue?${params}`)
     const data = await res.json()
     setRows(data.rows ?? [])
     setLoading(false)
-  }, [scope])
+  }, [scope, orgFilter])
 
   useEffect(() => { fetchRows() }, [fetchRows])
 
   function handleExport() {
-    window.open(`/api/reports/overdue?scope=${scope}&format=csv`, '_blank')
+    const params = new URLSearchParams({ scope, format: 'csv', ...orgFilterParams(orgFilter) })
+    window.open(`/api/reports/overdue?${params}`, '_blank')
   }
 
   const filteredRows = useMemo(() => rows.filter((row) => matchesReportFilters(filters, {
     name: row.person.name,
     employeeId: row.person.employeeId,
-    dates: [row.assignment.dueDate],
+    dateValues: { assigned: row.assignment.assignedAt, due: row.assignment.dueDate },
   })), [rows, filters])
 
   return (
@@ -74,7 +82,7 @@ export function OverdueReport({ scope }: { scope: ReportScope }) {
       </div>
 
       {rows.length > 0 && (
-        <ReportFilterBar filters={filters} onChange={setFilters} />
+        <ReportFilterBar filters={filters} onChange={setFilters} dateFilters={DATE_FILTERS} />
       )}
 
       {loading ? (

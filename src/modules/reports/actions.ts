@@ -22,6 +22,7 @@ export async function getSubordinateIds(managerId: string): Promise<string[]> {
 
 export async function getTrainingMatrix(filters?: {
   departmentId?: string
+  unitId?:       string
   sectionId?:    string
   topicId?:      string
   subordinateIds?: string[]
@@ -33,6 +34,7 @@ export async function getTrainingMatrix(filters?: {
         ? { id: { in: filters.subordinateIds } }
         : {
             ...(filters?.departmentId && { departmentId: filters.departmentId }),
+            ...(filters?.unitId       && { unitId:       filters.unitId       }),
             ...(filters?.sectionId    && { sectionId:    filters.sectionId    }),
           }
       ),
@@ -49,6 +51,7 @@ export async function getTrainingMatrix(filters?: {
           id:          true,
           topicId:     true,
           status:      true,
+          createdAt:   true,
           dueDate:     true,
           completedAt: true,
           startedAt:   true,
@@ -112,6 +115,7 @@ export async function getTrainingMatrix(filters?: {
         topicName:   topic.name,
         status:      assignment.status as TrainingMatrixRow['topics'][0]['status'],
         score:       latestAttempt?.score    ?? undefined,
+        assignedAt:  assignment.createdAt,
         completedAt: assignment.completedAt,
         dueDate:     assignment.dueDate,
         assignedBy:  assignment.assignedBy.name,
@@ -169,6 +173,7 @@ export async function getTrainingIndex(
 
 export async function getOverdueReport(filters?: {
   departmentId?: string
+  unitId?:       string
   sectionId?:    string
   subordinateIds?: string[]
 }): Promise<OverdueReportRow[]> {
@@ -184,16 +189,18 @@ export async function getOverdueReport(filters?: {
           ? { id: { in: filters.subordinateIds } }
           : {
               ...(filters?.departmentId && { departmentId: filters.departmentId }),
+              ...(filters?.unitId       && { unitId:       filters.unitId       }),
               ...(filters?.sectionId    && { sectionId:    filters.sectionId    }),
             }
         ),
       },
     },
     select: {
-      id:      true,
-      trigger: true,
-      dueDate: true,
-      topic:   { select: { name: true } },
+      id:        true,
+      trigger:   true,
+      createdAt: true,
+      dueDate:   true,
+      topic:     { select: { name: true } },
       person:  {
         select: {
           id:          true,
@@ -221,6 +228,7 @@ export async function getOverdueReport(filters?: {
       id:          a.id,
       topicName:   a.topic.name,
       trigger:     a.trigger,
+      assignedAt:  a.createdAt,
       dueDate:     a.dueDate,
       daysOverdue: Math.floor(
         (now.getTime() - a.dueDate.getTime()) / (1000 * 60 * 60 * 24)
@@ -249,6 +257,8 @@ export async function getOverdueReport(filters?: {
 
 export async function getQualificationStatusBoard(filters?: {
   departmentId?: string
+  unitId?:       string
+  sectionId?:    string
   status?:       string
   subordinateIds?: string[]
 }): Promise<QualificationStatusRow[]> {
@@ -266,6 +276,8 @@ export async function getQualificationStatusBoard(filters?: {
           ? { id: { in: filters.subordinateIds } }
           : {
               ...(filters?.departmentId && { departmentId: filters.departmentId }),
+              ...(filters?.unitId       && { unitId:       filters.unitId       }),
+              ...(filters?.sectionId    && { sectionId:    filters.sectionId    }),
             }
         ),
       },
@@ -393,7 +405,7 @@ export async function getManagerStats(managerId: string) {
   }
 
   const [total, completed, overdue, pending] = await Promise.all([
-    prisma.trainingAssignment.count({ where: { personId: { in: ids } } }),
+    prisma.trainingAssignment.count({ where: { personId: { in: ids }, status: { not: 'CANCELLED' } } }),
     prisma.trainingAssignment.count({ where: { personId: { in: ids }, status: 'COMPLETED'   } }),
     prisma.trainingAssignment.count({ where: { personId: { in: ids }, status: 'OVERDUE'     } }),
     prisma.trainingAssignment.count({
@@ -481,7 +493,13 @@ export async function getTopicsForReport() {
 
 export async function getTopicCompletionReport(
   topicId: string,
-  filters?: { subordinateIds?: string[]; assignedById?: string }
+  filters?: {
+    subordinateIds?: string[]
+    assignedById?:   string
+    departmentId?:   string
+    unitId?:         string
+    sectionId?:      string
+  }
 ): Promise<TopicCompletionReport | null> {
   const assignmentsWhere: Record<string, unknown> = {}
   if (filters?.subordinateIds && filters.subordinateIds.length > 0) {
@@ -489,6 +507,13 @@ export async function getTopicCompletionReport(
   }
   if (filters?.assignedById) {
     assignmentsWhere.assignedById = filters.assignedById
+  }
+  if (filters?.departmentId || filters?.unitId || filters?.sectionId) {
+    assignmentsWhere.person = {
+      ...(filters.departmentId && { departmentId: filters.departmentId }),
+      ...(filters.unitId       && { unitId:       filters.unitId       }),
+      ...(filters.sectionId    && { sectionId:    filters.sectionId    }),
+    }
   }
 
   const topic = await prisma.trainingTopic.findUnique({
@@ -567,6 +592,7 @@ export async function getAttendanceChartData(filters?: {
   const assignments = await prisma.trainingAssignment.findMany({
     where: {
       dueDate: { gte: windows[0].start, lt: windows[windows.length - 1].end },
+      status:  { not: 'CANCELLED' },
       ...(filters?.sectionId && { person: { sectionId: filters.sectionId } }),
     },
     select: { dueDate: true, status: true },

@@ -2,6 +2,36 @@
 
 import { prisma } from '@/lib/prisma'
 import { logAuditEvent } from '@/modules/audit-trail'
+import { verifyUserPassword } from '@/lib/auth'
+
+// ── Auto-generated codes — derived from name, de-duplicated on collision ──
+
+function slugifyCode(name: string, maxLen = 12): string {
+  const cleaned = name.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  return cleaned.slice(0, maxLen) || 'X'
+}
+
+async function generateUnitCode(departmentId: string, name: string): Promise<string> {
+  const base = slugifyCode(name)
+  let code = base
+  let n = 2
+  while (await prisma.unit.findUnique({ where: { departmentId_code: { departmentId, code } } })) {
+    code = `${base}${n}`
+    n++
+  }
+  return code
+}
+
+async function generateSectionCode(unitId: string, name: string): Promise<string> {
+  const base = slugifyCode(name)
+  let code = base
+  let n = 2
+  while (await prisma.section.findUnique({ where: { unitId_code: { unitId, code } } })) {
+    code = `${base}${n}`
+    n++
+  }
+  return code
+}
 
 // ── Get full Department → Unit → Section tree ──────────────────────
 
@@ -34,15 +64,17 @@ export async function getDepartmentTree() {
 // ── Create a Unit within a Department ──────────────────────────────
 
 export async function createUnit(
-  input: { name: string; code: string; departmentId: string },
+  input: { name: string; departmentId: string },
   justification: string,
-  actorId: string
+  actorId: string,
+  password: string
 ) {
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
+
   const name = input.name.trim()
-  const code = input.code.trim().toUpperCase()
 
   if (!name) throw new Error('Unit name is required')
-  if (!code) throw new Error('Unit code is required')
 
   const department = await prisma.department.findUnique({
     where:  { id: input.departmentId },
@@ -50,10 +82,7 @@ export async function createUnit(
   })
   if (!department) throw new Error('Department not found')
 
-  const existing = await prisma.unit.findUnique({
-    where: { departmentId_code: { departmentId: input.departmentId, code } },
-  })
-  if (existing) throw new Error(`Unit code "${code}" already exists in ${department.name}`)
+  const code = await generateUnitCode(input.departmentId, name)
 
   const unit = await prisma.unit.create({
     data: { name, code, departmentId: input.departmentId },
@@ -76,15 +105,17 @@ export async function createUnit(
 // ── Create a Section within a Unit ─────────────────────────────────
 
 export async function createSection(
-  input: { name: string; code: string; unitId: string },
+  input: { name: string; unitId: string },
   justification: string,
-  actorId: string
+  actorId: string,
+  password: string
 ) {
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
+
   const name = input.name.trim()
-  const code = input.code.trim().toUpperCase()
 
   if (!name) throw new Error('Section name is required')
-  if (!code) throw new Error('Section code is required')
 
   const unit = await prisma.unit.findUnique({
     where:  { id: input.unitId },
@@ -92,10 +123,7 @@ export async function createSection(
   })
   if (!unit) throw new Error('Unit not found')
 
-  const existing = await prisma.section.findUnique({
-    where: { unitId_code: { unitId: input.unitId, code } },
-  })
-  if (existing) throw new Error(`Section code "${code}" already exists in ${unit.name}`)
+  const code = await generateSectionCode(input.unitId, name)
 
   const section = await prisma.section.create({
     data: { name, code, unitId: input.unitId },

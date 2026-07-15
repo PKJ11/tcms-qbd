@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { justification, ...input } = body
+  const { justification, password, ...input } = body
 
   if (!justification) {
     return NextResponse.json(
@@ -59,9 +59,15 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     )
   }
+  if (!password) {
+    return NextResponse.json(
+      { message: 'Password is required' },
+      { status: 400 }
+    )
+  }
 
   try {
-    const result = await createPerson(input, justification, session.user.id)
+    const result = await createPerson(input, justification, session.user.id, password)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create person'

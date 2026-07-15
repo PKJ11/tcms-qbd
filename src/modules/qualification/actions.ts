@@ -11,7 +11,7 @@ import type {
   CreateTechniqueInput,
   CreateQualificationInput,
 } from './types'
-import { canSignQcStep, canSignQaStep } from '@/lib/permissions'
+import { canManageQualifications, canSignQcStep, canSignQaStep } from '@/lib/permissions'
 import { verifyUserPassword } from '@/lib/auth'
 
 // ── Shared selects ────────────────────────────────────────────────
@@ -72,6 +72,7 @@ const QUALIFICATION_SELECT = {
       signedAt:      true,
       justification: true,
       signedBy:      { select: { id: true, name: true } },
+      assignedTo:    { select: { id: true, name: true } },
     },
     orderBy: { stepOrder: 'asc' as const },
   },
@@ -85,6 +86,27 @@ const QUALIFICATION_SELECT = {
   },
   _count: { select: { scannedDocuments: true } },
 } as const
+
+// ── Shared helper — load a person's roles + department for authz checks ──
+
+async function getAuthzProfile(personId: string) {
+  const person = await prisma.person.findUnique({
+    where:  { id: personId },
+    select: {
+      id:         true,
+      name:       true,
+      roles:      { select: { role: true } },
+      department: { select: { code: true } },
+    },
+  })
+  if (!person) throw new Error('Person not found')
+  return {
+    id:             person.id,
+    name:           person.name,
+    roles:          person.roles.map((r) => r.role),
+    departmentCode: person.department?.code ?? '',
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────
 // TECHNIQUE MANAGEMENT
@@ -157,13 +179,19 @@ export async function createTechnique(
 // ─────────────────────────────────────────────────────────────────
 
 export async function getQualifications(filters?: {
-  personId?:       string   // qualifications about this person (they are the analyst)
-  initiatedById?:  string   // qualifications this person created
-  supervisorId?:   string   // qualifications this person supervised
-  relevantToId?:   string   // personId OR initiatedById OR supervisorId matches this person
-  techniqueId?:    string
-  status?:         string
-  subordinateIds?: string[] // scope to this exact set of analyst IDs (e.g. "my team")
+  personId?:           string   // qualifications about this person (they are the analyst)
+  initiatedById?:      string   // qualifications this person created
+  supervisorId?:       string   // qualifications this person supervised
+  relevantToId?:       string   // personId OR initiatedById OR supervisorId matches this person
+  pendingSignoffForId?: string  // this person is the assigned approver for the current pending step
+  techniqueId?:        string
+  status?:             string
+  subordinateIds?:     string[] // scope to this exact set of analyst IDs (e.g. "my team")
+  departmentId?:       string   // org-hierarchy filters — "All data" scope only
+  unitId?:             string
+  sectionId?:          string
+  fromDate?:           string   // 'YYYY-MM-DD' — period filter on initiatedAt, lower bound
+  toDate?:             string   // 'YYYY-MM-DD' — period filter on initiatedAt, upper bound
 }) {
   // Auto-expire overdue qualifications
   await prisma.qualificationRecord.updateMany({
@@ -191,10 +219,28 @@ export async function getQualifications(filters?: {
   } else if (filters?.subordinateIds !== undefined) {
     // Scope to an exact set of analysts — an empty set means no matches
     where.personId = { in: filters.subordinateIds }
+  } else if (filters?.pendingSignoffForId) {
+    where.status      = 'IN_PROGRESS'
+    where.signatories = { some: { status: 'PENDING', assignedToId: filters.pendingSignoffForId } }
   }
 
   if (filters?.techniqueId) where.techniqueId = filters.techniqueId
   if (filters?.status)      where.status      = filters.status
+
+  if (filters?.departmentId || filters?.unitId || filters?.sectionId) {
+    where.person = {
+      ...(filters.departmentId && { departmentId: filters.departmentId }),
+      ...(filters.unitId       && { unitId:       filters.unitId       }),
+      ...(filters.sectionId    && { sectionId:    filters.sectionId    }),
+    }
+  }
+
+  if (filters?.fromDate || filters?.toDate) {
+    where.initiatedAt = {
+      ...(filters.fromDate && { gte: new Date(filters.fromDate) }),
+      ...(filters.toDate   && { lte: new Date(`${filters.toDate}T23:59:59.999`) }),
+    }
+  }
 
   return prisma.qualificationRecord.findMany({
     where,
@@ -318,13 +364,107 @@ export async function createQualification(
   return qualification
 }
 
+// ── Signatory assignment (choosing the named QC/QA approver) ──────
+
+export async function getEligibleSignatories(departmentCode: 'QC' | 'QA') {
+  return prisma.person.findMany({
+    where: {
+      isActive:   true,
+      department: { code: departmentCode },
+      roles:      { some: { role: 'TRAINER' } },
+    },
+    select:  { id: true, name: true, employeeId: true },
+    orderBy: { name: 'asc' },
+  })
+}
+
+// Assigns the step-1 (QC) approver. Step-2 (QA) is assigned inline when
+// step 1 is signed — see signQualification's nextAssigneeId handling.
+export async function assignSignatory(
+  qualificationId: string,
+  assigneeId:      string,
+  actorId:         string
+) {
+  const qual = await prisma.qualificationRecord.findUnique({
+    where:  { id: qualificationId },
+    select: {
+      id:         true,
+      status:     true,
+      person:     { select: { id: true, name: true } },
+      technique:  { select: { id: true, name: true } },
+      signatories: { orderBy: { stepOrder: 'asc' } },
+      _count:      { select: { scannedDocuments: true } },
+    },
+  })
+  if (!qual) throw new Error('Qualification record not found')
+  if (qual.status === 'APPROVED') throw new Error('Already fully approved')
+  if (qual.status === 'REVOKED')  throw new Error('This qualification has been revoked')
+  if (qual._count.scannedDocuments === 0) {
+    throw new Error('Upload evidence documents before assigning the QC sign-off approver')
+  }
+
+  const actor = await getAuthzProfile(actorId)
+  if (!canManageQualifications(actor)) {
+    throw new Error('Only the QA department Trainer/Trainee managing this record can assign the sign-off approver')
+  }
+
+  const step1 = qual.signatories.find((s) => s.stepOrder === 1)
+  if (!step1) throw new Error('Step 1 signatory entry not found')
+  if (step1.status !== 'PENDING') {
+    throw new Error('Step 1 has already been signed and its approver can no longer be changed')
+  }
+  if (step1.assignedToId) {
+    throw new Error('A QC sign-off approver has already been assigned and cannot be changed')
+  }
+
+  const assignee = await getAuthzProfile(assigneeId)
+  if (!canSignQcStep(assignee)) {
+    throw new Error('The assigned approver must be a QC department Trainer')
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.signatoryEntry.update({
+      where: { id: step1.id },
+      data:  {
+        assignedToId: assigneeId,
+        assignedById: actorId,
+        assignedAt:   new Date(),
+      },
+    })
+
+    await tx.notification.create({
+      data: {
+        personId: assigneeId,
+        type:     'ASSIGNMENT',
+        channel:  'IN_APP',
+        title:    'Qualification sign-off requested',
+        message:  `You have been selected to give QC sign-off for ${qual.person.name}'s qualification on "${qual.technique.name}".`,
+      },
+    })
+  })
+
+  await logAuditEvent({
+    userId:      actorId,
+    action:      'UPDATE',
+    module:      'QUALIFICATION',
+    recordId:    qualificationId,
+    recordType:  'SignatoryEntry',
+    beforeValue: { stepOrder: 1, assignedToId: step1.assignedToId },
+    afterValue:  { stepOrder: 1, assignedToId: assigneeId, assignedToName: assignee.name },
+    justification: `Assigned ${assignee.name} as QC sign-off approver`,
+  })
+
+  return { assignedTo: { id: assignee.id, name: assignee.name } }
+}
+
 // ── Sign off a qualification step ─────────────────────────────────
 
 export async function signQualification(
   qualificationId: string,
   justification:   string,
   password:        string,
-  actorId:         string
+  actorId:         string,
+  nextAssigneeId?: string
 ) {
   // Get the full qualification with signatories
   const qual = await prisma.qualificationRecord.findUnique({
@@ -345,21 +485,7 @@ export async function signQualification(
   if (qual.status === 'APPROVED') throw new Error('Already fully approved')
   if (qual.status === 'REVOKED')  throw new Error('This qualification has been revoked')
 
-  // Get the actor's roles + department
-  const actor = await prisma.person.findUnique({
-    where:  { id: actorId },
-    select: {
-      id:    true,
-      name:  true,
-      roles: { select: { role: true } },
-      department: { select: { code: true } },
-    },
-  })
-  if (!actor) throw new Error('Actor not found')
-  const actorForAuthz = {
-    roles:          actor.roles.map((r) => r.role),
-    departmentCode: actor.department?.code ?? '',
-  }
+  const actorForAuthz = await getAuthzProfile(actorId)
 
   const passwordValid = await verifyUserPassword(actorId, password)
   if (!passwordValid) throw new Error('Incorrect password')
@@ -367,6 +493,13 @@ export async function signQualification(
   // Find the next pending step
   const nextStep = qual.signatories.find((s) => s.status === 'PENDING')
   if (!nextStep) throw new Error('No pending signature steps remaining')
+
+  if (!nextStep.assignedToId) {
+    throw new Error('No approver has been assigned for this step yet')
+  }
+  if (nextStep.assignedToId !== actorId) {
+    throw new Error('You are not the assigned approver for this step')
+  }
 
   // Department + role gating — step 1 is QC-department Trainer,
   // step 2 is the final QA-department Trainer approval
@@ -386,6 +519,18 @@ export async function signQualification(
   // Check if this is the final step
   const isLastStep = nextStep.stepOrder === qual.signatories.length
   const willApprove = isLastStep
+
+  // Signing a non-final step requires nominating the approver for the next step
+  let nextApprover: Awaited<ReturnType<typeof getAuthzProfile>> | null = null
+  if (!willApprove) {
+    if (!nextAssigneeId) {
+      throw new Error('Select the approver for the next sign-off step')
+    }
+    nextApprover = await getAuthzProfile(nextAssigneeId)
+    if (!canSignQaStep(nextApprover)) {
+      throw new Error('The next approver must be a QA department Trainer')
+    }
+  }
 
   await prisma.$transaction(async (tx) => {
     // Sign this step
@@ -434,6 +579,29 @@ export async function signQualification(
           message:  `You are now qualified on "${qual.technique.name}". Certificate issued.`,
         },
       })
+    } else if (nextApprover) {
+      // Nominate the step-2 approver chosen alongside this sign-off
+      const step2 = qual.signatories.find((s) => s.stepOrder === nextStep.stepOrder + 1)
+      if (step2) {
+        await tx.signatoryEntry.update({
+          where: { id: step2.id },
+          data:  {
+            assignedToId: nextApprover.id,
+            assignedById: actorId,
+            assignedAt:   new Date(),
+          },
+        })
+
+        await tx.notification.create({
+          data: {
+            personId: nextApprover.id,
+            type:     'ASSIGNMENT',
+            channel:  'IN_APP',
+            title:    'Qualification sign-off requested',
+            message:  `You have been selected to give final QA approval for ${qual.person.name}'s qualification on "${qual.technique.name}".`,
+          },
+        })
+      }
     }
   })
 
@@ -447,7 +615,7 @@ export async function signQualification(
     afterValue:    {
       stepOrder:    nextStep.stepOrder,
       status:       'SIGNED',
-      signedBy:     actor.name,
+      signedBy:     actorForAuthz.name,
       fullyApproved: willApprove,
     },
     justification,

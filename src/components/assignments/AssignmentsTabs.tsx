@@ -9,10 +9,12 @@ export function AssignmentsTabs({
   canMonitor,
   isManager,
   canAssign,
+  canRevert,
 }: {
   canMonitor: boolean
   isManager:  boolean
   canAssign?: boolean
+  canRevert?: boolean
 }) {
   const [tab, setTab] = useState<'mine' | 'all' | 'assigned'>('mine')
 
@@ -65,8 +67,8 @@ export function AssignmentsTabs({
       </div>
 
       {tab === 'mine'     && <MyAssignmentsList />}
-      {tab === 'all'      && <AllAssignmentsList isManager={isManager} />}
-      {tab === 'assigned' && <MyAssignedTrainingsStatus />}
+      {tab === 'all'      && <AllAssignmentsList isManager={isManager} canRevert={!!canRevert} />}
+      {tab === 'assigned' && <MyAssignedTrainingsStatus canRevert={!!canRevert} />}
     </>
   )
 }

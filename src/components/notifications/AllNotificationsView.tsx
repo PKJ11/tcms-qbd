@@ -22,6 +22,7 @@ const TYPE_STYLES: Record<string, { label: string; bg: string; color: string; ic
   QUALIFICATION_EXPIRY: { label: 'Expiry',        bg: '#fefce8', color: '#854d0e', icon: '⚠️' },
   PASSWORD_RESET:       { label: 'Password',      bg: '#f5f3ff', color: '#6d28d9', icon: '🔑' },
   DOCUMENT_UPDATED:     { label: 'Document',      bg: '#eff6ff', color: '#1d4ed8', icon: '📄' },
+  ASSIGNMENT_WITHDRAWN: { label: 'Withdrawn',     bg: '#fef2f2', color: '#dc2626', icon: '🚫' },
 }
 
 export function AllNotificationsView() {
@@ -160,7 +161,10 @@ export function AllNotificationsView() {
                       >
                         {style.label}
                       </span>
-                      <span className="text-sm font-semibold text-gray-900">
+                      <span
+                        className="text-sm font-semibold"
+                        style={{ color: n.type === 'ASSIGNMENT_WITHDRAWN' ? '#dc2626' : '#111827' }}
+                      >
                         {n.title}
                       </span>
                     </div>

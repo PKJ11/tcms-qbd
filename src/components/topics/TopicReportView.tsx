@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { TopicAssignmentsTable, type TopicTrainee } from '@/components/reports/TopicAssignmentsTable'
-import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from '@/components/reports/ReportFilterBar'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters, type DateFilterConfig } from '@/components/reports/ReportFilterBar'
+import { OrgFilterBar, EMPTY_ORG_FILTER, orgFilterParams, type OrgFilterValue } from '@/components/shared/OrgFilterBar'
 
 const STATUS_OPTIONS = [
   { value: 'COMPLETED',   label: 'Completed' },
@@ -10,6 +11,12 @@ const STATUS_OPTIONS = [
   { value: 'NOT_STARTED', label: 'Not started' },
   { value: 'OVERDUE',     label: 'Overdue' },
   { value: 'FAILED',      label: 'Failed' },
+]
+
+const DATE_FILTERS: DateFilterConfig[] = [
+  { key: 'assigned',  label: 'Assigned' },
+  { key: 'due',       label: 'Due' },
+  { key: 'completed', label: 'Completed' },
 ]
 
 interface Report {
@@ -41,19 +48,27 @@ export function TopicReportView({ topicId, canViewAll, directReportIds, teamIds 
   const [report,  setReport]  = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
+  const [orgFilter, setOrgFilter] = useState<OrgFilterValue>(EMPTY_ORG_FILTER)
+
+  function handleViewChange(next: ViewKey) {
+    setView(next)
+    if (next !== 'all') setOrgFilter(EMPTY_ORG_FILTER)
+  }
 
   const fetchReport = useCallback(async () => {
     setLoading(true)
-    const res  = await fetch(`/api/reports/topic-completion?topicId=${topicId}&scope=${view}`)
+    const params = new URLSearchParams({ topicId, scope: view, ...orgFilterParams(orgFilter) })
+    const res  = await fetch(`/api/reports/topic-completion?${params}`)
     const data = await res.json()
     setReport(data.report ?? null)
     setLoading(false)
-  }, [topicId, view])
+  }, [topicId, view, orgFilter])
 
   useEffect(() => { fetchReport() }, [fetchReport])
 
   function handleExport() {
-    window.open(`/api/reports/topic-completion?topicId=${topicId}&scope=${view}&format=csv`, '_blank')
+    const params = new URLSearchParams({ topicId, scope: view, format: 'csv', ...orgFilterParams(orgFilter) })
+    window.open(`/api/reports/topic-completion?${params}`, '_blank')
   }
 
   const scopedCount = view === 'team' ? teamIds.length : view === 'reportees' ? directReportIds.length : null
@@ -62,7 +77,7 @@ export function TopicReportView({ topicId, canViewAll, directReportIds, teamIds 
     if (!report) return []
     return report.trainees.filter((t) => matchesReportFilters(filters, {
       name: t.name, employeeId: t.employeeId, status: t.status,
-      dates: [t.assignedAt, t.dueDate, t.completedAt],
+      dateValues: { assigned: t.assignedAt, due: t.dueDate, completed: t.completedAt },
     }))
   }, [report, filters])
 
@@ -78,7 +93,7 @@ export function TopicReportView({ topicId, canViewAll, directReportIds, teamIds 
         {visibleViews.map((v) => (
           <button
             key={v.key}
-            onClick={() => setView(v.key)}
+            onClick={() => handleViewChange(v.key)}
             title={v.description}
             className="flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all"
             style={{
@@ -109,6 +124,10 @@ export function TopicReportView({ topicId, canViewAll, directReportIds, teamIds 
         >
           <span>Showing only the people <strong>you personally assigned</strong> this training to.</span>
         </div>
+      )}
+
+      {view === 'all' && (
+        <OrgFilterBar value={orgFilter} onChange={setOrgFilter} />
       )}
 
       <div
@@ -148,7 +167,7 @@ export function TopicReportView({ topicId, canViewAll, directReportIds, teamIds 
         ) : (
           <>
             <div className="px-5 pt-4">
-              <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} />
+              <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} dateFilters={DATE_FILTERS} />
             </div>
             <TopicAssignmentsTable
               trainees={filteredTrainees}

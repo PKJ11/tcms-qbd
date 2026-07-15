@@ -34,7 +34,7 @@ export async function PATCH(
   }
 
   const body = await req.json()
-  const { justification, action, password } = body
+  const { justification, action, password, nextAssigneeId } = body
 
   if (!justification) {
     return NextResponse.json(
@@ -51,7 +51,7 @@ export async function PATCH(
           { status: 400 }
         )
       }
-      const result = await signQualification(params.id, justification, password, session.user.id)
+      const result = await signQualification(params.id, justification, password, session.user.id, nextAssigneeId)
       return NextResponse.json({
         message:      result.willApprove ? 'Qualification fully approved' : 'Step signed successfully',
         fullyApproved: result.willApprove,

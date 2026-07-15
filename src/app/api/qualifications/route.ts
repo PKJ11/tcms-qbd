@@ -17,6 +17,7 @@ import { getSubordinateIds, getTeamIds } from '@/lib/subordinates'
 //   reportees  — the analyst is one of my direct reports
 //   team       — the analyst is anywhere under me in the reporting chain
 //   all        — every record, org-wide
+//   pendingSignoff — I am the assigned approver for the current pending step
 export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session) {
@@ -30,12 +31,19 @@ export async function GET(req: NextRequest) {
   const baseFilters = {
     techniqueId: searchParams.get('techniqueId') ?? undefined,
     status:      searchParams.get('status')      ?? undefined,
+    fromDate:    searchParams.get('fromDate')    ?? undefined,
+    toDate:      searchParams.get('toDate')      ?? undefined,
   }
 
   let qualifications
   switch (scope) {
     case 'all':
-      qualifications = await getQualifications(baseFilters)
+      qualifications = await getQualifications({
+        ...baseFilters,
+        departmentId: searchParams.get('departmentId') ?? undefined,
+        unitId:       searchParams.get('unitId')       ?? undefined,
+        sectionId:    searchParams.get('sectionId')    ?? undefined,
+      })
       break
     case 'mine':
       qualifications = await getQualifications({ ...baseFilters, personId: userId })
@@ -57,6 +65,9 @@ export async function GET(req: NextRequest) {
         ...baseFilters,
         subordinateIds: await getTeamIds(userId),
       })
+      break
+    case 'pendingSignoff':
+      qualifications = await getQualifications({ ...baseFilters, pendingSignoffForId: userId })
       break
     case 'relevant':
     default:

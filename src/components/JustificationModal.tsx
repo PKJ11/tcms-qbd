@@ -6,10 +6,12 @@ interface JustificationModalProps {
   isOpen:      boolean
   title:       string
   description: string
-  onConfirm:   (justification: string) => void
+  onConfirm:   (justification: string, password?: string) => void
   onCancel:    () => void
   loading?:    boolean
   minLength?:  number
+  error?:      string | null
+  requirePassword?: boolean
 }
 
 export function JustificationModal({
@@ -20,20 +22,25 @@ export function JustificationModal({
   onCancel,
   loading   = false,
   minLength = 10,
+  error     = null,
+  requirePassword = false,
 }: JustificationModalProps) {
-  const [text, setText] = useState('')
+  const [text, setText]         = useState('')
+  const [password, setPassword] = useState('')
 
-  const isValid  = text.trim().length >= minLength
+  const isValid  = text.trim().length >= minLength && (!requirePassword || password.length > 0)
   const charsLeft = minLength - text.trim().length
 
   function handleConfirm() {
     if (!isValid) return
-    onConfirm(text.trim())
+    onConfirm(text.trim(), requirePassword ? password : undefined)
     setText('')
+    setPassword('')
   }
 
   function handleCancel() {
     setText('')
+    setPassword('')
     onCancel()
   }
 
@@ -137,6 +144,23 @@ export function JustificationModal({
             </p>
           </div>
 
+          {requirePassword && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Confirm your password <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Your account password"
+                className="w-full px-3 py-2.5 rounded-lg border text-sm outline-none"
+                style={{ borderColor: '#d1d5db' }}
+                autoComplete="current-password"
+              />
+            </div>
+          )}
+
           {/* ALCOA notice */}
           <div
             className="flex items-start gap-2 mt-3 px-3 py-2.5 rounded-lg text-xs"
@@ -161,6 +185,10 @@ export function JustificationModal({
               audit trail and cannot be edited (ALCOA+ compliance).
             </span>
           </div>
+
+          {error && (
+            <p className="text-xs mt-3" style={{ color: '#dc2626' }}>{error}</p>
+          )}
         </div>
 
         {/* Footer */}

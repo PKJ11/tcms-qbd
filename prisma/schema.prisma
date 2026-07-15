@@ -41,6 +41,7 @@ enum AssignmentStatus {
   COMPLETED
   OVERDUE
   FAILED
+  CANCELLED
 }
 
 enum ContentStatus {
@@ -111,6 +112,7 @@ enum NotificationType {
   QUALIFICATION_EXPIRY
   PASSWORD_RESET
   DOCUMENT_UPDATED
+  ASSIGNMENT_WITHDRAWN
 }
 
 enum NotificationChannel {
@@ -274,6 +276,8 @@ model Person {
   supervisedQualifications QualificationRecord[] @relation("supervisor")
   initiatedQualifications  QualificationRecord[] @relation("initiator")
   signatoryEntries         SignatoryEntry[]
+  assignedSignatories      SignatoryEntry[]      @relation("SignatoryAssignedTo")
+  signatoryAssignmentsMade SignatoryEntry[]      @relation("SignatoryAssignedBy")
   uploadedDocuments        ScannedDocument[]
   issuedCertificates       Certificate[]         @relation("issuer")
   personCertificates       Certificate[]         @relation("certPerson")
@@ -583,10 +587,15 @@ model SignatoryEntry {
   signedAt        DateTime?
   justification   String?
   status          SignatoryStatus @default(PENDING)
+  assignedToId    String?
+  assignedById    String?
+  assignedAt      DateTime?
   createdAt       DateTime        @default(now())
 
   qualification QualificationRecord @relation(fields: [qualificationId], references: [id])
   signedBy      Person?             @relation(fields: [signedById],       references: [id])
+  assignedTo    Person?             @relation("SignatoryAssignedTo", fields: [assignedToId], references: [id])
+  assignedBy    Person?             @relation("SignatoryAssignedBy", fields: [assignedById], references: [id])
 
   @@unique([qualificationId, stepOrder])
   @@map("signatory_entries")

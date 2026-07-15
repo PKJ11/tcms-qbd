@@ -21,6 +21,7 @@ const TYPE_ICONS: Record<string, { icon: string; color: string; bg: string }> = 
   QUALIFICATION_EXPIRY: { icon: '⚠️', color: '#854d0e', bg: '#fefce8' },
   PASSWORD_RESET:       { icon: '🔑', color: '#6d28d9', bg: '#f5f3ff' },
   DOCUMENT_UPDATED:     { icon: '📄', color: '#1d4ed8', bg: '#eff6ff' },
+  ASSIGNMENT_WITHDRAWN: { icon: '🚫', color: '#dc2626', bg: '#fef2f2' },
 }
 
 export function NotificationBell() {
@@ -189,7 +190,7 @@ export function NotificationBell() {
                       <div className="flex items-start justify-between gap-2">
                         <p
                           className="text-xs font-semibold text-gray-900 leading-tight"
-                          style={{ color: n.isRead ? '#374151' : '#111827' }}
+                          style={{ color: n.type === 'ASSIGNMENT_WITHDRAWN' ? '#dc2626' : n.isRead ? '#374151' : '#111827' }}
                         >
                           {n.title}
                         </p>

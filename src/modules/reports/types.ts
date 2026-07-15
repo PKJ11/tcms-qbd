@@ -12,6 +12,7 @@ export interface TrainingMatrixRow {
     topicName: string
     status:    'COMPLETED' | 'IN_PROGRESS' | 'NOT_STARTED' | 'OVERDUE' | 'FAILED' | 'NOT_ASSIGNED'
     score?:    number
+    assignedAt?: Date | null
     completedAt?: Date | null
     dueDate?:  Date | null
     assignedBy?: string | null
@@ -45,6 +46,7 @@ export interface OverdueReportRow {
     id:        string
     topicName: string
     trigger:   string
+    assignedAt: Date
     dueDate:   Date
     daysOverdue: number
   }

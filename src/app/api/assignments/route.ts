@@ -33,6 +33,9 @@ export async function GET(req: NextRequest) {
       assignedById: session.user.id,
       topicId:      searchParams.get('topicId') ?? undefined,
       status:       searchParams.get('status')  ?? undefined,
+      departmentId: searchParams.get('departmentId') ?? undefined,
+      unitId:       searchParams.get('unitId')       ?? undefined,
+      sectionId:    searchParams.get('sectionId')    ?? undefined,
     })
     return NextResponse.json({ assignments })
   }
@@ -40,10 +43,13 @@ export async function GET(req: NextRequest) {
   // Org-wide visibility — Trainer, Guest Trainer, Viewer
   if (hasAnyRole(session.user, [...CAN_VIEW_ALL_ORGS])) {
     const assignments = await getAssignments({
-      personId: searchParams.get('personId') ?? undefined,
-      topicId:  searchParams.get('topicId')  ?? undefined,
-      status:   searchParams.get('status')   ?? undefined,
-      trigger:  searchParams.get('trigger')  ?? undefined,
+      personId:     searchParams.get('personId') ?? undefined,
+      topicId:      searchParams.get('topicId')  ?? undefined,
+      status:       searchParams.get('status')   ?? undefined,
+      trigger:      searchParams.get('trigger')  ?? undefined,
+      departmentId: searchParams.get('departmentId') ?? undefined,
+      unitId:       searchParams.get('unitId')       ?? undefined,
+      sectionId:    searchParams.get('sectionId')    ?? undefined,
     })
     return NextResponse.json({ assignments })
   }
@@ -56,11 +62,14 @@ export async function GET(req: NextRequest) {
   }
 
   const assignments = await getAssignments({
-    personId:  searchParams.get('personId') ?? undefined,
-    topicId:   searchParams.get('topicId')  ?? undefined,
-    status:    searchParams.get('status')   ?? undefined,
-    trigger:   searchParams.get('trigger')  ?? undefined,
-    managerId: session.user.id, // subordinates of THIS person, regardless of their role label
+    personId:     searchParams.get('personId') ?? undefined,
+    topicId:      searchParams.get('topicId')  ?? undefined,
+    status:       searchParams.get('status')   ?? undefined,
+    trigger:      searchParams.get('trigger')  ?? undefined,
+    departmentId: searchParams.get('departmentId') ?? undefined,
+    unitId:       searchParams.get('unitId')       ?? undefined,
+    sectionId:    searchParams.get('sectionId')    ?? undefined,
+    managerId:    session.user.id, // subordinates of THIS person, regardless of their role label
   })
 
   return NextResponse.json({ assignments })

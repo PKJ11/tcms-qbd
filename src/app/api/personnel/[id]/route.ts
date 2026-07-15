@@ -40,7 +40,7 @@ export async function PATCH(
   }
 
   const body = await req.json()
-  const { justification, action, ...input } = body
+  const { justification, password, action, ...input } = body
 
   if (!justification) {
     return NextResponse.json(
@@ -48,11 +48,17 @@ export async function PATCH(
       { status: 400 }
     )
   }
+  if (!password) {
+    return NextResponse.json(
+      { message: 'Password is required' },
+      { status: 400 }
+    )
+  }
 
   try {
     // Handle different actions
     if (action === 'deactivate') {
-      await deactivatePerson(params.id, justification, session.user.id)
+      await deactivatePerson(params.id, justification, session.user.id, password)
       return NextResponse.json({ message: 'Person deactivated successfully' })
     }
 
@@ -60,7 +66,8 @@ export async function PATCH(
       const tempPassword = await resetPersonPassword(
         params.id,
         justification,
-        session.user.id
+        session.user.id,
+        password
       )
       return NextResponse.json({
         message:     'Password reset successfully',
@@ -73,7 +80,8 @@ export async function PATCH(
       params.id,
       input,
       justification,
-      session.user.id
+      session.user.id,
+      password
     )
     return NextResponse.json({ person })
 

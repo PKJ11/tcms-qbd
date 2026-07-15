@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
 
   const matrix = await getTrainingMatrix({
     departmentId: searchParams.get('departmentId') ?? undefined,
+    unitId:       searchParams.get('unitId')    ?? undefined,
+    sectionId:    searchParams.get('sectionId') ?? undefined,
     topicId:      searchParams.get('topicId') ?? undefined,
     subordinateIds,
   })

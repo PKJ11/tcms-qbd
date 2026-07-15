@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { ReportScope } from './ReportsHub'
 import { TopicAssignmentsTable, type TopicTrainee } from './TopicAssignmentsTable'
-import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters } from './ReportFilterBar'
+import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters, type DateFilterConfig } from './ReportFilterBar'
+import { orgFilterParams, type OrgFilterValue } from '@/components/shared/OrgFilterBar'
 
 interface Topic { id: string; name: string }
 
@@ -22,7 +23,13 @@ const STATUS_OPTIONS = [
   { value: 'FAILED',      label: 'Failed' },
 ]
 
-export function TopicCompletionReport({ scope }: { scope: ReportScope }) {
+const DATE_FILTERS: DateFilterConfig[] = [
+  { key: 'assigned',  label: 'Assigned' },
+  { key: 'due',       label: 'Due' },
+  { key: 'completed', label: 'Completed' },
+]
+
+export function TopicCompletionReport({ scope, orgFilter }: { scope: ReportScope; orgFilter: OrgFilterValue }) {
   const [topics,   setTopics]   = useState<Topic[]>([])
   const [topicId,  setTopicId]  = useState('')
   const [report,   setReport]   = useState<Report | null>(null)
@@ -42,25 +49,27 @@ export function TopicCompletionReport({ scope }: { scope: ReportScope }) {
   const fetchReport = useCallback(async (id: string) => {
     if (!id) { setReport(null); return }
     setLoading(true)
-    const res  = await fetch(`/api/reports/topic-completion?topicId=${id}&scope=${scope}`)
+    const params = new URLSearchParams({ topicId: id, scope, ...orgFilterParams(orgFilter) })
+    const res  = await fetch(`/api/reports/topic-completion?${params}`)
     const data = await res.json()
     setReport(data.report ?? null)
     setLoading(false)
-  }, [scope])
+  }, [scope, orgFilter])
 
   useEffect(() => { fetchReport(topicId) }, [topicId, fetchReport])
   useEffect(() => { setFilters(EMPTY_REPORT_FILTERS) }, [topicId])
 
   function handleExport() {
     if (!topicId) return
-    window.open(`/api/reports/topic-completion?topicId=${topicId}&scope=${scope}&format=csv`, '_blank')
+    const params = new URLSearchParams({ topicId, scope, format: 'csv', ...orgFilterParams(orgFilter) })
+    window.open(`/api/reports/topic-completion?${params}`, '_blank')
   }
 
   const filteredTrainees = useMemo(() => {
     if (!report) return []
     return report.trainees.filter((t) => matchesReportFilters(filters, {
       name: t.name, employeeId: t.employeeId, status: t.status,
-      dates: [t.assignedAt, t.dueDate, t.completedAt],
+      dateValues: { assigned: t.assignedAt, due: t.dueDate, completed: t.completedAt },
     }))
   }, [report, filters])
 
@@ -137,7 +146,7 @@ export function TopicCompletionReport({ scope }: { scope: ReportScope }) {
           </div>
 
           <div className="px-5 pt-4">
-            <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} />
+            <ReportFilterBar filters={filters} onChange={setFilters} statusOptions={STATUS_OPTIONS} dateFilters={DATE_FILTERS} />
           </div>
 
           <TopicAssignmentsTable

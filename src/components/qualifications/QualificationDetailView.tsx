@@ -13,6 +13,13 @@ interface Signatory {
   signedAt:      string | null
   justification: string | null
   signedBy:      { id: string; name: string } | null
+  assignedTo:    { id: string; name: string } | null
+}
+
+interface EligibleSignatory {
+  id:         string
+  name:       string
+  employeeId: string
 }
 
 interface ScannedDoc {
@@ -59,6 +66,7 @@ const FILE_ICONS: Record<string, string> = {
 
 interface Props {
   qualificationId: string
+  currentUserId:   string
   canUpload:       boolean
   canSignQc:       boolean
   canSignQa:       boolean
@@ -98,6 +106,7 @@ function Toast({ message, type, onClose }: {
 
 export function QualificationDetailView({
   qualificationId,
+  currentUserId,
   canUpload,
   canSignQc,
   canSignQa,
@@ -119,6 +128,11 @@ export function QualificationDetailView({
   const [modalError,      setModalError]      = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
+  const [eligibleQc,   setEligibleQc]   = useState<EligibleSignatory[]>([])
+  const [eligibleQa,   setEligibleQa]   = useState<EligibleSignatory[]>([])
+  const [qcAssigneeId, setQcAssigneeId] = useState('')
+  const [assigningQc,  setAssigningQc]  = useState(false)
+
   const showToast = (message: string, type: 'success' | 'error' = 'success') => setToast({ message, type })
 
   const fetchQual = useCallback(async () => {
@@ -139,6 +153,40 @@ export function QualificationDetailView({
 
   useEffect(() => { fetchQual() }, [fetchQual])
   useEffect(() => { fetchDocs() }, [fetchDocs])
+
+  useEffect(() => {
+    if (!canUpload) return
+    fetch('/api/qualifications/eligible-signatories?department=QC')
+      .then((res) => res.json())
+      .then((data) => setEligibleQc(data.signatories ?? []))
+  }, [canUpload])
+
+  useEffect(() => {
+    if (!canSignQc) return
+    fetch('/api/qualifications/eligible-signatories?department=QA')
+      .then((res) => res.json())
+      .then((data) => setEligibleQa(data.signatories ?? []))
+  }, [canSignQc])
+
+  async function handleAssignQc() {
+    if (!qcAssigneeId) return
+    setAssigningQc(true)
+    const res  = await fetch(`/api/qualifications/${qualificationId}/assign`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ assigneeId: qcAssigneeId }),
+    })
+    const data = await res.json()
+    setAssigningQc(false)
+
+    if (!res.ok) {
+      showToast(data.message ?? 'Failed to assign approver', 'error')
+      return
+    }
+
+    showToast('QC sign-off approver assigned')
+    fetchQual()
+  }
 
   async function handleUpload() {
     if (!file || !description.trim()) {
@@ -179,14 +227,14 @@ export function QualificationDetailView({
     }
   }
 
-  async function handleSign(justification: string, password: string) {
+  async function handleSign(justification: string, password: string, nextAssigneeId?: string) {
     setActionLoading(true)
     setModalError(null)
 
     const res  = await fetch(`/api/qualifications/${qualificationId}`, {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ action: 'sign', justification, password }),
+      body:    JSON.stringify({ action: 'sign', justification, password, nextAssigneeId }),
     })
     const data = await res.json()
     setActionLoading(false)
@@ -234,8 +282,9 @@ export function QualificationDetailView({
   const statusStyle  = STATUS_STYLES[qual.status] ?? STATUS_STYLES.IN_PROGRESS
   const nextStep     = qual.signatories.find((s) => s.status === 'PENDING')
   const hasEvidence  = qual._count.scannedDocuments > 0
+  const isAssignedApprover = nextStep?.assignedTo?.id === currentUserId
   const canApproveNextStep =
-    qual.status === 'IN_PROGRESS' && nextStep
+    qual.status === 'IN_PROGRESS' && nextStep && isAssignedApprover
       ? (nextStep.stepOrder === 1 ? canSignQc && hasEvidence : canSignQa)
       : false
 
@@ -326,6 +375,40 @@ export function QualificationDetailView({
             <p className="text-xs text-gray-400">Accepted: PDF, JPG, PNG · Max 20MB</p>
           </div>
         )}
+
+        {canUpload && qual.signatories[0]?.status === 'PENDING' && !qual.signatories[0]?.assignedTo && (
+          hasEvidence ? (
+            <div className="flex flex-col gap-2 p-3 mt-3 rounded-lg border" style={{ borderColor: '#e5e7eb', background: '#fafafa' }}>
+              <p className="text-xs font-medium text-gray-600">Assign QC sign-off approver</p>
+              <p className="text-xs text-gray-400">Once assigned, the approver cannot be changed.</p>
+              <div className="flex items-center gap-2">
+                <select
+                  value={qcAssigneeId}
+                  onChange={(e) => setQcAssigneeId(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-lg border text-xs outline-none"
+                  style={{ borderColor: '#e5e7eb', background: '#fff' }}
+                >
+                  <option value="">Select a QC department trainer...</option>
+                  {eligibleQc.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.employeeId})</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleAssignQc}
+                  disabled={assigningQc || !qcAssigneeId}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white flex-shrink-0 disabled:opacity-40"
+                  style={{ background: '#2d6a4f' }}
+                >
+                  {assigningQc ? 'Assigning...' : 'Assign'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs mt-3" style={{ color: '#ca8a04' }}>
+              Upload at least one evidence document before assigning a QC sign-off approver.
+            </p>
+          )
+        )}
       </div>
 
       {/* Steps 2 & 3 — signatory chain */}
@@ -353,7 +436,9 @@ export function QualificationDetailView({
                     ? `✓ Signed by ${s.signedBy?.name} · ${formatDate(s.signedAt!)}`
                     : s.status === 'REJECTED'
                     ? '✗ Rejected'
-                    : '⏳ Pending'}
+                    : s.assignedTo
+                    ? `⏳ Pending · Assigned to ${s.assignedTo.name}`
+                    : '⏳ Pending · Not yet assigned'}
                 </div>
                 {s.justification && s.status === 'SIGNED' && (
                   <p className="text-xs italic text-gray-500 mt-1">&quot;{s.justification}&quot;</p>
@@ -401,6 +486,8 @@ export function QualificationDetailView({
         loading={actionLoading}
         onConfirm={handleSign}
         onCancel={() => { setShowSignModal(false); setModalError(null) }}
+        nextApproverOptions={nextStep?.stepOrder === 1 ? eligibleQa : undefined}
+        nextApproverLabel="Select the QA department Trainer for final approval"
       />
 
       {/* Reject modal */}

@@ -55,6 +55,7 @@ export async function getAssignments(filters?: {
   status?:       string
   trigger?:      string
   departmentId?: string
+  unitId?:       string
   sectionId?:    string
   managerId?:    string   // ← filters to this manager's direct reports
   assignedById?: string   // ← filters to trainings a specific trainer assigned
@@ -69,12 +70,12 @@ export async function getAssignments(filters?: {
   if (filters?.trigger)      where.trigger        = filters.trigger
   if (filters?.assignedById) where.assignedById   = filters.assignedById
 
-  // Manager scope — subordinates only, regardless of department (per URS role matrix)
-  if (filters?.managerId) {
-    where.person = { managerId: filters.managerId }
-  } else if (filters?.departmentId || filters?.sectionId) {
+  // Manager scope combines with department/unit/section — e.g. "my team, in dept X"
+  if (filters?.managerId || filters?.departmentId || filters?.unitId || filters?.sectionId) {
     where.person = {
+      ...(filters?.managerId    && { managerId:    filters.managerId    }),
       ...(filters?.departmentId && { departmentId: filters.departmentId }),
+      ...(filters?.unitId       && { unitId:       filters.unitId       }),
       ...(filters?.sectionId    && { sectionId:    filters.sectionId    }),
     }
   }
@@ -409,6 +410,115 @@ export async function autoAssignInductionTraining(
     },
     justification: 'Auto-assigned induction training based on department on person creation',
   })
+}
+
+// ── Revert (cancel) a mistakenly assigned training ─────────────────
+// Only allowed while the trainee hasn't started it yet, so no progress
+// (material confirmations, assessment attempts) is ever discarded.
+
+export async function revertAssignment(
+  assignmentId:  string,
+  justification: string,
+  actorId:       string
+) {
+  const assignment = await prisma.trainingAssignment.findUnique({
+    where:  { id: assignmentId },
+    select: {
+      id:       true,
+      personId: true,
+      status:   true,
+      topic:    { select: { name: true } },
+    },
+  })
+
+  if (!assignment) throw new Error('Assignment not found')
+  if (assignment.status !== 'NOT_STARTED') {
+    throw new Error('Only assignments that have not been started yet can be reverted')
+  }
+
+  await prisma.trainingAssignment.update({
+    where: { id: assignmentId },
+    data:  { status: 'CANCELLED' },
+  })
+
+  await prisma.notification.create({
+    data: {
+      personId: assignment.personId,
+      type:     'ASSIGNMENT_WITHDRAWN',
+      channel:  'IN_APP',
+      title:    'Training assignment withdrawn',
+      message:  `This training assignment was withdrawn: "${assignment.topic.name}".`,
+    },
+  })
+
+  await logAuditEvent({
+    userId:        actorId,
+    action:        'REVOKE',
+    module:        'TRAINING_ASSIGNMENT',
+    recordId:      assignmentId,
+    recordType:    'TrainingAssignment',
+    beforeValue:   { status: 'NOT_STARTED' },
+    afterValue:    { status: 'CANCELLED'   },
+    justification,
+  })
+}
+
+// ── Bulk revert — same NOT_STARTED-only rule, batched over a filtered set ──
+
+export async function revertAssignments(
+  assignmentIds: string[],
+  justification: string,
+  actorId:       string
+) {
+  if (assignmentIds.length === 0) throw new Error('No assignments selected')
+
+  const assignments = await prisma.trainingAssignment.findMany({
+    where:  { id: { in: assignmentIds } },
+    select: {
+      id:       true,
+      personId: true,
+      status:   true,
+      topic:    { select: { name: true } },
+      person:   { select: { name: true } },
+    },
+  })
+
+  const eligible = assignments.filter((a) => a.status === 'NOT_STARTED')
+  const skipped  = assignments
+    .filter((a) => a.status !== 'NOT_STARTED')
+    .map((a) => ({ id: a.id, personName: a.person.name, topicName: a.topic.name, status: a.status }))
+
+  if (eligible.length > 0) {
+    await prisma.trainingAssignment.updateMany({
+      where: { id: { in: eligible.map((a) => a.id) } },
+      data:  { status: 'CANCELLED' },
+    })
+
+    await prisma.notification.createMany({
+      data: eligible.map((a) => ({
+        personId: a.personId,
+        type:     'ASSIGNMENT_WITHDRAWN' as const,
+        channel:  'IN_APP' as const,
+        title:    'Training assignment withdrawn',
+        message:  `This training assignment was withdrawn: "${a.topic.name}".`,
+      })),
+    })
+
+    for (const a of eligible) {
+      await logAuditEvent({
+        userId:        actorId,
+        action:        'REVOKE',
+        module:        'TRAINING_ASSIGNMENT',
+        recordId:      a.id,
+        recordType:    'TrainingAssignment',
+        beforeValue:   { status: 'NOT_STARTED' },
+        afterValue:    { status: 'CANCELLED'   },
+        justification,
+      })
+    }
+  }
+
+  return { reverted: eligible.length, skipped }
 }
 
 // ── Start assignment (user begins viewing material) ────────────────

@@ -43,6 +43,7 @@ export default async function QualificationDetailPage({
 
         <QualificationDetailView
           qualificationId={params.id}
+          currentUserId={session.user.id}
           canUpload={canManageQualifications(session.user)}
           canSignQc={canSignQcStep(session.user)}
           canSignQa={canSignQaStep(session.user)}

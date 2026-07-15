@@ -23,13 +23,18 @@ export async function GET(req: NextRequest) {
   }
 
   const scope = searchParams.get('scope')
+  const orgFilters = {
+    departmentId: searchParams.get('departmentId') ?? undefined,
+    unitId:       searchParams.get('unitId')       ?? undefined,
+    sectionId:    searchParams.get('sectionId')    ?? undefined,
+  }
 
   // "mine" is a 4th view — everyone *this* user personally assigned the
   // topic to, regardless of reporting hierarchy — distinct from the
   // all/team/reportees person-scoped views resolved below.
   const report = scope === 'mine'
-    ? await getTopicCompletionReport(topicId, { assignedById: session.user.id })
-    : await getTopicCompletionReport(topicId, { subordinateIds: await resolveScopeFilter(session.user, scope) })
+    ? await getTopicCompletionReport(topicId, { assignedById: session.user.id, ...orgFilters })
+    : await getTopicCompletionReport(topicId, { subordinateIds: await resolveScopeFilter(session.user, scope), ...orgFilters })
 
   if (!report) {
     return NextResponse.json({ message: 'Topic not found' }, { status: 404 })

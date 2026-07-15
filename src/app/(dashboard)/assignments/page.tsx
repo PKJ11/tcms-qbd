@@ -9,7 +9,11 @@ export default async function AssignmentsPage() {
   if (!session) redirect('/login')
 
   const canAssign = hasAnyRole(session.user, PERMISSIONS.ASSIGN_TRAINING)
-  const isOrgWide = hasAnyRole(session.user, ['TRAINER', 'GUEST_TRAINER', 'VIEWER'])
+  const isOrgWide = hasAnyRole(session.user, ['TRAINER', 'GUEST_TRAINER', 'VIEWER', 'ADMINISTRATOR'])
+
+  // Any Trainer/Guest Trainer or Administrator can revert a mistaken assignment,
+  // regardless of who originally assigned it.
+  const canRevert = hasAnyRole(session.user, [...PERMISSIONS.ASSIGN_TRAINING, 'ADMINISTRATOR'])
 
   // Check REAL subordinates, not just role label
   const hasSubordinates = isOrgWide || await personHasSubordinates(session.user.id)
@@ -49,6 +53,7 @@ export default async function AssignmentsPage() {
           canMonitor={hasSubordinates}
           isManager={!isOrgWide && hasSubordinates}
           canAssign={canAssign}
+          canRevert={canRevert}
         />
       </div>
     </div>
