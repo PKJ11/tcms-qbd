@@ -6,15 +6,16 @@ import { createPersonSchema, updatePersonSchema } from './schema'
 import type { CreatePersonInput, UpdatePersonInput } from './types'
 import type { AppRole } from '@/lib/types'
 import bcrypt from 'bcryptjs'
-import crypto from 'crypto'
 import { autoAssignInductionTraining } from '@/modules/assignments'
 import { sendEmail } from '@/lib/email'
 import { verifyUserPassword } from '@/lib/auth'
 
 // ── Helpers ───────────────────────────────────────────────────────
 
+// Fixed per business requirement — every generated/reset password is QBD@1234,
+// not a random string. mustChangePassword still forces a change on first login.
 function generateTempPassword(): string {
-  return crypto.randomBytes(8).toString('hex') // e.g. "a3f9d2c1b7e4f012"
+  return 'QBD@1234'
 }
 
 const PERSON_SELECT = {

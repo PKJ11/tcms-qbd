@@ -59,7 +59,7 @@ export function PersonnelList({
 
   useEffect(() => { fetchPersons() }, [fetchPersons])
 
-  async function handleDeactivate(justification: string) {
+  async function handleDeactivate(justification: string, password?: string) {
     if (!deactivateTarget) return
     setModalLoading(true)
 
@@ -69,6 +69,7 @@ export function PersonnelList({
       body:    JSON.stringify({
         action: 'deactivate',
         justification,
+        password,
       }),
     })
 
@@ -277,6 +278,7 @@ export function PersonnelList({
         onConfirm={handleDeactivate}
         onCancel={() => setDeactivateTarget(null)}
         loading={modalLoading}
+        requirePassword
       />
     </>
   )
