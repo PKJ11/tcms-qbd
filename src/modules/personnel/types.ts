@@ -63,7 +63,7 @@ export interface UpdatePersonInput {
   joiningDate?:  string | null
   departmentId?: string
   unitId?:       string
-  sectionId?:    string
-  managerId?:    string
+  sectionId?:    string | null
+  managerId?:    string | null
   isActive?:     boolean
 }

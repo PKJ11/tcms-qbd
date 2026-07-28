@@ -63,8 +63,8 @@ export const updatePersonSchema = z.object({
   ])).optional(),
   departmentId: z.string().optional(),
   unitId:       z.string().optional(),
-  sectionId:    z.string().optional(),
-  managerId:    z.string().optional(),
+  sectionId:    z.string().nullable().optional(),
+  managerId:    z.string().nullable().optional(),
   isActive:     z.boolean().optional(),
 }).refine(
   (data) =>
