@@ -24,7 +24,8 @@ const EMPLOYEE_TYPES: { value: EmployeeType; label: string }[] = [
 ]
 
 const QBD_ROLES: AppRole[]          = ['ADMINISTRATOR', 'VIEWER', 'TRAINER', 'TRAINEE']
-const CONTRACTUAL_ROLES: AppRole[]  = ['TRAINER', 'TRAINEE']
+// Contractual employees may only ever be Trainees — no Trainer access.
+const CONTRACTUAL_ROLES: AppRole[]  = ['TRAINEE']
 
 export function CreatePersonForm({ departments }: Props) {
   const router = useRouter()

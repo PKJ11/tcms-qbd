@@ -5,6 +5,7 @@ import {
   updatePerson,
   deactivatePerson,
   resetPersonPassword,
+  unlockPersonAccount,
 } from '@/modules/personnel'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
@@ -73,6 +74,11 @@ export async function PATCH(
         message:     'Password reset successfully',
         tempPassword, // shown once to the admin
       })
+    }
+
+    if (action === 'unlock') {
+      await unlockPersonAccount(params.id, justification, session.user.id, password)
+      return NextResponse.json({ message: 'Account unlocked successfully' })
     }
 
     // Default — update person details

@@ -8,9 +8,10 @@ interface Person {
   id:       string
   name:     string
   isActive: boolean
+  isLocked: boolean
 }
 
-type ActionType = 'deactivate' | 'reset-password' | null
+type ActionType = 'deactivate' | 'reset-password' | 'unlock' | null
 
 export function PersonDetail({ person }: { person: Person }) {
   const router = useRouter()
@@ -29,6 +30,10 @@ export function PersonDetail({ person }: { person: Person }) {
     'reset-password': {
       title:       `Reset password for ${person.name}`,
       description: 'A new temporary password will be generated and emailed to the person.',
+    },
+    unlock: {
+      title:       `Unlock account for ${person.name}`,
+      description: 'This account was locked after 3 failed login attempts. Unlocking will let them sign in again.',
     },
   }
 
@@ -53,6 +58,9 @@ export function PersonDetail({ person }: { person: Person }) {
 
     if (action === 'reset-password' && data.tempPassword) {
       setResult(`New temporary password: ${data.tempPassword}`)
+    } else if (action === 'unlock') {
+      setResult('Account unlocked successfully.')
+      router.refresh()
     } else {
       router.push('/personnel')
       router.refresh()
@@ -77,6 +85,16 @@ export function PersonDetail({ person }: { person: Person }) {
           >
             Reset password
           </button>
+
+          {person.isLocked && (
+            <button
+              onClick={() => setAction('unlock')}
+              className="px-4 py-2 rounded-lg text-sm border font-medium transition-colors"
+              style={{ borderColor: '#fde68a', color: '#854d0e' }}
+            >
+              Unlock account
+            </button>
+          )}
 
           {person.isActive && (
             <button

@@ -17,8 +17,10 @@ export default async function DashboardLayout({
   if (session.user.mustChangePassword) {
     redirect('/change-password')
   }
-  console.log("HIIii")
-  console.log("user :", session.user)
+
+  // Warn from 15 days out (day 30 of the 45-day policy) until expiry
+  const daysRemaining  = session.user.passwordDaysRemaining
+  const showExpiryWarn = daysRemaining <= 15 && daysRemaining > 0
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -33,6 +35,20 @@ export default async function DashboardLayout({
         <TopBar user={session.user} />
 
         <ActiveTrainingsModal />
+
+        {showExpiryWarn && (
+          <div
+            className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium"
+            style={{ background: '#fefce8', color: '#854d0e', borderBottom: '1px solid #fde68a' }}
+          >
+            <span>
+              Your password expires in {daysRemaining} day{daysRemaining === 1 ? '' : 's'}.
+            </span>
+            <a href="/change-password" className="underline font-semibold">
+              Change it now
+            </a>
+          </div>
+        )}
 
         {/* Scrollable page content */}
         <main

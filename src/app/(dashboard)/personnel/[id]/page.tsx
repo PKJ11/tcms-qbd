@@ -53,16 +53,26 @@ export default async function PersonDetailPage({
               </div>
             </div>
 
-            <span
-              className="px-3 py-1 rounded-full text-xs font-semibold"
-              style={
-                person.isActive
-                  ? { background: '#f0fdf4', color: '#166534' }
-                  : { background: '#fef2f2', color: '#dc2626' }
-              }
-            >
-              {person.isActive ? 'Active' : 'Inactive'}
-            </span>
+            <div className="flex items-center gap-2">
+              <span
+                className="px-3 py-1 rounded-full text-xs font-semibold"
+                style={
+                  person.isActive
+                    ? { background: '#f0fdf4', color: '#166534' }
+                    : { background: '#fef2f2', color: '#dc2626' }
+                }
+              >
+                {person.isActive ? 'Active' : 'Inactive'}
+              </span>
+              {person.isLocked && (
+                <span
+                  className="px-3 py-1 rounded-full text-xs font-semibold"
+                  style={{ background: '#fefce8', color: '#854d0e' }}
+                >
+                  Locked
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -101,6 +111,11 @@ export default async function PersonDetailPage({
               person={{
                 id:           person.id,
                 roles:        person.roles,
+                designation:  person.designation,
+                email:        person.email ?? '',
+                joiningDate:  person.joiningDate
+                  ? person.joiningDate.toISOString().slice(0, 10)
+                  : '',
                 departmentId: person.department?.id ?? '',
                 unitId:       person.unit?.id ?? '',
                 sectionId:    person.section?.id ?? '',
@@ -113,7 +128,9 @@ export default async function PersonDetailPage({
 
         {/* Actions */}
         {canEdit && (
-          <PersonDetail person={person} />
+          <PersonDetail
+            person={{ id: person.id, name: person.name, isActive: person.isActive, isLocked: person.isLocked }}
+          />
         )}
       </div>
     </div>

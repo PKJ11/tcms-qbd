@@ -14,6 +14,9 @@ interface Manager    { id: string; name: string; designation: string }
 interface Person {
   id:           string
   roles:        AppRole[]
+  designation:  string
+  email:        string
+  joiningDate:  string // yyyy-mm-dd, or '' if not set
   departmentId: string
   unitId:       string
   sectionId:    string
@@ -26,7 +29,8 @@ interface Props {
 }
 
 const QBD_ROLES: AppRole[]         = ['ADMINISTRATOR', 'VIEWER', 'TRAINER', 'TRAINEE']
-const CONTRACTUAL_ROLES: AppRole[] = ['TRAINER', 'TRAINEE']
+// Contractual employees may only ever be Trainees — no Trainer access.
+const CONTRACTUAL_ROLES: AppRole[] = ['TRAINEE']
 
 export function EditPersonForm({ person, departments }: Props) {
   const router = useRouter()
@@ -42,6 +46,9 @@ export function EditPersonForm({ person, departments }: Props) {
   )
 
   const [roles, setRoles] = useState<AppRole[]>(editableInitialRoles)
+  const [designation,  setDesignation]  = useState(person.designation)
+  const [email,        setEmail]        = useState(person.email)
+  const [joiningDate,  setJoiningDate]  = useState(person.joiningDate)
   const [departmentId, setDepartmentId] = useState(person.departmentId)
   const [unitId,       setUnitId]       = useState(person.unitId)
   const [sectionId,    setSectionId]    = useState(person.sectionId)
@@ -117,6 +124,10 @@ export function EditPersonForm({ person, departments }: Props) {
     setError(null)
     setSuccess(null)
 
+    if (!designation.trim()) {
+      setError('Designation is required.')
+      return
+    }
     if (!departmentId || !unitId) {
       setError('Department and Unit are required.')
       return
@@ -143,6 +154,9 @@ export function EditPersonForm({ person, departments }: Props) {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
+        designation:  designation.trim(),
+        email:        email.trim() || null,
+        joiningDate:  joiningDate || null,
         roles:        finalRoles,
         departmentId,
         unitId,
@@ -175,10 +189,57 @@ export function EditPersonForm({ person, departments }: Props) {
         style={{ borderColor: '#e5e7eb' }}
       >
         <h2 className="text-sm font-semibold text-gray-700 mb-4">
-          Edit role &amp; organization
+          Edit person details
         </h2>
 
         <form onSubmit={handleSubmitClick} className="flex flex-col gap-5">
+
+          {/* Designation + Email */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Designation <span className="text-red-500">*</span>
+              </label>
+              <input
+                value={designation}
+                onChange={(e) => setDesignation(e.target.value)}
+                placeholder="Senior Analyst"
+                className={inputClass}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Email
+                <span className="text-gray-400 font-normal ml-1">(optional)</span>
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="john@company.com"
+                className={inputClass}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          {/* Joining Date */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Joining Date
+                <span className="text-gray-400 font-normal ml-1">(optional)</span>
+              </label>
+              <input
+                type="date"
+                value={joiningDate}
+                onChange={(e) => setJoiningDate(e.target.value)}
+                className={inputClass}
+                style={inputStyle}
+              />
+            </div>
+          </div>
 
           {/* Roles */}
           <div>
@@ -374,7 +435,7 @@ export function EditPersonForm({ person, departments }: Props) {
       <JustificationModal
         isOpen={modalOpen}
         title="Confirm person update"
-        description="This will change the person's role(s) and/or organizational placement."
+        description="This will update the person's details, role(s), and/or organizational placement."
         onConfirm={handleConfirm}
         onCancel={() => setModalOpen(false)}
         loading={loading}

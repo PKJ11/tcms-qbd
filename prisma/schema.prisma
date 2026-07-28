@@ -236,6 +236,20 @@ model PersonRole {
   @@map("person_roles")
 }
 
+// Stores previous password hashes so a person cannot reuse any of their
+// last 3 passwords (current passwordHash + the 2 most recent rows here).
+model PasswordHistory {
+  id           String   @id @default(cuid())
+  personId     String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId])
+  @@map("password_history")
+}
+
 model Person {
   id                     String    @id @default(cuid())
   employeeId             String    @unique
@@ -243,9 +257,13 @@ model Person {
   email                  String?   @unique
   passwordHash           String
   mustChangePassword     Boolean   @default(true)
+  passwordChangedAt      DateTime  @default(now())
+  failedLoginAttempts    Int       @default(0)
+  isLocked               Boolean   @default(false)
+  lockedAt               DateTime?
   designation            String
   isActive               Boolean   @default(true)
-  joiningDate            DateTime
+  joiningDate            DateTime?
   lastLoginAt            DateTime?
   departmentId           String
   unitId                 String
@@ -265,6 +283,7 @@ model Person {
 
   // Relations
   roles                    PersonRole[]
+  passwordHistory          PasswordHistory[]
   department               Department            @relation(fields: [departmentId], references: [id])
   unit                     Unit                  @relation(fields: [unitId], references: [id])
   section                  Section?              @relation(fields: [sectionId], references: [id])

@@ -12,7 +12,6 @@ export default function LoginPage() {
     password:   '',
   })
   const [showPass, setShowPass] = useState(false)
-  const [remember, setRemember] = useState(false)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
 
@@ -36,7 +35,11 @@ export default function LoginPage() {
     setLoading(false)
 
     if (result?.error) {
-      setError('Invalid Employee ID or password. Please check your credentials.')
+      setError(
+        result.error === 'CredentialsSignin'
+          ? 'Invalid Employee ID or password. Please check your credentials.'
+          : result.error
+      )
       return
     }
 
@@ -241,17 +244,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Remember me + Forgot password */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 accent-green-700"
-                />
-                <span className="text-sm text-gray-600">Remember me</span>
-              </label>
+            {/* Forgot password */}
+            <div className="flex items-center justify-end">
               <a
                 href="/forgot-password"
                 className="text-sm font-medium hover:underline"

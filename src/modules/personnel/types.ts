@@ -8,7 +8,7 @@ export interface PersonListItem {
   roles:        AppRole[]
   designation:  string
   isActive:     boolean
-  joiningDate:  Date
+  joiningDate:  Date | null
   lastLoginAt:  Date | null
   department: {
     id:   string
@@ -57,8 +57,10 @@ export interface CreatePersonInput {
 
 export interface UpdatePersonInput {
   name?:         string
+  email?:        string | null
   roles?:        AppRole[]
   designation?:  string
+  joiningDate?:  string | null
   departmentId?: string
   unitId?:       string
   sectionId?:    string

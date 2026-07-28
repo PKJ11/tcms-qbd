@@ -14,7 +14,7 @@ interface Person {
   roles:       AppRole[]
   designation: string
   isActive:    boolean
-  joiningDate: string
+  joiningDate: string | null
   lastLoginAt: string | null
   department:  { id: string; name: string } | null
   unit:        { id: string; name: string } | null

@@ -790,3 +790,4 @@ Error: Could not find a production build in the '.next' directory. Try building 
     at setupFsCheck (D:\githubfolder\tcms-qbd\node_modules\next\dist\server\lib\router-utils\filesystem.js:151:19)
     at async initialize (D:\githubfolder\tcms-qbd\node_modules\next\dist\server\lib\router-server.js:64:23)
     at async Server.<anonymous> (D:\githubfolder\tcms-qbd\node_modules\next\dist\server\lib\start-server.js:249:36)
+[EMAIL ERROR] Failed to send password reset email

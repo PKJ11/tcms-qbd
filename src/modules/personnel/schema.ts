@@ -43,9 +43,10 @@ export const createPersonSchema = z.discriminatedUnion('employeeType', [
   }),
   z.object({
     employeeType: z.literal('CONTRACTUAL'),
+    // Contractual employees may only ever be Trainees — no Trainer access.
     roles: z
-      .array(z.enum(['TRAINER', 'TRAINEE']))
-      .min(1, 'Select Trainer, Trainee, or both'),
+      .array(z.enum(['TRAINEE']))
+      .min(1, 'Contractual employees can only be assigned the Trainee role'),
     ...commonFields,
   }),
 ])
@@ -53,7 +54,9 @@ export const createPersonSchema = z.discriminatedUnion('employeeType', [
 export const updatePersonSchema = z.object({
   id:           z.string().min(1),
   name:         z.string().min(2).max(100).optional(),
+  email:        z.string().email('Invalid email address').nullable().optional(),
   designation:  z.string().min(2).max(100).optional(),
+  joiningDate:  z.string().nullable().optional(),
   roles:        z.array(z.enum([
     'ADMINISTRATOR', 'VIEWER', 'TRAINER',
     'TRAINEE', 'GUEST_TRAINER', 'CONTRACTUAL_EMPLOYEE',
@@ -63,6 +66,12 @@ export const updatePersonSchema = z.object({
   sectionId:    z.string().optional(),
   managerId:    z.string().optional(),
   isActive:     z.boolean().optional(),
-})
+}).refine(
+  (data) =>
+    !data.roles ||
+    !data.roles.includes('CONTRACTUAL_EMPLOYEE') ||
+    data.roles.every((r) => r === 'CONTRACTUAL_EMPLOYEE' || r === 'TRAINEE'),
+  { message: 'Contractual employees can only be assigned the Trainee role', path: ['roles'] }
+)
 
 export { REGULAR_EMPLOYEE_ID, CONTRACTUAL_EMPLOYEE_ID }

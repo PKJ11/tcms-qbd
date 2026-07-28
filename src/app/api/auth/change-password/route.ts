@@ -49,13 +49,48 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Last 3 passwords (current + 2 most recent historical) cannot be reused
+  const recentHistory = await prisma.passwordHistory.findMany({
+    where:   { personId: person.id },
+    orderBy: { createdAt: 'desc' },
+    take:    2,
+  })
+
+  const previousHashes = [person.passwordHash, ...recentHistory.map((h) => h.passwordHash)]
+  for (const hash of previousHashes) {
+    if (await bcrypt.compare(newPassword, hash)) {
+      return NextResponse.json(
+        { message: 'You cannot reuse any of your last 3 passwords' },
+        { status: 400 }
+      )
+    }
+  }
+
   const newHash = await bcrypt.hash(newPassword, 12)
+
+  await prisma.passwordHistory.create({
+    data: { personId: person.id, passwordHash: person.passwordHash },
+  })
+
+  // Keep only the 2 most recent history rows (current + 2 = last 3 tracked)
+  const staleHistory = await prisma.passwordHistory.findMany({
+    where:   { personId: person.id },
+    orderBy: { createdAt: 'desc' },
+    skip:    2,
+    select:  { id: true },
+  })
+  if (staleHistory.length > 0) {
+    await prisma.passwordHistory.deleteMany({
+      where: { id: { in: staleHistory.map((h) => h.id) } },
+    })
+  }
 
   await prisma.person.update({
     where: { id: session.user.id },
     data: {
       passwordHash:       newHash,
       mustChangePassword: false,
+      passwordChangedAt:  new Date(),
     },
   })
 

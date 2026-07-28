@@ -26,6 +26,7 @@ const PERSON_SELECT = {
   roles: { select: { role: true } },
   designation: true,
   isActive: true,
+  isLocked: true,
   joiningDate: true,
   lastLoginAt: true,
   department: { select: { id: true, name: true } },
@@ -173,7 +174,7 @@ export async function createPerson(
     unitId:             data.unitId,
     sectionId:          data.sectionId || null,
     managerId:          data.managerId || null,
-    joiningDate:        data.joiningDate ? new Date(data.joiningDate) : new Date(),
+    joiningDate:        data.joiningDate ? new Date(data.joiningDate) : null,
     passwordHash,
     mustChangePassword: true,
   }
@@ -309,6 +310,16 @@ export async function updatePerson(
 
   if (!before) throw new Error('Person not found')
 
+  if (input.email) {
+    const emailNormalized = input.email.trim().toLowerCase()
+    const existingEmail = await prisma.person.findFirst({
+      where: { email: emailNormalized, id: { not: id } },
+    })
+    if (existingEmail) {
+      throw new Error('An account with this email address already exists')
+    }
+  }
+
   if (input.roles !== undefined) {
     await prisma.personRole.deleteMany({ where: { personId: id } })
   }
@@ -318,8 +329,14 @@ export async function updatePerson(
     where: { id },
     data: {
       ...(input.name !== undefined && { name: input.name }),
+      ...(input.email !== undefined && {
+        email: input.email ? input.email.trim().toLowerCase() : null,
+      }),
       ...(input.designation !== undefined && {
         designation: input.designation,
+      }),
+      ...(input.joiningDate !== undefined && {
+        joiningDate: input.joiningDate ? new Date(input.joiningDate) : null,
       }),
       ...(input.isActive !== undefined && { isActive: input.isActive }),
       ...(input.departmentId !== undefined && {
@@ -353,14 +370,18 @@ export async function updatePerson(
     recordType: 'Person',
     beforeValue: {
       name: beforeFlat.name,
+      email: beforeFlat.email,
       roles: beforeFlat.roles,
       designation: beforeFlat.designation,
+      joiningDate: beforeFlat.joiningDate,
       isActive: beforeFlat.isActive,
     },
     afterValue: {
       name: afterFlat.name,
+      email: afterFlat.email,
       roles: afterFlat.roles,
       designation: afterFlat.designation,
+      joiningDate: afterFlat.joiningDate,
       isActive: afterFlat.isActive,
     },
     justification,
@@ -418,7 +439,7 @@ export async function resetPersonPassword(
 
   const person = await prisma.person.findUnique({
     where: { id },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, passwordHash: true },
   })
 
   if (!person) throw new Error('Person not found')
@@ -426,11 +447,28 @@ export async function resetPersonPassword(
   const tempPassword = generateTempPassword()
   const passwordHash = await bcrypt.hash(tempPassword, 12)
 
+  await prisma.passwordHistory.create({
+    data: { personId: person.id, passwordHash: person.passwordHash },
+  })
+
+  const staleHistory = await prisma.passwordHistory.findMany({
+    where:   { personId: person.id },
+    orderBy: { createdAt: 'desc' },
+    skip:    2,
+    select:  { id: true },
+  })
+  if (staleHistory.length > 0) {
+    await prisma.passwordHistory.deleteMany({
+      where: { id: { in: staleHistory.map((h) => h.id) } },
+    })
+  }
+
   await prisma.person.update({
     where: { id },
     data: {
       passwordHash,
       mustChangePassword: true,
+      passwordChangedAt:  new Date(),
     },
   })
 
@@ -474,6 +512,48 @@ export async function resetPersonPassword(
   }
 
   return tempPassword
+}
+
+// ── Unlock account (Administrator only) ───────────────────────────
+// Route-level access is already restricted to PERMISSIONS.MANAGE_USERS
+// (ADMINISTRATOR) in /api/personnel/[id] — see route.ts.
+
+export async function unlockPersonAccount(
+  id: string,
+  justification: string,
+  actorId: string,
+  password: string
+) {
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
+
+  const person = await prisma.person.findUnique({
+    where: { id },
+    select: { id: true, name: true, isLocked: true },
+  })
+
+  if (!person) throw new Error('Person not found')
+  if (!person.isLocked) throw new Error('This account is not locked')
+
+  await prisma.person.update({
+    where: { id },
+    data: {
+      isLocked:            false,
+      lockedAt:            null,
+      failedLoginAttempts: 0,
+    },
+  })
+
+  await logAuditEvent({
+    userId: actorId,
+    action: 'UPDATE',
+    module: 'PERSONNEL',
+    recordId: id,
+    recordType: 'Person',
+    beforeValue: { isLocked: true },
+    afterValue: { isLocked: false },
+    justification,
+  })
 }
 
 // Get departments → units → sections (for cascading selects)

@@ -65,7 +65,7 @@ export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
   TRAINER:              'Can prepare training material and assign trainings',
   TRAINEE:              'Have rights to attend trainings',
   GUEST_TRAINER:        'External trainer, have rights to provide trainings',
-  CONTRACTUAL_EMPLOYEE: 'Have rights of Trainer as well as Trainee, depending on assigned role(s)',
+  CONTRACTUAL_EMPLOYEE: 'Have rights of Trainee only — Contractual employees cannot be assigned Trainer access',
 }
 
 export const ROLE_COLORS: Record<AppRole, { bg: string; color: string }> = {

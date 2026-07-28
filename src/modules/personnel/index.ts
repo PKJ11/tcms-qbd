@@ -5,6 +5,7 @@ export {
   updatePerson,
   deactivatePerson,
   resetPersonPassword,
+  unlockPersonAccount,
   getDepartmentsUnitsAndSections,
   previewNextEmployeeId,
 } from './actions'
