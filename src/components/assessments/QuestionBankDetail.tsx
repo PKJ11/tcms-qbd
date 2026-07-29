@@ -1,248 +1,372 @@
 'use client'
 
-import { useState } from 'react'
-import { JustificationModal } from '@/components/JustificationModal'
+import { useEffect, useRef, useState } from 'react'
+import { SaveChangesModal, type VersionSummary } from './SaveChangesModal'
+import { VersionHistory } from './VersionHistory'
 
-interface Question {
-  id:            string
-  questionText:  string
-  optionA:       string
-  optionB:       string
-  optionC:       string
-  optionD:       string
-  correctAnswer: string
-  isActive:      boolean
+interface WorkingSetItem {
+  id:               string
+  sourceQuestionId: string | null
+  questionText:     string
+  optionA:          string
+  optionB:          string
+  optionC:          string
+  optionD:          string
+  correctAnswer:    string
+  isActive:         boolean
 }
 
-interface Bank {
-  id:        string
-  questions: Question[]
+function computeDiff(original: WorkingSetItem[], current: WorkingSetItem[]) {
+  const originalById = new Map(original.map((i) => [i.id, i]))
+  let added = 0, archived = 0, restored = 0, edited = 0
+
+  for (const item of current) {
+    const orig = originalById.get(item.id)
+    if (!orig) { added++; continue }
+    if (orig.isActive && !item.isActive) { archived++; continue }
+    if (!orig.isActive && item.isActive) { restored++; continue }
+    if (
+      orig.questionText  !== item.questionText  ||
+      orig.optionA       !== item.optionA       ||
+      orig.optionB       !== item.optionB       ||
+      orig.optionC       !== item.optionC       ||
+      orig.optionD       !== item.optionD       ||
+      orig.correctAnswer !== item.correctAnswer
+    ) edited++
+  }
+
+  return { added, archived, restored, edited }
 }
 
-export function QuestionBankDetail({ bank }: { bank: Bank }) {
-  const [questions, setQuestions] = useState(bank.questions)
-  const [showForm,  setShowForm]  = useState(false)
+export function QuestionBankDetail({ bankId }: { bankId: string }) {
+  const [items,   setItems]   = useState<WorkingSetItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const originalSnapshot = useRef<WorkingSetItem[]>([])
+
+  const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
     questionText: '', optionA: '', optionB: '', optionC: '', optionD: '',
     correctAnswer: 'A' as 'A' | 'B' | 'C' | 'D',
   })
-  const [modalOpen, setModalOpen] = useState(false)
-  const [loading,   setLoading]   = useState(false)
-  const [error,     setError]     = useState<string | null>(null)
+  const [addLoading, setAddLoading] = useState(false)
+  const [addError,   setAddError]   = useState<string | null>(null)
 
-  const [showArchived,   setShowArchived]   = useState(false)
-  const [pendingAction,  setPendingAction]  = useState<{ type: 'archive' | 'restore'; id: string } | null>(null)
-  const [archiveLoading, setArchiveLoading] = useState(false)
-  const [archiveError,   setArchiveError]   = useState<string | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
+  const [toggleLoadingId, setToggleLoadingId] = useState<string | null>(null)
+
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [versions, setVersions] = useState<VersionSummary[]>([])
+  const [saveLoading, setSaveLoading] = useState(false)
+  const [saveError,   setSaveError]   = useState<string | null>(null)
+  const [historyKey,  setHistoryKey]  = useState(0) // bump to refresh VersionHistory after a save
+
+  async function loadWorkingSet() {
+    setLoading(true)
+    setLoadError(null)
+    const res = await fetch(`/api/assessments/banks/${bankId}/working-set`)
+    const data = await res.json()
+    setLoading(false)
+    if (!res.ok) {
+      setLoadError(data.message ?? 'Failed to load questions')
+      return
+    }
+    setItems(data.workingSet.items)
+    originalSnapshot.current = data.workingSet.items
+  }
+
+  useEffect(() => {
+    loadWorkingSet()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bankId])
 
   function handleAddClick(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
+    setAddError(null)
     if (!form.questionText || !form.optionA || !form.optionB || !form.optionC || !form.optionD) {
-      setError('All fields are required.')
+      setAddError('All fields are required.')
       return
     }
-    setModalOpen(true)
+    submitAdd()
   }
 
-  async function handleConfirm(justification: string) {
-    setModalOpen(false)
-    setLoading(true)
-    setError(null)
+  async function submitAdd() {
+    setAddLoading(true)
+    setAddError(null)
 
-    const res  = await fetch('/api/assessments/questions', {
+    const res  = await fetch(`/api/assessments/banks/${bankId}/working-set/questions`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ bankId: bank.id, ...form, justification }),
+      body:    JSON.stringify(form),
     })
     const data = await res.json()
-    setLoading(false)
+    setAddLoading(false)
 
     if (!res.ok) {
-      setError(data.message ?? 'Failed to add question')
+      setAddError(data.message ?? 'Failed to add question')
       return
     }
 
-    setQuestions((prev) => [...prev, data.question])
+    setItems((prev) => [...prev, data.item])
     setForm({ questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctAnswer: 'A' })
     setShowForm(false)
   }
 
-  const activeCount   = questions.filter((q) => q.isActive).length
-  const archivedCount = questions.filter((q) => !q.isActive).length
-  const visibleQuestions = questions.filter((q) => q.isActive !== showArchived)
-
-  async function handleArchiveConfirm(justification: string) {
-    if (!pendingAction) return
-    setArchiveLoading(true)
-    setArchiveError(null)
-
-    const res  = await fetch(`/api/assessments/questions/${pendingAction.id}`, {
+  async function handleToggle(item: WorkingSetItem) {
+    setToggleLoadingId(item.id)
+    const res = await fetch(`/api/assessments/banks/${bankId}/working-set/questions/${item.id}`, {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ action: pendingAction.type === 'archive' ? 'deactivate' : 'reactivate', justification }),
+      body:    JSON.stringify({ action: item.isActive ? 'archive' : 'restore' }),
     })
     const data = await res.json()
-    setArchiveLoading(false)
+    setToggleLoadingId(null)
+    if (!res.ok) return
+
+    setItems((prev) => prev.map((i) => (i.id === item.id ? data.item : i)))
+  }
+
+  async function handleDiscard(item: WorkingSetItem) {
+    setToggleLoadingId(item.id)
+    const res = await fetch(`/api/assessments/banks/${bankId}/working-set/questions/${item.id}`, {
+      method: 'DELETE',
+    })
+    setToggleLoadingId(null)
+    if (!res.ok) return
+
+    setItems((prev) => prev.filter((i) => i.id !== item.id))
+  }
+
+  async function openSaveModal() {
+    setSaveError(null)
+    setSaveModalOpen(true)
+    const res = await fetch(`/api/assessments/banks/${bankId}/versions`)
+    const data = await res.json()
+    if (res.ok) setVersions(data.versions)
+  }
+
+  async function handleSave(versionLabel: string, justification: string) {
+    setSaveLoading(true)
+    setSaveError(null)
+
+    const res  = await fetch(`/api/assessments/banks/${bankId}/versions`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ versionLabel, justification }),
+    })
+    const data = await res.json()
+    setSaveLoading(false)
 
     if (!res.ok) {
-      setArchiveError(data.message ?? 'Action failed')
+      setSaveError(data.message ?? 'Failed to save version')
       return
     }
 
-    setQuestions((prev) =>
-      prev.map((q) =>
-        q.id === pendingAction.id ? { ...q, isActive: pendingAction.type === 'restore' } : q
-      )
-    )
-    setPendingAction(null)
+    setSaveModalOpen(false)
+    setHistoryKey((k) => k + 1)
+    await loadWorkingSet()
   }
+
+  async function handleUsePreviousVersion(versionId: string) {
+    setSaveLoading(true)
+    setSaveError(null)
+
+    const res  = await fetch(`/api/assessments/banks/${bankId}/working-set/rebase`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ baseVersionId: versionId }),
+    })
+    const data = await res.json()
+    setSaveLoading(false)
+
+    if (!res.ok) {
+      setSaveError(data.message ?? 'Failed to switch version')
+      return
+    }
+
+    setSaveModalOpen(false)
+    setItems(data.workingSet.items)
+    originalSnapshot.current = data.workingSet.items
+  }
+
+  const activeCount   = items.filter((q) => q.isActive).length
+  const archivedCount = items.filter((q) => !q.isActive).length
+  const visibleItems  = items.filter((q) => q.isActive !== showArchived)
+  const diff = computeDiff(originalSnapshot.current, items)
+  const hasStagedChanges = diff.added + diff.archived + diff.restored + diff.edited > 0
 
   const inputClass = "w-full px-3 py-2 rounded-lg border text-sm outline-none"
   const inputStyle = { borderColor: '#d1d5db' }
 
-  return (
-    <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-gray-700">
-          Questions ({activeCount} active, {archivedCount} archived)
-        </h2>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-1.5 text-xs text-gray-500">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-            />
-            Show archived
-          </label>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
-            style={{ background: '#2d6a4f' }}
-          >
-            {showForm ? 'Cancel' : '+ Add question'}
-          </button>
-        </div>
-      </div>
+  if (loading) {
+    return <div className="bg-white rounded-2xl border p-6 text-sm text-gray-400" style={{ borderColor: '#e5e7eb' }}>Loading questions...</div>
+  }
+  if (loadError) {
+    return <div className="bg-white rounded-2xl border p-6 text-sm" style={{ borderColor: '#e5e7eb', color: '#dc2626' }}>{loadError}</div>
+  }
 
-      {/* Add question form */}
-      {showForm && (
-        <form onSubmit={handleAddClick} className="flex flex-col gap-3 mb-6 p-4 rounded-lg" style={{ background: '#fafafa' }}>
-          <textarea
-            placeholder="Question text"
-            value={form.questionText}
-            onChange={(e) => setForm({ ...form, questionText: e.target.value })}
-            rows={2}
-            className={inputClass}
-            style={inputStyle}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            {(['A', 'B', 'C', 'D'] as const).map((opt) => (
-              <div key={opt} className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="correct"
-                  checked={form.correctAnswer === opt}
-                  onChange={() => setForm({ ...form, correctAnswer: opt })}
-                  className="accent-green-700"
-                />
-                <input
-                  placeholder={`Option ${opt}`}
-                  value={form[`option${opt}` as 'optionA']}
-                  onChange={(e) => setForm({ ...form, [`option${opt}`]: e.target.value })}
-                  className={inputClass}
-                  style={inputStyle}
-                />
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-gray-700">
+            Questions ({activeCount} active, {archivedCount} archived)
+            {hasStagedChanges && (
+              <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: '#fefce8', color: '#a16207' }}>
+                Unsaved changes
+              </span>
+            )}
+          </h2>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs text-gray-500">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+              />
+              Show archived
+            </label>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+              style={{ background: '#2d6a4f' }}
+            >
+              {showForm ? 'Cancel' : '+ Add question'}
+            </button>
+            <button
+              onClick={openSaveModal}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40"
+              style={{ background: '#1d4ed8' }}
+            >
+              Save changes
+            </button>
+          </div>
+        </div>
+
+        {/* Add question form — staged only, nothing written until Save Changes */}
+        {showForm && (
+          <form onSubmit={handleAddClick} className="flex flex-col gap-3 mb-6 p-4 rounded-lg" style={{ background: '#fafafa' }}>
+            <textarea
+              placeholder="Question text"
+              value={form.questionText}
+              onChange={(e) => setForm({ ...form, questionText: e.target.value })}
+              rows={2}
+              className={inputClass}
+              style={inputStyle}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              {(['A', 'B', 'C', 'D'] as const).map((opt) => (
+                <div key={opt} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="correct"
+                    checked={form.correctAnswer === opt}
+                    onChange={() => setForm({ ...form, correctAnswer: opt })}
+                    className="accent-green-700"
+                  />
+                  <input
+                    placeholder={`Option ${opt}`}
+                    value={form[`option${opt}` as 'optionA']}
+                    onChange={(e) => setForm({ ...form, [`option${opt}`]: e.target.value })}
+                    className={inputClass}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400">Select the radio button next to the correct answer</p>
+
+            {addError && (
+              <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#fef2f2', color: '#dc2626' }}>
+                {addError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={addLoading}
+              className="self-end px-4 py-2 rounded-lg text-sm font-medium text-white"
+              style={{ background: '#2d6a4f' }}
+            >
+              {addLoading ? 'Adding...' : 'Add question'}
+            </button>
+          </form>
+        )}
+
+        {/* Question list */}
+        {visibleItems.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">
+            {showArchived ? 'No archived questions' : 'No questions added yet'}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {visibleItems.map((q, i) => (
+              <div
+                key={q.id}
+                className="p-3 rounded-lg border flex items-start justify-between gap-3"
+                style={{ borderColor: '#f3f4f6', background: q.isActive ? '#fff' : '#f9fafb' }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-900 mb-1">
+                    {i + 1}. {q.questionText}
+                    {!q.sourceQuestionId && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-medium" style={{ background: '#f0fdf4', color: '#166534' }}>new</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 text-xs text-gray-500">
+                    {(['A', 'B', 'C', 'D'] as const).map((opt) => (
+                      <div
+                        key={opt}
+                        className={q.correctAnswer === opt ? 'font-semibold' : ''}
+                        style={{ color: q.correctAnswer === opt ? '#166534' : undefined }}
+                      >
+                        {opt}. {q[`option${opt}` as 'optionA']}
+                        {q.correctAnswer === opt && ' ✓'}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {!q.sourceQuestionId && (
+                    <button
+                      onClick={() => handleDiscard(q)}
+                      disabled={toggleLoadingId === q.id}
+                      className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+                      style={{ borderColor: '#e5e7eb', color: '#6b7280' }}
+                    >
+                      Discard
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleToggle(q)}
+                    disabled={toggleLoadingId === q.id}
+                    className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+                    style={
+                      q.isActive
+                        ? { borderColor: '#fecaca', color: '#dc2626' }
+                        : { borderColor: '#bbf7d0', color: '#166534' }
+                    }
+                  >
+                    {q.isActive ? 'Archive' : 'Restore'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-400">Select the radio button next to the correct answer</p>
+        )}
+      </div>
 
-          {error && (
-            <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#fef2f2', color: '#dc2626' }}>
-              {error}
-            </div>
-          )}
+      <VersionHistory key={historyKey} bankId={bankId} />
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="self-end px-4 py-2 rounded-lg text-sm font-medium text-white"
-            style={{ background: '#2d6a4f' }}
-          >
-            {loading ? 'Adding...' : 'Add question'}
-          </button>
-        </form>
-      )}
-
-      {/* Question list */}
-      {visibleQuestions.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-8">
-          {showArchived ? 'No archived questions' : 'No questions added yet'}
-        </p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {visibleQuestions.map((q, i) => (
-            <div
-              key={q.id}
-              className="p-3 rounded-lg border flex items-start justify-between gap-3"
-              style={{ borderColor: '#f3f4f6', background: q.isActive ? '#fff' : '#f9fafb' }}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-gray-900 mb-1">
-                  {i + 1}. {q.questionText}
-                </div>
-                <div className="grid grid-cols-2 gap-1 text-xs text-gray-500">
-                  {(['A', 'B', 'C', 'D'] as const).map((opt) => (
-                    <div
-                      key={opt}
-                      className={q.correctAnswer === opt ? 'font-semibold' : ''}
-                      style={{ color: q.correctAnswer === opt ? '#166534' : undefined }}
-                    >
-                      {opt}. {q[`option${opt}` as 'optionA']}
-                      {q.correctAnswer === opt && ' ✓'}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <button
-                onClick={() => setPendingAction({ type: q.isActive ? 'archive' : 'restore', id: q.id })}
-                className="px-3 py-1.5 rounded-lg border text-xs font-medium flex-shrink-0"
-                style={
-                  q.isActive
-                    ? { borderColor: '#fecaca', color: '#dc2626' }
-                    : { borderColor: '#bbf7d0', color: '#166534' }
-                }
-              >
-                {q.isActive ? 'Archive' : 'Restore'}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <JustificationModal
-        isOpen={modalOpen}
-        title="Confirm adding question"
-        description="This question will be added to the active pool and may appear in future attempts."
-        onConfirm={handleConfirm}
-        onCancel={() => setModalOpen(false)}
-        loading={loading}
-      />
-
-      <JustificationModal
-        isOpen={!!pendingAction}
-        title={pendingAction?.type === 'archive' ? 'Archive question' : 'Restore question'}
-        description={
-          pendingAction?.type === 'archive'
-            ? 'Archived questions are removed from the active pool and will no longer appear in future attempts.'
-            : 'Restored questions return to the active pool and may appear in future attempts.'
-        }
-        error={archiveError}
-        onConfirm={handleArchiveConfirm}
-        onCancel={() => { setPendingAction(null); setArchiveError(null) }}
-        loading={archiveLoading}
+      <SaveChangesModal
+        isOpen={saveModalOpen}
+        diff={diff}
+        versions={versions}
+        onSave={handleSave}
+        onUsePreviousVersion={handleUsePreviousVersion}
+        onCancel={() => setSaveModalOpen(false)}
+        loading={saveLoading}
+        error={saveError}
       />
     </div>
   )

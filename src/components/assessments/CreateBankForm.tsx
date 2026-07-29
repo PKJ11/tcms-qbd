@@ -19,6 +19,7 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
   const [form, setForm] = useState({
     topicId:        hasInitialTopic ? initialTopicId! : '',
     assessmentType: 'MCQ',
+    versionLabel:   '1.0',
   })
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -30,6 +31,10 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
     setError(null)
     if (!form.topicId) {
       setError('Please select a topic.')
+      return
+    }
+    if (!form.versionLabel.trim()) {
+      setError('Please name the first version.')
       return
     }
     setModalOpen(true)
@@ -85,6 +90,23 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
                 All topics already have assessment banks.
               </p>
             )}
+          </div>
+
+          {/* Initial version name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Initial version name <span className="text-red-500">*</span>
+            </label>
+            <input
+              value={form.versionLabel}
+              onChange={(e) => setForm({ ...form, versionLabel: e.target.value })}
+              placeholder="e.g. 1.0"
+              className={inputClass}
+              style={inputStyle}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Every question you add will belong to this first version until you save changes as a new one.
+            </p>
           </div>
 
           {/* MCQ settings — fixed by SOP, not configurable */}

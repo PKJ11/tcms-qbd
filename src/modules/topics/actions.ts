@@ -103,8 +103,12 @@ export async function getTopicById(id: string) {
           questionsPerAttempt: true,
           maxAttempts:         true,
           isActive:            true,
-          _count: {
-            select: { questions: true },
+          currentVersion: {
+            select: {
+              versionNo:    true,
+              versionLabel: true,
+              _count:       { select: { questions: true } },
+            },
           },
         },
       },

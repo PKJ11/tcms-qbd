@@ -81,6 +81,8 @@ export interface TopicCompletionReport {
     dueDate:     Date
     completedAt: Date | null
     assignedBy:  string
+    questionBankVersionLabel: string | null
+    materialVersionLabels:    string[]
   }[]
 }
 

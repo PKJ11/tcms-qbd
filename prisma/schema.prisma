@@ -21,9 +21,9 @@ enum AppRole {
 }
 
 enum TrainingType {
-  MATERIAL_MCQ          // material + assessment — completes only after passing
-  MATERIAL_ONLY         // completes when the material has been opened/read
-  ACKNOWLEDGEMENT_ONLY  // completes when the trainee clicks acknowledge
+  MATERIAL_MCQ // material + assessment — completes only after passing
+  MATERIAL_ONLY // completes when the material has been opened/read
+  ACKNOWLEDGEMENT_ONLY // completes when the trainee clicks acknowledge
 }
 
 enum TrainingTrigger {
@@ -251,69 +251,70 @@ model PasswordHistory {
 }
 
 model Person {
-  id                     String    @id @default(cuid())
-  employeeId             String    @unique
-  name                   String
-  email                  String?   @unique
-  passwordHash           String
-  mustChangePassword     Boolean   @default(true)
-  passwordChangedAt      DateTime  @default(now())
-  failedLoginAttempts    Int       @default(0)
-  isLocked               Boolean   @default(false)
-  lockedAt               DateTime?
-  designation            String
-  isActive               Boolean   @default(true)
-  joiningDate            DateTime?
-  lastLoginAt            DateTime?
-  departmentId           String
-  unitId                 String
-  sectionId              String?   // optional — not all units have sections
-  managerId              String?
-  flaggedForJobReassignment Boolean  @default(false)
-  flaggedAt              DateTime?
-  flagReason             String?
-  flagTopicId            String?
-  flagCycleCount         Int?
-  resolvedAt             DateTime?
-  resolvedById           String?
-  resolutionAction       String?
-  resolutionNotes        String?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  id                        String    @id @default(cuid())
+  employeeId                String    @unique
+  name                      String
+  email                     String?   @unique
+  passwordHash              String
+  mustChangePassword        Boolean   @default(true)
+  passwordChangedAt         DateTime  @default(now())
+  failedLoginAttempts       Int       @default(0)
+  isLocked                  Boolean   @default(false)
+  lockedAt                  DateTime?
+  designation               String
+  isActive                  Boolean   @default(true)
+  joiningDate               DateTime?
+  lastLoginAt               DateTime?
+  departmentId              String
+  unitId                    String
+  sectionId                 String? // optional — not all units have sections
+  managerId                 String?
+  flaggedForJobReassignment Boolean   @default(false)
+  flaggedAt                 DateTime?
+  flagReason                String?
+  flagTopicId               String?
+  flagCycleCount            Int?
+  resolvedAt                DateTime?
+  resolvedById              String?
+  resolutionAction          String?
+  resolutionNotes           String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   // Relations
-  roles                    PersonRole[]
-  passwordHistory          PasswordHistory[]
-  department               Department            @relation(fields: [departmentId], references: [id])
-  unit                     Unit                  @relation(fields: [unitId], references: [id])
-  section                  Section?              @relation(fields: [sectionId], references: [id])
-  manager                  Person?               @relation("manages", fields: [managerId], references: [id])
-  subordinates             Person[]              @relation("manages")
-  trainingAssignments      TrainingAssignment[]
-  assessmentAttempts       AssessmentAttempt[]
-  qualificationRecords     QualificationRecord[] @relation("qualifiedPerson")
-  supervisedQualifications QualificationRecord[] @relation("supervisor")
-  initiatedQualifications  QualificationRecord[] @relation("initiator")
-  signatoryEntries         SignatoryEntry[]
-  assignedSignatories      SignatoryEntry[]      @relation("SignatoryAssignedTo")
-  signatoryAssignmentsMade SignatoryEntry[]      @relation("SignatoryAssignedBy")
-  uploadedDocuments        ScannedDocument[]
-  issuedCertificates       Certificate[]         @relation("issuer")
-  personCertificates       Certificate[]         @relation("certPerson")
-  notifications            Notification[]
-  auditLogs                AuditLog[]
-  refresherRaisedBy        RefresherTrigger[]    @relation("raisedBy")
-  refresherPersons         RefresherTrigger[]    @relation("refresherPerson")
-  uploadedContent          MaterialVersion[]     @relation("contentUploader")
-  approvedContent          MaterialVersion[]     @relation("contentApprover")
-  createdTopics            TrainingTopic[]
-  createdAssignments       TrainingAssignment[]  @relation("assignedBy")
-  trainerCertificates      TrainerCertificate[]  @relation("trainerCertPerson")
-  issuedTrainerCertificates  TrainerCertificate[] @relation("trainerCertIssuer")
-  revokedTrainerCertificates TrainerCertificate[] @relation("trainerCertRevoker")
-  validationRunsExecuted   ValidationRun[]       @relation("valRunExecutor")
-  validationRunsApproved   ValidationRun[]       @relation("valRunApprover")
-  testResultsExecuted      TestResult[]          @relation("testResultExecutor")
+  roles                       PersonRole[]
+  passwordHistory             PasswordHistory[]
+  department                  Department            @relation(fields: [departmentId], references: [id])
+  unit                        Unit                  @relation(fields: [unitId], references: [id])
+  section                     Section?              @relation(fields: [sectionId], references: [id])
+  manager                     Person?               @relation("manages", fields: [managerId], references: [id])
+  subordinates                Person[]              @relation("manages")
+  trainingAssignments         TrainingAssignment[]
+  assessmentAttempts          AssessmentAttempt[]
+  qualificationRecords        QualificationRecord[] @relation("qualifiedPerson")
+  supervisedQualifications    QualificationRecord[] @relation("supervisor")
+  initiatedQualifications     QualificationRecord[] @relation("initiator")
+  signatoryEntries            SignatoryEntry[]
+  assignedSignatories         SignatoryEntry[]      @relation("SignatoryAssignedTo")
+  signatoryAssignmentsMade    SignatoryEntry[]      @relation("SignatoryAssignedBy")
+  uploadedDocuments           ScannedDocument[]
+  issuedCertificates          Certificate[]         @relation("issuer")
+  personCertificates          Certificate[]         @relation("certPerson")
+  notifications               Notification[]
+  auditLogs                   AuditLog[]
+  refresherRaisedBy           RefresherTrigger[]    @relation("raisedBy")
+  refresherPersons            RefresherTrigger[]    @relation("refresherPerson")
+  uploadedContent             MaterialVersion[]     @relation("contentUploader")
+  approvedContent             MaterialVersion[]     @relation("contentApprover")
+  questionBankVersionsCreated QuestionBankVersion[] @relation("questionBankVersionCreator")
+  createdTopics               TrainingTopic[]
+  createdAssignments          TrainingAssignment[]  @relation("assignedBy")
+  trainerCertificates         TrainerCertificate[]  @relation("trainerCertPerson")
+  issuedTrainerCertificates   TrainerCertificate[]  @relation("trainerCertIssuer")
+  revokedTrainerCertificates  TrainerCertificate[]  @relation("trainerCertRevoker")
+  validationRunsExecuted      ValidationRun[]       @relation("valRunExecutor")
+  validationRunsApproved      ValidationRun[]       @relation("valRunApprover")
+  testResultsExecuted         TestResult[]          @relation("testResultExecutor")
 
   @@map("persons")
 }
@@ -332,12 +333,12 @@ model TrainingTopic {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  createdBy   Person               @relation(fields: [createdById], references: [id])
-  topicScopes TopicScope[]
-  materials   TrainingMaterial[]
+  createdBy    Person               @relation(fields: [createdById], references: [id])
+  topicScopes  TopicScope[]
+  materials    TrainingMaterial[]
   questionBank QuestionBank?
-  assignments TrainingAssignment[]
-  refreshers  RefresherTrigger[]
+  assignments  TrainingAssignment[]
+  refreshers   RefresherTrigger[]
 
   @@map("training_topics")
 }
@@ -370,9 +371,10 @@ model TrainingMaterial {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  topic    TrainingTopic     @relation(fields: [topicId], references: [id])
-  versions MaterialVersion[]
+  topic                 TrainingTopic                    @relation(fields: [topicId], references: [id])
+  versions              MaterialVersion[]
   materialConfirmations AssignmentMaterialConfirmation[]
+  assignmentVersionPins AssignmentMaterialVersion[]
 
   @@map("training_materials")
 }
@@ -389,8 +391,8 @@ model TrainerCertificate {
   revokedById   String?
   revokedReason String?
 
-  person    Person  @relation("trainerCertPerson",  fields: [personId],   references: [id])
-  issuedBy  Person  @relation("trainerCertIssuer",  fields: [issuedById], references: [id])
+  person    Person  @relation("trainerCertPerson", fields: [personId], references: [id])
+  issuedBy  Person  @relation("trainerCertIssuer", fields: [issuedById], references: [id])
   revokedBy Person? @relation("trainerCertRevoker", fields: [revokedById], references: [id])
 
   @@map("trainer_certificates")
@@ -413,9 +415,10 @@ model MaterialVersion {
   approvedAt    DateTime?
   createdAt     DateTime      @default(now())
 
-  material   TrainingMaterial @relation(fields: [materialId],  references: [id])
-  uploadedBy Person           @relation("contentUploader", fields: [uploadedById], references: [id])
-  approvedBy Person?          @relation("contentApprover", fields: [approvedById], references: [id])
+  material       TrainingMaterial            @relation(fields: [materialId], references: [id])
+  uploadedBy     Person                      @relation("contentUploader", fields: [uploadedById], references: [id])
+  approvedBy     Person?                     @relation("contentApprover", fields: [approvedById], references: [id])
+  assignmentPins AssignmentMaterialVersion[]
 
   @@unique([materialId, versionNo])
   @@map("material_versions")
@@ -426,27 +429,30 @@ model MaterialVersion {
 // ─────────────────────────────────────────────
 
 model TrainingAssignment {
-  id                 String           @id @default(cuid())
-  personId           String
-  topicId            String
-  trigger            TrainingTrigger
-  status             AssignmentStatus @default(NOT_STARTED)
-  assignedById       String
-  dueDate            DateTime
-  startedAt          DateTime?
-  viewedAt           DateTime?
-  completedAt        DateTime?
-  acknowledged       Boolean          @default(false)
-  needIdentifiedById String?
-  needBasis          String?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id                    String           @id @default(cuid())
+  personId              String
+  topicId               String
+  trigger               TrainingTrigger
+  status                AssignmentStatus @default(NOT_STARTED)
+  assignedById          String
+  dueDate               DateTime
+  startedAt             DateTime?
+  viewedAt              DateTime?
+  completedAt           DateTime?
+  acknowledged          Boolean          @default(false)
+  needIdentifiedById    String?
+  needBasis             String?
+  questionBankVersionId String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
-  person     Person              @relation(fields: [personId],     references: [id])
-  topic      TrainingTopic       @relation(fields: [topicId],      references: [id])
-  assignedBy Person              @relation("assignedBy", fields: [assignedById], references: [id])
-  attempts   AssessmentAttempt[]
+  person                Person                           @relation(fields: [personId], references: [id])
+  topic                 TrainingTopic                    @relation(fields: [topicId], references: [id])
+  assignedBy            Person                           @relation("assignedBy", fields: [assignedById], references: [id])
+  questionBankVersion   QuestionBankVersion?             @relation(fields: [questionBankVersionId], references: [id])
+  attempts              AssessmentAttempt[]
   materialConfirmations AssignmentMaterialConfirmation[]
+  materialVersions      AssignmentMaterialVersion[]
 
   @@map("training_assignments")
 }
@@ -458,10 +464,29 @@ model AssignmentMaterialConfirmation {
   confirmedAt  DateTime @default(now())
 
   assignment TrainingAssignment @relation(fields: [assignmentId], references: [id])
-  material   TrainingMaterial   @relation(fields: [materialId],   references: [id])
+  material   TrainingMaterial   @relation(fields: [materialId], references: [id])
 
   @@unique([assignmentId, materialId])
   @@map("assignment_material_confirmations")
+}
+
+// Pins which MaterialVersion was current for each of the topic's materials at
+// the moment a TrainingAssignment was created — kept separate from
+// AssignmentMaterialConfirmation (which tracks the trainee's read/confirm
+// event) so this is purely "what version was used", set once and never moved.
+model AssignmentMaterialVersion {
+  id                String   @id @default(cuid())
+  assignmentId      String
+  materialId        String
+  materialVersionId String
+  createdAt         DateTime @default(now())
+
+  assignment      TrainingAssignment @relation(fields: [assignmentId], references: [id])
+  material        TrainingMaterial   @relation(fields: [materialId], references: [id])
+  materialVersion MaterialVersion    @relation(fields: [materialVersionId], references: [id])
+
+  @@unique([assignmentId, materialId])
+  @@map("assignment_material_versions")
 }
 
 // ─────────────────────────────────────────────
@@ -476,19 +501,83 @@ model QuestionBank {
   maxAttempts         Int            @default(3)
   isActive            Boolean        @default(true)
   assessmentType      AssessmentType @default(MCQ)
+  currentVersionId    String?        @unique
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
-  topic     TrainingTopic       @relation(fields: [topicId], references: [id])
-  questions Question[]
-  attempts  AssessmentAttempt[]
+  topic          TrainingTopic           @relation(fields: [topicId], references: [id])
+  currentVersion QuestionBankVersion?    @relation("currentVersion", fields: [currentVersionId], references: [id])
+  versions       QuestionBankVersion[]   @relation("bankVersions")
+  workingSet     QuestionBankWorkingSet?
+  attempts       AssessmentAttempt[]
 
   @@map("question_banks")
 }
 
+// Immutable snapshot of a question bank's question set. Created only when a
+// trainer clicks "Save Changes" on the staged working set — never mutated
+// afterwards, so past assignments/attempts always point at exactly what was
+// used at the time.
+model QuestionBankVersion {
+  id               String   @id @default(cuid())
+  bankId           String
+  versionNo        Int
+  versionLabel     String
+  basedOnVersionId String?
+  createdById      String
+  createdAt        DateTime @default(now())
+
+  bank            QuestionBank             @relation("bankVersions", fields: [bankId], references: [id])
+  basedOn         QuestionBankVersion?     @relation("versionLineage", fields: [basedOnVersionId], references: [id])
+  derivedVersions QuestionBankVersion[]    @relation("versionLineage")
+  createdBy       Person                   @relation("questionBankVersionCreator", fields: [createdById], references: [id])
+  banksCurrent    QuestionBank?            @relation("currentVersion")
+  questions       Question[]
+  attempts        AssessmentAttempt[]
+  assignments     TrainingAssignment[]
+  workingSetBase  QuestionBankWorkingSet[]
+
+  @@unique([bankId, versionNo])
+  @@map("question_bank_versions")
+}
+
+// The trainer's in-progress editing session for a bank — never read by the
+// assessment-taking flow. Add/archive/restore only touch this table; nothing
+// here is real until "Save Changes" materializes it into a QuestionBankVersion.
+model QuestionBankWorkingSet {
+  id            String   @id @default(cuid())
+  bankId        String   @unique
+  baseVersionId String
+  updatedById   String
+  updatedAt     DateTime @updatedAt
+
+  bank  QuestionBank                 @relation(fields: [bankId], references: [id])
+  base  QuestionBankVersion          @relation(fields: [baseVersionId], references: [id])
+  items QuestionBankWorkingSetItem[]
+
+  @@map("question_bank_working_sets")
+}
+
+model QuestionBankWorkingSetItem {
+  id               String  @id @default(cuid())
+  workingSetId     String
+  sourceQuestionId String? // null = newly added and not yet saved
+  questionText     String
+  optionA          String
+  optionB          String
+  optionC          String
+  optionD          String
+  correctAnswer    String
+  isActive         Boolean @default(true) // staged archive/restore toggle
+
+  workingSet QuestionBankWorkingSet @relation(fields: [workingSetId], references: [id])
+
+  @@map("question_bank_working_set_items")
+}
+
 model Question {
   id            String   @id @default(cuid())
-  bankId        String
+  bankVersionId String
   questionText  String
   optionA       String
   optionB       String
@@ -499,27 +588,29 @@ model Question {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  bank QuestionBank @relation(fields: [bankId], references: [id])
+  bankVersion QuestionBankVersion @relation(fields: [bankVersionId], references: [id])
 
   @@map("questions")
 }
 
 model AssessmentAttempt {
-  id           String            @id @default(cuid())
-  personId     String
-  bankId       String
-  assignmentId String
-  attemptNo    Int
-  score        Float
-  outcome      AssessmentOutcome
-  answers      Json
-  startedAt    DateTime
-  submittedAt  DateTime
-  createdAt    DateTime          @default(now())
+  id            String            @id @default(cuid())
+  personId      String
+  bankId        String
+  bankVersionId String
+  assignmentId  String
+  attemptNo     Int
+  score         Float
+  outcome       AssessmentOutcome
+  answers       Json
+  startedAt     DateTime
+  submittedAt   DateTime
+  createdAt     DateTime          @default(now())
 
-  person     Person             @relation(fields: [personId],     references: [id])
-  bank       QuestionBank       @relation(fields: [bankId],       references: [id])
-  assignment TrainingAssignment @relation(fields: [assignmentId], references: [id])
+  person      Person              @relation(fields: [personId], references: [id])
+  bank        QuestionBank        @relation(fields: [bankId], references: [id])
+  bankVersion QuestionBankVersion @relation(fields: [bankVersionId], references: [id])
+  assignment  TrainingAssignment  @relation(fields: [assignmentId], references: [id])
 
   @@map("assessment_attempts")
 }
@@ -541,9 +632,9 @@ model RefresherTrigger {
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
-  person   Person        @relation("refresherPerson", fields: [personId],  references: [id])
-  topic    TrainingTopic @relation(fields: [topicId],                       references: [id])
-  raisedBy Person        @relation("raisedBy",        fields: [raisedById], references: [id])
+  person   Person        @relation("refresherPerson", fields: [personId], references: [id])
+  topic    TrainingTopic @relation(fields: [topicId], references: [id])
+  raisedBy Person        @relation("raisedBy", fields: [raisedById], references: [id])
 
   @@map("refresher_triggers")
 }
@@ -569,30 +660,30 @@ model Technique {
 }
 
 model QualificationRecord {
-  id                String      @id @default(cuid())
+  id                String       @id @default(cuid())
   personId          String
   techniqueId       String
-  status            QualStatus  @default(INITIATED)
+  status            QualStatus   @default(INITIATED)
   outcome           QualOutcome?
   performedOn       DateTime?
   supervisorId      String?
   initiatedById     String
-  initiatedAt       DateTime    @default(now())
+  initiatedAt       DateTime     @default(now())
   approvedAt        DateTime?
   expiryDate        DateTime?
   requalificationOf String?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  person          Person               @relation("qualifiedPerson", fields: [personId],      references: [id])
-  technique       Technique            @relation(fields: [techniqueId],                        references: [id])
-  supervisor      Person?              @relation("supervisor",       fields: [supervisorId],   references: [id])
-  initiatedBy     Person               @relation("initiator",        fields: [initiatedById],  references: [id])
-  previousQual    QualificationRecord?  @relation("requalification",  fields: [requalificationOf], references: [id])
-  nextQuals       QualificationRecord[] @relation("requalification")
-  signatories     SignatoryEntry[]
+  person           Person                @relation("qualifiedPerson", fields: [personId], references: [id])
+  technique        Technique             @relation(fields: [techniqueId], references: [id])
+  supervisor       Person?               @relation("supervisor", fields: [supervisorId], references: [id])
+  initiatedBy      Person                @relation("initiator", fields: [initiatedById], references: [id])
+  previousQual     QualificationRecord?  @relation("requalification", fields: [requalificationOf], references: [id])
+  nextQuals        QualificationRecord[] @relation("requalification")
+  signatories      SignatoryEntry[]
   scannedDocuments ScannedDocument[]
-  certificate     Certificate?
+  certificate      Certificate?
 
   @@map("qualification_records")
 }
@@ -612,7 +703,7 @@ model SignatoryEntry {
   createdAt       DateTime        @default(now())
 
   qualification QualificationRecord @relation(fields: [qualificationId], references: [id])
-  signedBy      Person?             @relation(fields: [signedById],       references: [id])
+  signedBy      Person?             @relation(fields: [signedById], references: [id])
   assignedTo    Person?             @relation("SignatoryAssignedTo", fields: [assignedToId], references: [id])
   assignedBy    Person?             @relation("SignatoryAssignedBy", fields: [assignedById], references: [id])
 
@@ -631,24 +722,24 @@ model ScannedDocument {
   uploadedAt      DateTime @default(now())
 
   qualification QualificationRecord @relation(fields: [qualificationId], references: [id])
-  uploadedBy    Person              @relation(fields: [uploadedById],    references: [id])
+  uploadedBy    Person              @relation(fields: [uploadedById], references: [id])
 
   @@map("scanned_documents")
 }
 
 model Certificate {
-  id              String   @id @default(cuid())
-  certNumber      String   @unique
-  qualificationId String   @unique
+  id              String    @id @default(cuid())
+  certNumber      String    @unique
+  qualificationId String    @unique
   personId        String
   issuedById      String
-  issuedAt        DateTime @default(now())
+  issuedAt        DateTime  @default(now())
   fileUrl         String
   validUntil      DateTime?
 
   qualification QualificationRecord @relation(fields: [qualificationId], references: [id])
-  person        Person              @relation("certPerson", fields: [personId],   references: [id])
-  issuedBy      Person              @relation("issuer",     fields: [issuedById], references: [id])
+  person        Person              @relation("certPerson", fields: [personId], references: [id])
+  issuedBy      Person              @relation("issuer", fields: [issuedById], references: [id])
 
   @@map("certificates")
 }
@@ -751,8 +842,8 @@ model TestResult {
   screenshotUrls String[]
   createdAt      DateTime   @default(now())
 
-  run        ValidationRun @relation(fields: [runId],       references: [id])
-  testCase   TestCase      @relation(fields: [testCaseId],  references: [id])
+  run        ValidationRun @relation(fields: [runId], references: [id])
+  testCase   TestCase      @relation(fields: [testCaseId], references: [id])
   executedBy Person?       @relation("testResultExecutor", fields: [executedById], references: [id])
 
   @@unique([runId, testCaseId])

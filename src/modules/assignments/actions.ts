@@ -11,6 +11,7 @@ import type {
   BulkAssignmentInput,
 } from './types'
 import { syncRefresherCompletion } from '@/modules/refresher'
+import { resolveVersionPins, pinAssignmentMaterialVersions } from './version-pins'
 
 // ── Shared select ─────────────────────────────────────────────────
 
@@ -32,6 +33,15 @@ const ASSIGNMENT_SELECT = {
   },
   assignedBy: {
     select: { id: true, name: true },
+  },
+  questionBankVersion: {
+    select: { versionNo: true, versionLabel: true },
+  },
+  materialVersions: {
+    select: {
+      materialId: true,
+      materialVersion: { select: { versionNo: true, versionLabel: true } },
+    },
   },
 } as const
 
@@ -237,18 +247,41 @@ export async function createAssignments(
     throw new Error('All selected persons already have an active assignment for this topic')
   }
 
+  // Pin the question-bank/material versions that are live right now, so this
+  // batch of assignments always knows exactly what it was assigned against.
+  const pins = await resolveVersionPins(prisma, input.topicId)
+  const batchStartedAt = new Date()
+
   // Create assignments
-  const created = await prisma.trainingAssignment.createMany({
-    data: newPersons.map((p) => ({
-      personId:           p.id,
-      topicId:            input.topicId,
-      trigger:            input.trigger,
-      status:             'NOT_STARTED' as const,
-      assignedById:       actorId,
-      dueDate:            new Date(input.dueDate),
-      needIdentifiedById: input.needIdentifiedById?.trim() || null,
-      needBasis:          input.needBasis?.trim() || null,
-    })),
+  const created = await prisma.$transaction(async (tx) => {
+    const result = await tx.trainingAssignment.createMany({
+      data: newPersons.map((p) => ({
+        personId:              p.id,
+        topicId:               input.topicId,
+        trigger:               input.trigger,
+        status:                'NOT_STARTED' as const,
+        assignedById:          actorId,
+        dueDate:               new Date(input.dueDate),
+        needIdentifiedById:    input.needIdentifiedById?.trim() || null,
+        needBasis:             input.needBasis?.trim() || null,
+        questionBankVersionId: pins.questionBankVersionId,
+      })),
+    })
+
+    if (pins.materialPins.length > 0) {
+      const createdAssignments = await tx.trainingAssignment.findMany({
+        where: {
+          personId:     { in: newPersons.map((p) => p.id) },
+          topicId:      input.topicId,
+          assignedById: actorId,
+          createdAt:    { gte: batchStartedAt },
+        },
+        select: { id: true },
+      })
+      await pinAssignmentMaterialVersions(tx, createdAssignments.map((a) => a.id), pins.materialPins)
+    }
+
+    return result
   })
 
   // Create notifications
@@ -376,15 +409,43 @@ export async function autoAssignInductionTraining(
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + 14) // 14 days for induction
 
-  await prisma.trainingAssignment.createMany({
-    data: topics.map((t) => ({
-      personId,
-      topicId:      t.id,
-      trigger:      'INDUCTION' as const,
-      status:       'NOT_STARTED' as const,
-      assignedById: actorId,
-      dueDate,
-    })),
+  const batchStartedAt = new Date()
+
+  await prisma.$transaction(async (tx) => {
+    // Each topic can have its own question bank/material versions, so pins
+    // are resolved per topic rather than once for the whole induction batch.
+    const topicPins = await Promise.all(
+      topics.map(async (t) => ({ topicId: t.id, pins: await resolveVersionPins(tx, t.id) }))
+    )
+
+    await tx.trainingAssignment.createMany({
+      data: topics.map((t) => ({
+        personId,
+        topicId:               t.id,
+        trigger:               'INDUCTION' as const,
+        status:                'NOT_STARTED' as const,
+        assignedById:          actorId,
+        dueDate,
+        questionBankVersionId: topicPins.find((tp) => tp.topicId === t.id)!.pins.questionBankVersionId,
+      })),
+    })
+
+    const createdAssignments = await tx.trainingAssignment.findMany({
+      where: {
+        personId,
+        topicId:   { in: topics.map((t) => t.id) },
+        trigger:   'INDUCTION',
+        createdAt: { gte: batchStartedAt },
+      },
+      select: { id: true, topicId: true },
+    })
+
+    for (const a of createdAssignments) {
+      const tp = topicPins.find((x) => x.topicId === a.topicId)
+      if (tp && tp.pins.materialPins.length > 0) {
+        await pinAssignmentMaterialVersions(tx, [a.id], tp.pins.materialPins)
+      }
+    }
   })
 
   await prisma.notification.createMany({

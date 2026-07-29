@@ -531,6 +531,10 @@ export async function getTopicCompletionReport(
           completedAt: true,
           person:      { select: { id: true, name: true, employeeId: true } },
           assignedBy:  { select: { name: true } },
+          questionBankVersion: { select: { versionNo: true, versionLabel: true } },
+          materialVersions: {
+            select: { materialVersion: { select: { versionNo: true, versionLabel: true } } },
+          },
         },
         ...(Object.keys(assignmentsWhere).length > 0 ? { where: assignmentsWhere } : {}),
         orderBy: { createdAt: 'asc' },
@@ -553,6 +557,12 @@ export async function getTopicCompletionReport(
       dueDate:     a.dueDate,
       completedAt: a.completedAt,
       assignedBy:  a.assignedBy.name,
+      questionBankVersionLabel: a.questionBankVersion
+        ? `v${a.questionBankVersion.versionNo} (${a.questionBankVersion.versionLabel})`
+        : null,
+      materialVersionLabels: a.materialVersions.map(
+        (mv) => `v${mv.materialVersion.versionNo} (${mv.materialVersion.versionLabel})`
+      ),
     })),
   }
 }

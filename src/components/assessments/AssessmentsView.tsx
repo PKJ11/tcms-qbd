@@ -9,7 +9,11 @@ interface Bank {
   maxAttempts:         number
   isActive:            boolean
   topic:   { id: string; name: string }
-  _count:  { questions: number }
+  currentVersion: {
+    versionNo:    number
+    versionLabel: string
+    _count:       { questions: number }
+  } | null
 }
 
 export function AssessmentsView() {
@@ -74,9 +78,14 @@ function BankManagementView() {
                   {bank.isActive ? 'Active' : 'Inactive'}
                 </span>
               </div>
+              {bank.currentVersion && (
+                <div className="text-xs text-gray-400 mb-2">
+                  v{bank.currentVersion.versionNo} — {bank.currentVersion.versionLabel}
+                </div>
+              )}
               <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
                 <div>
-                  <div className="font-semibold text-gray-800">{bank._count.questions}</div>
+                  <div className="font-semibold text-gray-800">{bank.currentVersion?._count.questions ?? 0}</div>
                   <div>Questions</div>
                 </div>
                 <div>

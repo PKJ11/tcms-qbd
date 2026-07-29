@@ -38,10 +38,11 @@ export default async function BankDetailPage({
           <h1 className="text-2xl font-bold text-gray-900">{bank.topic.name}</h1>
           <p className="text-sm text-gray-500 mt-1">
             {bank.passingPercentage}% pass mark · {bank.questionsPerAttempt} questions per attempt · {bank.maxAttempts} max attempts
+            {bank.currentVersion && <> · Current version <strong>v{bank.currentVersion.versionNo}</strong> ({bank.currentVersion.versionLabel})</>}
           </p>
         </div>
 
-        <QuestionBankDetail bank={bank} />
+        <QuestionBankDetail bankId={bank.id} />
       </div>
     </div>
   )

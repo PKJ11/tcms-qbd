@@ -11,6 +11,8 @@ export interface TopicTrainee {
   dueDate:     string
   completedAt: string | null
   assignedBy:  string
+  questionBankVersionLabel: string | null
+  materialVersionLabels:    string[]
 }
 
 const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
@@ -39,7 +41,7 @@ export function TopicAssignmentsTable({
     <table className="w-full text-sm border-collapse">
       <thead>
         <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-          {['#', 'Trainee', 'Status', 'Assigned', 'Due', 'Completed', 'Assigned by'].map((h) => (
+          {['#', 'Trainee', 'Status', 'Assigned', 'Due', 'Completed', 'Assigned by', 'Bank version', 'Material version(s)'].map((h) => (
             <th
               key={h}
               className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
@@ -78,6 +80,12 @@ export function TopicAssignmentsTable({
               </td>
               <td className="px-4 py-3 text-xs text-gray-500">
                 {t.assignedBy}
+              </td>
+              <td className="px-4 py-3 text-xs text-gray-500">
+                {t.questionBankVersionLabel ?? '—'}
+              </td>
+              <td className="px-4 py-3 text-xs text-gray-500">
+                {t.materialVersionLabels.length > 0 ? t.materialVersionLabels.join(', ') : '—'}
               </td>
             </tr>
           )

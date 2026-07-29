@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (format === 'csv') {
-    const headers = ['Topic', 'Employee ID', 'Trainee', 'Status', 'Assigned', 'Due', 'Completed', 'Assigned by']
+    const headers = ['Topic', 'Employee ID', 'Trainee', 'Status', 'Assigned', 'Due', 'Completed', 'Assigned by', 'Bank version', 'Material version(s)']
     const rows = report.trainees.map((t) => [
       report.topicName,
       t.employeeId,
@@ -51,6 +51,8 @@ export async function GET(req: NextRequest) {
       t.dueDate.toLocaleDateString('en-IN'),
       t.completedAt?.toLocaleDateString('en-IN') ?? '',
       t.assignedBy,
+      t.questionBankVersionLabel ?? '',
+      t.materialVersionLabels.join('; '),
     ])
     const csv = convertToCSV(headers, rows)
     return new NextResponse(csv, {

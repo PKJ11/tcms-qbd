@@ -117,7 +117,7 @@ export default async function TopicDetailPage({
           {[
             { label: 'Materials',   value: topic._count.materials   },
             { label: 'Assignments', value: topic._count.assignments },
-            { label: 'Questions',   value: topic.questionBank?._count.questions ?? 0 },
+            { label: 'Questions',   value: topic.questionBank?.currentVersion?._count.questions ?? 0 },
           ].map(({ label, value }) => (
             <div
               key={label}
@@ -199,9 +199,19 @@ export default async function TopicDetailPage({
             className="bg-white rounded-xl border p-5 mb-4"
             style={{ borderColor: '#e5e7eb' }}
           >
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">
-              Assessment bank
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-700">
+                Assessment bank
+              </h2>
+              {topic.questionBank.currentVersion && (
+                <span
+                  className="px-2.5 py-1 rounded text-xs font-semibold"
+                  style={{ background: '#eff6ff', color: '#1d4ed8' }}
+                >
+                  Current version v{topic.questionBank.currentVersion.versionNo} ({topic.questionBank.currentVersion.versionLabel})
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-4 text-sm">
               {[
                 { label: 'Pass mark',          value: `${topic.questionBank.passingPercentage}%` },

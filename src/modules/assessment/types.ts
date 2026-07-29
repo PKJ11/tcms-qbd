@@ -11,10 +11,15 @@ export interface QuestionBankDetail {
     id:   string
     name: string
   }
-  questions: QuestionItem[]
-  _count: {
-    questions: number
-  }
+  currentVersionId: string | null
+  currentVersion: {
+    id:           string
+    versionNo:    number
+    versionLabel: string
+    createdAt:    Date
+    createdBy:    { id: string; name: string }
+    questions:    QuestionItem[]
+  } | null
 }
 
 export interface QuestionItem {
@@ -39,17 +44,36 @@ export interface QuestionItemSafe {
 }
 
 export interface CreateQuestionBankInput {
-  topicId: string
+  topicId:      string
+  versionLabel: string
 }
 
-export interface CreateQuestionInput {
-  bankId:        string
+export interface StageQuestionInput {
   questionText:  string
   optionA:       string
   optionB:       string
   optionC:       string
   optionD:       string
   correctAnswer: 'A' | 'B' | 'C' | 'D'
+}
+
+export interface WorkingSetItem {
+  id:               string
+  sourceQuestionId: string | null
+  questionText:     string
+  optionA:          string
+  optionB:          string
+  optionC:          string
+  optionD:          string
+  correctAnswer:    string
+  isActive:         boolean
+}
+
+export interface VersionDiffSummary {
+  added:    number
+  archived: number
+  restored: number
+  edited:   number
 }
 
 export interface SubmitAttemptInput {

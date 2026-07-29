@@ -5,17 +5,16 @@ import { logAuditEvent } from '@/modules/audit-trail'
 import { hasAnyRole }    from '@/lib/permissions'
 import {
   createQuestionBankSchema,
-  createQuestionSchema,
   submitAttemptSchema,
 } from './schema'
 import type {
   CreateQuestionBankInput,
-  CreateQuestionInput,
   SubmitAttemptInput,
   QuestionItemSafe,
   AttemptResult,
 } from './types'
 import { syncRefresherCompletion } from '@/modules/refresher'
+import { resolveVersionPins, pinAssignmentMaterialVersions } from '@/modules/assignments/version-pins'
 
 // ─────────────────────────────────────────────────────────────────
 // QUESTION BANK MANAGEMENT
@@ -36,11 +35,18 @@ export async function getQuestionBankByTopic(topicId: string) {
       questionsPerAttempt: true,
       maxAttempts:         true,
       isActive:            true,
-      topic: { select: { id: true, name: true } },
-      questions: {
-        orderBy: { createdAt: 'asc' },
+      topic:               { select: { id: true, name: true } },
+      currentVersionId:    true,
+      currentVersion: {
+        select: {
+          id:           true,
+          versionNo:    true,
+          versionLabel: true,
+          createdAt:    true,
+          createdBy:    { select: { id: true, name: true } },
+          questions:    { orderBy: { createdAt: 'asc' } },
+        },
       },
-      _count: { select: { questions: true } },
     },
   })
 }
@@ -64,13 +70,31 @@ export async function createQuestionBank(
   })
   if (!topic) throw new Error('Topic not found')
 
-  const bank = await prisma.questionBank.create({
-    data: {
-      topicId:             input.topicId,
-      passingPercentage:   PASSING_PERCENTAGE,
-      questionsPerAttempt: QUESTIONS_PER_ATTEMPT,
-      maxAttempts:         MAX_ATTEMPTS,
-    },
+  const bank = await prisma.$transaction(async (tx) => {
+    const created = await tx.questionBank.create({
+      data: {
+        topicId:             input.topicId,
+        passingPercentage:   PASSING_PERCENTAGE,
+        questionsPerAttempt: QUESTIONS_PER_ATTEMPT,
+        maxAttempts:         MAX_ATTEMPTS,
+      },
+    })
+
+    const version = await tx.questionBankVersion.create({
+      data: {
+        bankId:           created.id,
+        versionNo:        1,
+        versionLabel:     input.versionLabel.trim(),
+        basedOnVersionId: null,
+        createdById:      actorId,
+      },
+    })
+
+    return tx.questionBank.update({
+      where:   { id: created.id },
+      data:    { currentVersionId: version.id },
+      include: { currentVersion: true },
+    })
   })
 
   await logAuditEvent({
@@ -82,6 +106,7 @@ export async function createQuestionBank(
     beforeValue:   null,
     afterValue:    {
       topicName:           topic.name,
+      versionLabel:        bank.currentVersion?.versionLabel,
       passingPercentage:   PASSING_PERCENTAGE,
       questionsPerAttempt: QUESTIONS_PER_ATTEMPT,
       maxAttempts:         MAX_ATTEMPTS,
@@ -90,140 +115,6 @@ export async function createQuestionBank(
   })
 
   return bank
-}
-
-// ─────────────────────────────────────────────────────────────────
-// QUESTION MANAGEMENT
-// ─────────────────────────────────────────────────────────────────
-
-export async function createQuestion(
-  input:         CreateQuestionInput,
-  justification: string,
-  actorId:       string
-) {
-  const parsed = createQuestionSchema.safeParse(input)
-  if (!parsed.success) throw new Error(parsed.error.message)
-
-  const bank = await prisma.questionBank.findUnique({
-    where:  { id: input.bankId },
-    select: { id: true, topic: { select: { name: true } } },
-  })
-  if (!bank) throw new Error('Question bank not found')
-
-  const question = await prisma.question.create({
-    data: {
-      bankId:        input.bankId,
-      questionText:  input.questionText,
-      optionA:       input.optionA,
-      optionB:       input.optionB,
-      optionC:       input.optionC,
-      optionD:       input.optionD,
-      correctAnswer: input.correctAnswer,
-    },
-  })
-
-  await logAuditEvent({
-    userId:        actorId,
-    action:        'CREATE',
-    module:        'ASSESSMENT',
-    recordId:      question.id,
-    recordType:    'Question',
-    beforeValue:   null,
-    afterValue:    {
-      topicName:    bank.topic.name,
-      questionText: input.questionText,
-    },
-    justification,
-  })
-
-  return question
-}
-
-export async function updateQuestion(
-  questionId:    string,
-  input:         Partial<Omit<CreateQuestionInput, 'bankId'>>,
-  justification: string,
-  actorId:       string
-) {
-  const before = await prisma.question.findUnique({ where: { id: questionId } })
-  if (!before) throw new Error('Question not found')
-
-  const after = await prisma.question.update({
-    where: { id: questionId },
-    data:  {
-      ...(input.questionText  !== undefined && { questionText:  input.questionText  }),
-      ...(input.optionA       !== undefined && { optionA:       input.optionA       }),
-      ...(input.optionB       !== undefined && { optionB:       input.optionB       }),
-      ...(input.optionC       !== undefined && { optionC:       input.optionC       }),
-      ...(input.optionD       !== undefined && { optionD:       input.optionD       }),
-      ...(input.correctAnswer !== undefined && { correctAnswer: input.correctAnswer }),
-    },
-  })
-
-  await logAuditEvent({
-    userId:        actorId,
-    action:        'UPDATE',
-    module:        'ASSESSMENT',
-    recordId:      questionId,
-    recordType:    'Question',
-    beforeValue:   { questionText: before.questionText, correctAnswer: before.correctAnswer },
-    afterValue:    { questionText: after.questionText,  correctAnswer: after.correctAnswer  },
-    justification,
-  })
-
-  return after
-}
-
-export async function deactivateQuestion(
-  questionId:    string,
-  justification: string,
-  actorId:       string
-) {
-  const question = await prisma.question.findUnique({ where: { id: questionId } })
-  if (!question) throw new Error('Question not found')
-  if (!question.isActive) throw new Error('Question is already archived')
-
-  await prisma.question.update({
-    where: { id: questionId },
-    data:  { isActive: false },
-  })
-
-  await logAuditEvent({
-    userId:        actorId,
-    action:        'DELETE',
-    module:        'ASSESSMENT',
-    recordId:      questionId,
-    recordType:    'Question',
-    beforeValue:   { isActive: true  },
-    afterValue:    { isActive: false },
-    justification,
-  })
-}
-
-export async function reactivateQuestion(
-  questionId:    string,
-  justification: string,
-  actorId:       string
-) {
-  const question = await prisma.question.findUnique({ where: { id: questionId } })
-  if (!question) throw new Error('Question not found')
-  if (question.isActive) throw new Error('Question is already active')
-
-  await prisma.question.update({
-    where: { id: questionId },
-    data:  { isActive: true },
-  })
-
-  await logAuditEvent({
-    userId:        actorId,
-    action:        'UPDATE',
-    module:        'ASSESSMENT',
-    recordId:      questionId,
-    recordType:    'Question',
-    beforeValue:   { isActive: false },
-    afterValue:    { isActive: true  },
-    justification,
-  })
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -247,19 +138,17 @@ export async function getAttemptQuestions(
     select: {
       id: true, passingPercentage: true, questionsPerAttempt: true,
       maxAttempts: true, isActive: true,
-      questions: { where: { isActive: true } },
     },
   })
 
   if (!bank)            throw new Error('Question bank not found')
   if (!bank.isActive)   throw new Error('This assessment is currently inactive')
-  if (bank.questions.length === 0) throw new Error('No questions available in this bank')
 
   // Verify assignment belongs to this person and is in valid state
   const assignment = await prisma.trainingAssignment.findUnique({
     where:  { id: assignmentId },
     select: {
-      id: true, personId: true, status: true, topicId: true,
+      id: true, personId: true, status: true, topicId: true, questionBankVersionId: true,
       topic: {
         select: {
           materials: { where: { status: 'APPROVED' }, select: { id: true } },
@@ -270,6 +159,17 @@ export async function getAttemptQuestions(
   if (!assignment)                    throw new Error('Assignment not found')
   if (assignment.personId !== personId) throw new Error('Not authorised')
   if (assignment.status === 'COMPLETED') throw new Error('This training is already completed')
+  if (!assignment.questionBankVersionId) throw new Error('No question bank version is pinned for this assignment')
+
+  // Always draw from the version pinned at assignment time, never whatever
+  // the bank currently looks like — that's what makes an attempt traceable.
+  const version = await prisma.questionBankVersion.findUnique({
+    where:  { id: assignment.questionBankVersionId },
+    select: { questions: { where: { isActive: true } } },
+  })
+  if (!version || version.questions.length === 0) {
+    throw new Error('No questions available in this bank')
+  }
 
   if (assignment.topic.materials.length > 0) {
     const confirmedCount = await prisma.assignmentMaterialConfirmation.count({
@@ -289,8 +189,8 @@ export async function getAttemptQuestions(
     throw new Error('Maximum attempts exceeded. Please contact your Training Coordinator.')
   }
 
-  // Randomly select N questions from the active pool
-  const shuffled = [...bank.questions].sort(() => Math.random() - 0.5)
+  // Randomly select N questions from the active pool of the pinned version
+  const shuffled = [...version.questions].sort(() => Math.random() - 0.5)
   const selected = shuffled.slice(0, Math.min(bank.questionsPerAttempt, shuffled.length))
 
   // Strip correct answers before sending to client
@@ -328,7 +228,7 @@ export async function submitAttempt(
   const assignment = await prisma.trainingAssignment.findUnique({
   where:  { id: input.assignmentId },
   select: {
-    id: true, personId: true, topicId: true, status: true, trigger: true,
+    id: true, personId: true, topicId: true, status: true, trigger: true, questionBankVersionId: true,
     topic: {
       select: {
         materials: { where: { status: 'APPROVED' }, select: { id: true } },
@@ -338,6 +238,7 @@ export async function submitAttempt(
 })
   if (!assignment)                       throw new Error('Assignment not found')
   if (assignment.personId !== actorId)   throw new Error('Not authorised')
+  if (!assignment.questionBankVersionId) throw new Error('No question bank version is pinned for this assignment')
 
   if (assignment.topic.materials.length > 0) {
     const confirmedCount = await prisma.assignmentMaterialConfirmation.count({
@@ -362,10 +263,12 @@ export async function submitAttempt(
     throw new Error('Maximum attempts exceeded')
   }
 
-  // Fetch correct answers for ONLY the questions that were actually answered
+  // Fetch correct answers for ONLY the questions that were actually answered,
+  // scoped to the version pinned on the assignment — never whatever the bank
+  // currently looks like — so grading always matches what the trainee saw.
   const questionIds = Object.keys(input.answers)
   const questions    = await prisma.question.findMany({
-    where:  { id: { in: questionIds } },
+    where:  { id: { in: questionIds }, bankVersionId: assignment.questionBankVersionId },
     select: { id: true, correctAnswer: true },
   })
 
@@ -393,15 +296,16 @@ export async function submitAttempt(
   await prisma.$transaction(async (tx) => {
     await tx.assessmentAttempt.create({
       data: {
-        personId:     actorId,
-        bankId:       input.bankId,
-        assignmentId: input.assignmentId,
+        personId:      actorId,
+        bankId:        input.bankId,
+        bankVersionId: assignment.questionBankVersionId!,
+        assignmentId:  input.assignmentId,
         attemptNo,
         score,
         outcome,
-        answers:      input.answers,
-        startedAt:    new Date(input.startedAt),
-        submittedAt:  new Date(),
+        answers:       input.answers,
+        startedAt:     new Date(input.startedAt),
+        submittedAt:   new Date(),
       },
     })
 
@@ -493,16 +397,20 @@ export async function submitAttempt(
     const dueDate = new Date()
     dueDate.setDate(dueDate.getDate() + 14)
 
-    await tx.trainingAssignment.create({
+    const pins = await resolveVersionPins(tx, assignment.topicId)
+
+    const retrainingAssignment = await tx.trainingAssignment.create({
       data: {
-        personId:     actorId,
-        topicId:      assignment.topicId,
-        trigger:      'RETRAINING',
-        status:       'NOT_STARTED',
-        assignedById: actorId,
+        personId:              actorId,
+        topicId:               assignment.topicId,
+        trigger:               'RETRAINING',
+        status:                'NOT_STARTED',
+        assignedById:          actorId,
         dueDate,
+        questionBankVersionId: pins.questionBankVersionId,
       },
     })
+    await pinAssignmentMaterialVersions(tx, [retrainingAssignment.id], pins.materialPins)
 
     await tx.notification.create({
       data: {
@@ -604,7 +512,13 @@ export async function getAllQuestionBanks() {
       maxAttempts:         true,
       isActive:            true,
       topic: { select: { id: true, name: true } },
-      _count: { select: { questions: true } },
+      currentVersion: {
+        select: {
+          versionNo:    true,
+          versionLabel: true,
+          _count:       { select: { questions: true } },
+        },
+      },
     },
     orderBy: { topic: { name: 'asc' } },
   })
@@ -633,9 +547,10 @@ export async function submitOralAttempt(
 
   const assignment = await prisma.trainingAssignment.findUnique({
     where:  { id: input.assignmentId },
-    select: { id: true, personId: true, topicId: true, status: true, trigger: true },
+    select: { id: true, personId: true, topicId: true, status: true, trigger: true, questionBankVersionId: true },
   })
   if (!assignment) throw new Error('Assignment not found')
+  if (!assignment.questionBankVersionId) throw new Error('No question bank version is pinned for this assignment')
 
   const bank = await prisma.questionBank.findUnique({
     where:  { id: input.bankId },
@@ -667,13 +582,14 @@ export async function submitOralAttempt(
   await prisma.$transaction(async (tx) => {
     await tx.assessmentAttempt.create({
       data: {
-        personId:     assignment.personId,
-        bankId:       input.bankId,
-        assignmentId: input.assignmentId,
+        personId:      assignment.personId,
+        bankId:        input.bankId,
+        bankVersionId: assignment.questionBankVersionId!,
+        assignmentId:  input.assignmentId,
         attemptNo,
         score,
         outcome,
-        answers:      { oral: true, recordedBy: actorId, notes: input.notes ?? '' },
+        answers:       { oral: true, recordedBy: actorId, notes: input.notes ?? '' },
         startedAt:    new Date(),
         submittedAt:  new Date(),
       },
@@ -693,16 +609,20 @@ export async function submitOralAttempt(
       const dueDate = new Date()
       dueDate.setDate(dueDate.getDate() + 14)
 
-      await tx.trainingAssignment.create({
+      const pins = await resolveVersionPins(tx, assignment.topicId)
+
+      const retrainingAssignment = await tx.trainingAssignment.create({
         data: {
-          personId:     assignment.personId,
-          topicId:      assignment.topicId,
-          trigger:      'RETRAINING',
-          status:       'NOT_STARTED',
-          assignedById: actorId,
+          personId:              assignment.personId,
+          topicId:               assignment.topicId,
+          trigger:               'RETRAINING',
+          status:                'NOT_STARTED',
+          assignedById:          actorId,
           dueDate,
+          questionBankVersionId: pins.questionBankVersionId,
         },
       })
+      await pinAssignmentMaterialVersions(tx, [retrainingAssignment.id], pins.materialPins)
 
       await tx.notification.create({
         data: {

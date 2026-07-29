@@ -35,9 +35,13 @@ export interface TopicDetail extends TopicListItem {
     questionsPerAttempt: number
     maxAttempts:         number
     isActive:            boolean
-    _count: {
-      questions: number
-    }
+    currentVersion: {
+      versionNo:    number
+      versionLabel: string
+      _count: {
+        questions: number
+      }
+    } | null
   } | null
   materials: {
     id:             string

@@ -10,6 +10,7 @@ import {
 } from '@/lib/storage'
 import { createMaterialSchema } from './schema'
 import { CreateMaterialInput } from './types'
+import { resolveVersionPins, pinAssignmentMaterialVersions } from '@/modules/assignments/version-pins'
 
 // ── Allowed file types per category ──────────────────────────────
 
@@ -368,17 +369,37 @@ async function triggerRetrainingForMajorVersion(
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + 30) // 30 days to complete
 
+  // The material version just approved (and any other topic materials'
+  // current versions) — resolved now since it's already committed within
+  // this same transaction.
+  const pins = await resolveVersionPins(tx, topicId)
+  const batchStartedAt = new Date()
+
   await tx.trainingAssignment.createMany({
     data: completedAssignments.map((a) => ({
-      personId:    a.personId,
+      personId:              a.personId,
       topicId,
-      trigger:     'RETRAINING' as const,
-      status:      'NOT_STARTED' as const,
-      assignedById: actorId,
+      trigger:               'RETRAINING' as const,
+      status:                'NOT_STARTED' as const,
+      assignedById:          actorId,
       dueDate,
+      questionBankVersionId: pins.questionBankVersionId,
     })),
     skipDuplicates: true,
   })
+
+  if (pins.materialPins.length > 0) {
+    const createdAssignments = await tx.trainingAssignment.findMany({
+      where: {
+        topicId,
+        trigger:   'RETRAINING',
+        personId:  { in: completedAssignments.map((a) => a.personId) },
+        createdAt: { gte: batchStartedAt },
+      },
+      select: { id: true },
+    })
+    await pinAssignmentMaterialVersions(tx, createdAssignments.map((a) => a.id), pins.materialPins)
+  }
 
   // Create notifications for impacted persons
   await tx.notification.createMany({

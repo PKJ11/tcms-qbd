@@ -1,24 +1,34 @@
 export {
   getQuestionBankByTopic,
   createQuestionBank,
-  createQuestion,
-  updateQuestion,
-  deactivateQuestion,
-  reactivateQuestion,
   getAttemptQuestions,
   submitAttempt,
   getAttemptHistory,
   getTopicsWithoutBank,
   getAllQuestionBanks,
-  submitOralAttempt, 
+  submitOralAttempt,
 } from './actions'
+
+export {
+  getWorkingSet,
+  stageNewQuestion,
+  stageQuestionEdit,
+  stageArchiveToggle,
+  discardStagedItem,
+  rebaseWorkingSet,
+  saveQuestionBankVersion,
+  getQuestionBankVersions,
+  getQuestionBankVersionQuestions,
+} from './versioning'
 
 export type {
   QuestionBankDetail,
   QuestionItem,
   QuestionItemSafe,
   CreateQuestionBankInput,
-  CreateQuestionInput,
+  StageQuestionInput,
+  WorkingSetItem,
+  VersionDiffSummary,
   SubmitAttemptInput,
   AttemptResult,
   AssessmentOutcome,

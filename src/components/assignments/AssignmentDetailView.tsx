@@ -38,6 +38,11 @@ interface Assignment {
   }
   assignedBy: { id: string; name: string }
   materialConfirmations: { materialId: string; confirmedAt: string | Date }[]
+  questionBankVersion: { versionNo: number; versionLabel: string } | null
+  materialVersions: {
+    materialId:      string
+    materialVersion: { versionNo: number; versionLabel: string }
+  }[]
 }
 
 const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
@@ -145,6 +150,12 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
         )}
         <div className="text-xs text-gray-400">
           Due {formatDate(assignment.dueDate)} &nbsp;·&nbsp; Assigned by {assignment.assignedBy.name}
+          {trainingType === 'MATERIAL_MCQ' && assignment.questionBankVersion && (
+            <>
+              &nbsp;·&nbsp; Question bank v{assignment.questionBankVersion.versionNo}
+              {' '}({assignment.questionBankVersion.versionLabel}) used for this assignment
+            </>
+          )}
         </div>
 
         {assignment.status === 'FAILED' && (
@@ -221,8 +232,9 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
         ) : (
           <div className="flex flex-col gap-2">
             {approvedMaterials.map((material) => {
-              const confirmed = confirmedIds.has(material.id)
-              const version   = material.versions[0]
+              const confirmed  = confirmedIds.has(material.id)
+              const version    = material.versions[0]
+              const pinned     = assignment.materialVersions.find((mv) => mv.materialId === material.id)?.materialVersion
               return (
                 <div
                   key={material.id}
@@ -243,6 +255,9 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
                       <div className="text-sm font-medium text-gray-900">{material.title}</div>
                       <div className="text-xs text-gray-400">
                         v{version.versionLabel} · {version.fileType}
+                        {pinned && pinned.versionLabel !== version.versionLabel && (
+                          <> · pinned to v{pinned.versionNo} ({pinned.versionLabel}) at assignment time</>
+                        )}
                       </div>
                     </div>
                   </div>

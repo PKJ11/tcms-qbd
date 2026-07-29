@@ -1,12 +1,11 @@
 import { z } from 'zod'
 
 export const createQuestionBankSchema = z.object({
-  topicId: z.string().min(1, 'Topic is required'),
+  topicId:      z.string().min(1, 'Topic is required'),
+  versionLabel: z.string().min(1, 'Version name is required').max(100),
 })
 
-export const createQuestionSchema = z.object({
-  bankId: z.string().min(1),
-
+export const stageQuestionSchema = z.object({
   questionText: z
     .string()
     .min(5,   'Question must be at least 5 characters')
@@ -18,6 +17,10 @@ export const createQuestionSchema = z.object({
   optionD: z.string().min(1, 'Option D is required').max(300),
 
   correctAnswer: z.enum(['A', 'B', 'C', 'D']),
+})
+
+export const saveVersionSchema = z.object({
+  versionLabel: z.string().min(1, 'Version name is required').max(100),
 })
 
 export const submitAttemptSchema = z.object({
