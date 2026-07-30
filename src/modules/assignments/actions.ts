@@ -314,25 +314,21 @@ export async function createAssignments(
   }
 }
 
-// ── Auto-assign induction training on person creation ─────────────
-// Called from personnel/actions.ts when a new person is created
+// ── Find topics whose compulsory scope covers a given placement ────
+// A scope row matches when its department matches and (its unit is unset
+// or matches) and (its section is unset or matches). Department-only scope
+// rows apply to everyone in the department; unit/section rows narrow it further.
 
-export async function autoAssignInductionTraining(
-  personId:     string,
+export async function getScopedTopics(
   departmentId: string,
   unitId:       string,
-  actorId:      string,
   sectionId?:   string
 ) {
-  // Find all topics whose compulsory scope covers this person — a scope row
-  // matches when its department matches and (its unit is unset or matches)
-  // and (its section is unset or matches). Department-only scope rows apply
-  // to everyone in the department; unit/section rows narrow it further.
   const sectionCond = sectionId
     ? { OR: [{ sectionId: null }, { sectionId }] }
     : { sectionId: null }
 
-  const topics = await prisma.trainingTopic.findMany({
+  return prisma.trainingTopic.findMany({
     where: {
       isActive: true,
       topicScopes: {
@@ -347,6 +343,19 @@ export async function autoAssignInductionTraining(
     },
     select: { id: true, name: true },
   })
+}
+
+// ── Auto-assign induction training on person creation ─────────────
+// Called from personnel/actions.ts when a new person is created
+
+export async function autoAssignInductionTraining(
+  personId:     string,
+  departmentId: string,
+  unitId:       string,
+  actorId:      string,
+  sectionId?:   string
+) {
+  const topics = await getScopedTopics(departmentId, unitId, sectionId)
 
   if (topics.length === 0) return
 
@@ -415,6 +424,152 @@ export async function autoAssignInductionTraining(
     },
     justification: 'Auto-assigned induction training based on department on person creation',
   })
+}
+
+// ── Preview fixed trainings for a department/unit/section transfer ─
+// Called from the personnel edit flow when an admin is about to move a
+// person into a new department/unit/section, so they can decide which of
+// that placement's fixed trainings to (re-)assign.
+
+export async function getScopedTrainingsForTransfer(
+  personId:     string,
+  departmentId: string,
+  unitId:       string,
+  sectionId?:   string
+) {
+  const topics = await getScopedTopics(departmentId, unitId, sectionId)
+  if (topics.length === 0) return []
+
+  const ACTIVE_STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'OVERDUE']
+
+  return Promise.all(
+    topics.map(async (t) => {
+      const lastAssignment = await prisma.trainingAssignment.findFirst({
+        where:   { personId, topicId: t.id },
+        orderBy: { createdAt: 'desc' },
+        select:  { status: true, trigger: true, dueDate: true, completedAt: true, createdAt: true },
+      })
+
+      const badge: 'completed' | 'active' | null =
+        !lastAssignment ? null :
+        lastAssignment.status === 'COMPLETED' ? 'completed' :
+        ACTIVE_STATUSES.includes(lastAssignment.status) ? 'active' :
+        null
+
+      return {
+        topicId:       t.id,
+        name:          t.name,
+        defaultChecked: badge === null,
+        badge,
+        lastAssignment,
+      }
+    })
+  )
+}
+
+// ── Assign the fixed trainings an admin picked for a person's new scope ──
+// Called after a person's department/unit/section has been updated.
+
+export async function assignScopedTrainingsOnTransfer(
+  personId:      string,
+  topicIds:      string[],
+  dueDate:       string,
+  actorId:       string,
+  justification: string
+) {
+  if (topicIds.length === 0) throw new Error('No trainings selected')
+
+  const topics = await prisma.trainingTopic.findMany({
+    where:  { id: { in: topicIds }, isActive: true },
+    select: { id: true, name: true },
+  })
+  if (topics.length === 0) throw new Error('No valid active topics found')
+
+  // Safety net against double-submits — skip any topic that already has an
+  // active assignment for this person, regardless of who assigned it.
+  const existing = await prisma.trainingAssignment.findMany({
+    where: {
+      personId,
+      topicId: { in: topics.map((t) => t.id) },
+      status:  { in: ['NOT_STARTED', 'IN_PROGRESS', 'OVERDUE'] },
+    },
+    select: { topicId: true },
+  })
+  const existingTopicIds = new Set(existing.map((e) => e.topicId))
+  const newTopics = topics.filter((t) => !existingTopicIds.has(t.id))
+
+  if (newTopics.length === 0) {
+    return { created: 0, skipped: topics.length, skippedNames: topics.map((t) => t.name) }
+  }
+
+  const dueDateObj = new Date(dueDate)
+  const batchStartedAt = new Date()
+
+  await prisma.$transaction(async (tx) => {
+    const topicPins = await Promise.all(
+      newTopics.map(async (t) => ({ topicId: t.id, pins: await resolveVersionPins(tx, t.id) }))
+    )
+
+    await tx.trainingAssignment.createMany({
+      data: newTopics.map((t) => ({
+        personId,
+        topicId:               t.id,
+        trigger:               'INDUCTION' as const,
+        status:                'NOT_STARTED' as const,
+        assignedById:          actorId,
+        dueDate:                dueDateObj,
+        questionBankVersionId: topicPins.find((tp) => tp.topicId === t.id)!.pins.questionBankVersionId,
+      })),
+    })
+
+    const createdAssignments = await tx.trainingAssignment.findMany({
+      where: {
+        personId,
+        topicId:   { in: newTopics.map((t) => t.id) },
+        trigger:   'INDUCTION',
+        createdAt: { gte: batchStartedAt },
+      },
+      select: { id: true, topicId: true },
+    })
+
+    for (const a of createdAssignments) {
+      const tp = topicPins.find((x) => x.topicId === a.topicId)
+      if (tp && tp.pins.materialPins.length > 0) {
+        await pinAssignmentMaterialVersions(tx, [a.id], tp.pins.materialPins)
+      }
+    }
+  })
+
+  await prisma.notification.createMany({
+    data: newTopics.map((t) => ({
+      personId,
+      type:    'ASSIGNMENT' as const,
+      channel: 'IN_APP'      as const,
+      title:   'New training assigned',
+      message: `"${t.name}" has been assigned following your department/unit/section change.`,
+    })),
+  })
+
+  await logAuditEvent({
+    userId:        actorId,
+    action:        'ASSIGN',
+    module:        'TRAINING_ASSIGNMENT',
+    recordId:      personId,
+    recordType:    'Person',
+    beforeValue:   null,
+    afterValue:    {
+      topics:  newTopics.map((t) => t.name),
+      trigger: 'INDUCTION',
+      dueDate,
+    },
+    justification,
+  })
+
+  return {
+    created: newTopics.length,
+    skipped: existingTopicIds.size,
+    skippedNames: topics.filter((t) => existingTopicIds.has(t.id)).map((t) => t.name),
+  }
 }
 
 // ── Revert (cancel) a mistakenly assigned training ─────────────────

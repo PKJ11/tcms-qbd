@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "seed": "ts-node --project prisma/tsconfig.seed.json prisma/seed.ts",
-    "seed:rtm": "ts-node --project prisma/tsconfig.seed.json prisma/seed-rtm.ts"
+    "seed:rtm": "ts-node --project prisma/tsconfig.seed.json prisma/seed-rtm.ts",
+    "seed:transfer-demo": "ts-node --project prisma/tsconfig.seed.json prisma/seed-transfer-demo.ts"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"

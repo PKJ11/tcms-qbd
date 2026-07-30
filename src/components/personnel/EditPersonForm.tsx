@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
+import { TransferTrainingModal } from '@/components/personnel/TransferTrainingModal'
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types'
 
@@ -62,6 +63,10 @@ export function EditPersonForm({ person, departments }: Props) {
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState<string | null>(null)
   const [success,   setSuccess]   = useState<string | null>(null)
+
+  const [transferModalOpen, setTransferModalOpen] = useState(false)
+  const [pendingTopicIds,   setPendingTopicIds]   = useState<string[]>([])
+  const [pendingDueDate,    setPendingDueDate]    = useState('')
 
   // Initialise unit/section pickers from the person's current department/unit
   useEffect(() => {
@@ -137,6 +142,23 @@ export function EditPersonForm({ person, departments }: Props) {
       return
     }
 
+    const orgChanged =
+      departmentId !== person.departmentId ||
+      unitId       !== person.unitId ||
+      sectionId    !== (person.sectionId || '')
+
+    if (orgChanged) {
+      setTransferModalOpen(true)
+      return
+    }
+
+    setModalOpen(true)
+  }
+
+  function handleTransferContinue(selectedTopicIds: string[], dueDate: string) {
+    setPendingTopicIds(selectedTopicIds)
+    setPendingDueDate(dueDate)
+    setTransferModalOpen(false)
     setModalOpen(true)
   }
 
@@ -168,14 +190,42 @@ export function EditPersonForm({ person, departments }: Props) {
     })
 
     const data = await res.json()
-    setLoading(false)
 
     if (!res.ok) {
+      setLoading(false)
       setError(data.message ?? 'Failed to update person.')
       return
     }
 
-    setSuccess('Person updated successfully.')
+    let successMessage = 'Person updated successfully.'
+
+    if (pendingTopicIds.length > 0) {
+      const assignRes = await fetch(`/api/personnel/${person.id}/scoped-trainings`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          topicIds:      pendingTopicIds,
+          dueDate:       pendingDueDate,
+          justification,
+        }),
+      })
+      const assignData = await assignRes.json()
+
+      if (!assignRes.ok) {
+        setLoading(false)
+        setError(
+          `Person updated, but assigning trainings failed: ${assignData.message ?? 'unknown error'}`
+        )
+        return
+      }
+
+      successMessage += ` ${assignData.result.created} training(s) assigned.`
+    }
+
+    setPendingTopicIds([])
+    setPendingDueDate('')
+    setLoading(false)
+    setSuccess(successMessage)
     router.refresh()
   }
 
@@ -432,12 +482,26 @@ export function EditPersonForm({ person, departments }: Props) {
         </form>
       </div>
 
+      <TransferTrainingModal
+        isOpen={transferModalOpen}
+        personId={person.id}
+        targetDepartmentId={departmentId}
+        targetUnitId={unitId}
+        targetSectionId={sectionId}
+        onContinue={handleTransferContinue}
+        onCancel={() => setTransferModalOpen(false)}
+      />
+
       <JustificationModal
         isOpen={modalOpen}
         title="Confirm person update"
         description="This will update the person's details, role(s), and/or organizational placement."
         onConfirm={handleConfirm}
-        onCancel={() => setModalOpen(false)}
+        onCancel={() => {
+          setModalOpen(false)
+          setPendingTopicIds([])
+          setPendingDueDate('')
+        }}
         loading={loading}
         requirePassword
       />
