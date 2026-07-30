@@ -279,7 +279,10 @@ export async function scanAndNotifyOverdue(): Promise<{
   // Trainee's reporting manager (if any) — all three parties per the SOP.
   const overdueAssignments = await prisma.trainingAssignment.findMany({
     where: {
-      status:  { in: ['NOT_STARTED', 'IN_PROGRESS'] },
+      // Includes OVERDUE because the assignments module flips the status to
+      // OVERDUE as soon as it's read (before this scan may run), so relying
+      // on NOT_STARTED/IN_PROGRESS alone would miss already-flagged rows.
+      status:  { in: ['NOT_STARTED', 'IN_PROGRESS', 'OVERDUE'] },
       dueDate: { lt: now },
     },
     select: {

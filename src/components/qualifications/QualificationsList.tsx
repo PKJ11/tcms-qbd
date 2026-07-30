@@ -100,7 +100,7 @@ export function QualificationsList({ canCreate }: Props) {
             title={s.description}
             className="py-2 px-3 rounded-lg text-sm font-medium transition-all"
             style={{
-              background: scope === s.key ? '#1d4ed8' : 'transparent',
+              background: scope === s.key ? '#2d6a4f' : 'transparent',
               color:      scope === s.key ? '#fff'    : '#6b7280',
             }}
           >

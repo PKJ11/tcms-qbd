@@ -6,6 +6,7 @@ import { createAssignmentSchema } from './schema'
 import type { CreateAssignmentInput } from './types'
 import { syncRefresherCompletion } from '@/modules/refresher'
 import { resolveVersionPins, pinAssignmentMaterialVersions } from './version-pins'
+import { scanAndNotifyOverdue } from '@/modules/notifications'
 
 // ── Shared select ─────────────────────────────────────────────────
 
@@ -39,7 +40,10 @@ const ASSIGNMENT_SELECT = {
   },
 } as const
 
-// ── Helper — recompute overdue status ─────────────────────────────
+// ── Helper — recompute overdue status + notify ─────────────────────
+// Runs on every assignments read so overdue flagging and notifications
+// (trainee + trainer + manager for overdue, trainee-only for due-soon)
+// happen automatically — no external cron or manual scan required.
 
 async function refreshOverdueStatuses() {
   await prisma.trainingAssignment.updateMany({
@@ -49,6 +53,13 @@ async function refreshOverdueStatuses() {
     },
     data: { status: 'OVERDUE' },
   })
+
+  try {
+    await scanAndNotifyOverdue()
+  } catch (error) {
+    // Notification failures must not block assignment reads
+    console.error('[OVERDUE NOTIFY ERROR]', error)
+  }
 }
 
 // ── Get all assignments (admin view) ──────────────────────────────

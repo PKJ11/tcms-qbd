@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-const FIRST_CHECK_DELAY_MS = 10_000
-const RECHECK_INTERVAL_MS  = 10 * 60 * 1000
+const FIRST_CHECK_DELAY_MS = 5 * 60 * 1000
+const RECHECK_INTERVAL_MS  = 5 * 60 * 1000
 
 interface Assignment { status: string }
 
