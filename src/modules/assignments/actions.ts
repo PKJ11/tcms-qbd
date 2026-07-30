@@ -2,14 +2,8 @@
 
 import { prisma }        from '@/lib/prisma'
 import { logAuditEvent } from '@/modules/audit-trail'
-import {
-  createAssignmentSchema,
-  bulkAssignmentSchema,
-} from './schema'
-import type {
-  CreateAssignmentInput,
-  BulkAssignmentInput,
-} from './types'
+import { createAssignmentSchema } from './schema'
+import type { CreateAssignmentInput } from './types'
 import { syncRefresherCompletion } from '@/modules/refresher'
 import { resolveVersionPins, pinAssignmentMaterialVersions } from './version-pins'
 
@@ -125,7 +119,6 @@ export async function getMyAssignments(personId: string) {
                 select: {
                   id:           true,
                   versionLabel: true,
-                  versionType:  true,
                   fileType:     true,
                   status:       true,
                 },
@@ -165,7 +158,6 @@ export async function getAssignmentById(id: string) {
                 select: {
                   id:           true,
                   versionLabel: true,
-                  versionType:  true,
                   fileType:     true,
                   fileUrl:      true,
                   status:       true,
@@ -202,9 +194,9 @@ export async function createAssignments(
   if (!topic)            throw new Error('Topic not found')
   if (!topic.isActive)   throw new Error('Topic is inactive')
 
-  // Verify persons exist
+  // Verify persons exist — a trainer can never assign training to themselves
   const persons = await prisma.person.findMany({
-    where:  { id: { in: input.personIds }, isActive: true },
+    where:  { id: { in: input.personIds }, isActive: true, NOT: { id: actorId } },
     select: { id: true, name: true },
   })
   if (persons.length === 0) {
@@ -320,54 +312,6 @@ export async function createAssignments(
       .filter((p) => existingPersonIds.has(p.id))
       .map((p) => p.name),
   }
-}
-
-// ── Bulk assign by department(s) / section(s) ───────────────────────
-
-export async function bulkAssignByDepartment(
-  input:         BulkAssignmentInput,
-  justification: string,
-  actorId:       string
-) {
-  const parsed = bulkAssignmentSchema.safeParse(input)
-  if (!parsed.success) {
-    throw new Error(parsed.error.message)
-  }
-
-  // Build one OR-clause per department, each optionally scoped to its own sections.
-  // Keeping department+sections paired avoids one department's section filter
-  // incorrectly excluding people in a different selected department.
-  const orConditions = input.selections.map((sel) => ({
-    departmentId: sel.departmentId,
-    ...(sel.sectionIds && sel.sectionIds.length > 0
-      ? { sectionId: { in: sel.sectionIds } }
-      : {}),
-  }))
-
-  const persons = await prisma.person.findMany({
-    where: {
-      isActive: true,
-      OR: orConditions,
-    },
-    select: { id: true, name: true },
-  })
-
-  if (persons.length === 0) {
-    throw new Error('No active persons found in the selected department(s)/section(s)')
-  }
-
-  return createAssignments(
-    {
-      personIds:           persons.map((p) => p.id),
-      topicId:              input.topicId,
-      trigger:              input.trigger,
-      dueDate:              input.dueDate,
-      needIdentifiedById:   input.needIdentifiedById ?? undefined,
-      needBasis:            input.needBasis ?? undefined,
-    },
-    justification,
-    actorId
-  )
 }
 
 // ── Auto-assign induction training on person creation ─────────────
@@ -793,58 +737,6 @@ export async function confirmAssignmentMaterial(
   }
 
   return { completed, allConfirmed }
-}
-
-// ── Get persons for assignment dropdown ────────────────────────────
-
-export async function getPersonsForAssignment(filters?: {
-  departmentId?: string
-  sectionId?:    string
-}) {
-  return prisma.person.findMany({
-    where: {
-      isActive:     true,
-      ...(filters?.departmentId && { departmentId: filters.departmentId }),
-      ...(filters?.sectionId    && { sectionId:    filters.sectionId    }),
-    },
-    select: {
-      id:          true,
-      name:        true,
-      employeeId:  true,
-      designation: true,
-      department:  { select: { id: true, name: true } },
-      section:     { select: { id: true, name: true } },
-    },
-    orderBy: { name: 'asc' },
-  })
-}
-
-// ── Get departments (with sections) for bulk assignment ────────────
-
-export async function getDepartmentsForAssignment() {
-  return prisma.department.findMany({
-    where:  { isActive: true },
-    select: {
-      id:   true,
-      name: true,
-      code: true,
-      units: {
-        where:  { isActive: true },
-        select: {
-          id:   true,
-          name: true,
-          sections: {
-            where:   { isActive: true },
-            select:  { id: true, name: true, code: true },
-            orderBy: { name: 'asc' },
-          },
-        },
-        orderBy: { name: 'asc' },
-      },
-      _count: { select: { persons: true } },
-    },
-    orderBy: { name: 'asc' },
-  })
 }
 
 // ── Get active topics for assignment ───────────────────────────────

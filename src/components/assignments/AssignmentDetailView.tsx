@@ -7,7 +7,6 @@ import { MaterialViewerModal } from './MaterialViewerModal'
 interface MaterialVersion {
   id:           string
   versionLabel: string
-  versionType:  string
   fileType:     string
   fileUrl:      string
   status:       string

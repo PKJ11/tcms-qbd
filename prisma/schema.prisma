@@ -50,11 +50,6 @@ enum ContentStatus {
   RETIRED
 }
 
-enum VersionType {
-  MAJOR
-  MINOR
-}
-
 enum FileType {
   PPT
   PDF
@@ -403,12 +398,10 @@ model MaterialVersion {
   materialId    String
   versionNo     Int
   versionLabel  String
-  versionType   VersionType
   fileUrl       String
   fileName      String
   fileType      FileType
   changeSummary String
-  effectiveDate DateTime
   status        ContentStatus @default(DRAFT)
   uploadedById  String
   approvedById  String?

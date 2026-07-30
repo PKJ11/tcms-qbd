@@ -14,14 +14,19 @@ export async function GET() {
       id:   true,
       name: true,
       code: true,
+      _count: { select: { persons: { where: { isActive: true } } } },
       units: {
         where:  { isActive: true },
         select: {
           id:   true,
           name: true,
+          _count: { select: { persons: { where: { isActive: true } } } },
           sections: {
             where:   { isActive: true },
-            select:  { id: true, name: true, code: true },
+            select: {
+              id: true, name: true, code: true,
+              _count: { select: { persons: { where: { isActive: true } } } },
+            },
             orderBy: { name: 'asc' },
           },
         },

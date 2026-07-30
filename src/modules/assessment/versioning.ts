@@ -57,8 +57,21 @@ async function ensureWorkingSet(bankId: string, actorId: string) {
   })
 }
 
+async function isVersionUsed(versionId: string): Promise<boolean> {
+  const [assignmentCount, attemptCount] = await Promise.all([
+    prisma.trainingAssignment.count({ where: { questionBankVersionId: versionId } }),
+    prisma.assessmentAttempt.count({ where: { bankVersionId: versionId } }),
+  ])
+  return assignmentCount + attemptCount > 0
+}
+
+const LOCKED_MESSAGE =
+  'This version has already been used by a training assignment and can no longer be applied to directly — save a new version instead.'
+
 export async function getWorkingSet(bankId: string, actorId: string) {
-  return ensureWorkingSet(bankId, actorId)
+  const workingSet = await ensureWorkingSet(bankId, actorId)
+  const isBaseVersionUsed = await isVersionUsed(workingSet.baseVersionId)
+  return { ...workingSet, isBaseVersionUsed }
 }
 
 export async function stageNewQuestion(
@@ -319,6 +332,136 @@ export async function saveQuestionBankVersion(
     version: { id: newVersion.id, versionNo: newVersion.versionNo, versionLabel: newVersion.versionLabel },
     diff,
   }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// APPLY DIRECTLY — commits the staged working set into the EXISTING
+// version's real Question rows, in place. Only ever allowed when that
+// version has never been used by an assignment/attempt — nothing depends
+// on its exact content yet, so this doesn't rewrite anyone's history.
+// ─────────────────────────────────────────────────────────────────
+
+export async function applyChangesToCurrentVersion(
+  bankId:        string,
+  justification: string,
+  actorId:       string
+): Promise<{ versionId: string; diff: VersionDiffSummary }> {
+  const bank = await prisma.questionBank.findUnique({
+    where:  { id: bankId },
+    select: { currentVersionId: true },
+  })
+  if (!bank?.currentVersionId) throw new Error('Question bank has no version yet')
+
+  const workingSet = await prisma.questionBankWorkingSet.findUnique({
+    where:   { bankId },
+    include: {
+      items: true,
+      base:  { select: { id: true, questions: { select: CLONE_SELECT } } },
+    },
+  })
+  if (!workingSet) throw new Error('No staged changes to apply')
+  if (workingSet.items.length === 0) throw new Error('A version must contain at least one question')
+
+  // Only the LIVE current version can be edited this way — if the working
+  // set has been rebased onto an older reference version, that's not "the"
+  // version anymore and must go through Save as new version instead.
+  if (workingSet.baseVersionId !== bank.currentVersionId) {
+    throw new Error('The working set is not based on the current version — switch back to it, or save as a new version instead')
+  }
+  if (await isVersionUsed(bank.currentVersionId)) throw new Error(LOCKED_MESSAGE)
+
+  const baseQuestionsById = new Map(workingSet.base.questions.map((q) => [q.id, q]))
+  const diff: VersionDiffSummary = { added: 0, archived: 0, restored: 0, edited: 0 }
+
+  for (const item of workingSet.items) {
+    const original = item.sourceQuestionId ? baseQuestionsById.get(item.sourceQuestionId) : undefined
+    if (!original) { diff.added++; continue }
+    if (original.isActive && !item.isActive)      { diff.archived++;  continue }
+    if (!original.isActive && item.isActive)      { diff.restored++;  continue }
+    if (
+      original.questionText  !== item.questionText  ||
+      original.optionA       !== item.optionA       ||
+      original.optionB       !== item.optionB       ||
+      original.optionC       !== item.optionC       ||
+      original.optionD       !== item.optionD       ||
+      original.correctAnswer !== item.correctAnswer
+    ) diff.edited++
+  }
+
+  const versionId = bank.currentVersionId
+
+  await prisma.$transaction(async (tx) => {
+    for (const item of workingSet.items) {
+      if (item.sourceQuestionId) {
+        await tx.question.update({
+          where: { id: item.sourceQuestionId },
+          data:  {
+            questionText:  item.questionText,
+            optionA:       item.optionA,
+            optionB:       item.optionB,
+            optionC:       item.optionC,
+            optionD:       item.optionD,
+            correctAnswer: item.correctAnswer,
+            isActive:      item.isActive,
+          },
+        })
+      } else {
+        await tx.question.create({
+          data: {
+            bankVersionId: versionId,
+            questionText:  item.questionText,
+            optionA:       item.optionA,
+            optionB:       item.optionB,
+            optionC:       item.optionC,
+            optionD:       item.optionD,
+            correctAnswer: item.correctAnswer,
+            isActive:      item.isActive,
+          },
+        })
+      }
+    }
+
+    // Re-sync the working set from the now-updated real rows so newly
+    // added questions get a sourceQuestionId and everything reads as
+    // "no pending changes" again.
+    const refreshed = await tx.question.findMany({
+      where:   { bankVersionId: versionId },
+      select:  CLONE_SELECT,
+      orderBy: { createdAt: 'asc' },
+    })
+    await tx.questionBankWorkingSetItem.deleteMany({ where: { workingSetId: workingSet.id } })
+    await tx.questionBankWorkingSet.update({
+      where: { id: workingSet.id },
+      data:  {
+        updatedById: actorId,
+        items: {
+          create: refreshed.map((q) => ({
+            sourceQuestionId: q.id,
+            questionText:     q.questionText,
+            optionA:          q.optionA,
+            optionB:          q.optionB,
+            optionC:          q.optionC,
+            optionD:          q.optionD,
+            correctAnswer:    q.correctAnswer,
+            isActive:         q.isActive,
+          })),
+        },
+      },
+    })
+  })
+
+  await logAuditEvent({
+    userId:        actorId,
+    action:        'UPDATE',
+    module:        'ASSESSMENT',
+    recordId:      versionId,
+    recordType:    'QuestionBankVersion',
+    beforeValue:   null,
+    afterValue:    { appliedDirectly: true, ...diff },
+    justification,
+  })
+
+  return { versionId, diff }
 }
 
 // ─────────────────────────────────────────────────────────────────

@@ -60,6 +60,15 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
   const [saveLoading, setSaveLoading] = useState(false)
   const [saveError,   setSaveError]   = useState<string | null>(null)
   const [historyKey,  setHistoryKey]  = useState(0) // bump to refresh VersionHistory after a save
+  const [isBaseVersionUsed, setIsBaseVersionUsed] = useState(false)
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm,  setEditForm]  = useState({
+    questionText: '', optionA: '', optionB: '', optionC: '', optionD: '',
+    correctAnswer: 'A' as 'A' | 'B' | 'C' | 'D',
+  })
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError,   setEditError]   = useState<string | null>(null)
 
   async function loadWorkingSet() {
     setLoading(true)
@@ -73,6 +82,7 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
     }
     setItems(data.workingSet.items)
     originalSnapshot.current = data.workingSet.items
+    setIsBaseVersionUsed(data.workingSet.isBaseVersionUsed)
   }
 
   useEffect(() => {
@@ -167,6 +177,27 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
     await loadWorkingSet()
   }
 
+  async function handleApplyDirectly(justification: string) {
+    setSaveLoading(true)
+    setSaveError(null)
+
+    const res  = await fetch(`/api/assessments/banks/${bankId}/apply-changes`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ justification }),
+    })
+    const data = await res.json()
+    setSaveLoading(false)
+
+    if (!res.ok) {
+      setSaveError(data.message ?? 'Failed to apply changes')
+      return
+    }
+
+    setSaveModalOpen(false)
+    await loadWorkingSet()
+  }
+
   async function handleUsePreviousVersion(versionId: string) {
     setSaveLoading(true)
     setSaveError(null)
@@ -187,6 +218,42 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
     setSaveModalOpen(false)
     setItems(data.workingSet.items)
     originalSnapshot.current = data.workingSet.items
+    setIsBaseVersionUsed(data.workingSet.isBaseVersionUsed)
+  }
+
+  function startEdit(item: WorkingSetItem) {
+    setEditingId(item.id)
+    setEditForm({
+      questionText: item.questionText, optionA: item.optionA, optionB: item.optionB,
+      optionC: item.optionC, optionD: item.optionD, correctAnswer: item.correctAnswer as 'A' | 'B' | 'C' | 'D',
+    })
+    setEditError(null)
+  }
+
+  async function submitEdit() {
+    if (!editingId) return
+    setEditError(null)
+    if (!editForm.questionText || !editForm.optionA || !editForm.optionB || !editForm.optionC || !editForm.optionD) {
+      setEditError('All fields are required.')
+      return
+    }
+    setEditLoading(true)
+
+    const res  = await fetch(`/api/assessments/banks/${bankId}/working-set/questions/${editingId}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(editForm),
+    })
+    const data = await res.json()
+    setEditLoading(false)
+
+    if (!res.ok) {
+      setEditError(data.message ?? 'Failed to save changes')
+      return
+    }
+
+    setItems((prev) => prev.map((i) => (i.id === editingId ? data.item : i)))
+    setEditingId(null)
   }
 
   const activeCount   = items.filter((q) => q.isActive).length
@@ -303,53 +370,115 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
             {visibleItems.map((q, i) => (
               <div
                 key={q.id}
-                className="p-3 rounded-lg border flex items-start justify-between gap-3"
+                className="p-3 rounded-lg border"
                 style={{ borderColor: '#f3f4f6', background: q.isActive ? '#fff' : '#f9fafb' }}
               >
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-900 mb-1">
-                    {i + 1}. {q.questionText}
-                    {!q.sourceQuestionId && (
-                      <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-medium" style={{ background: '#f0fdf4', color: '#166534' }}>new</span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-1 text-xs text-gray-500">
-                    {(['A', 'B', 'C', 'D'] as const).map((opt) => (
-                      <div
-                        key={opt}
-                        className={q.correctAnswer === opt ? 'font-semibold' : ''}
-                        style={{ color: q.correctAnswer === opt ? '#166534' : undefined }}
-                      >
-                        {opt}. {q[`option${opt}` as 'optionA']}
-                        {q.correctAnswer === opt && ' ✓'}
+                {editingId === q.id ? (
+                  <div className="flex flex-col gap-3">
+                    <textarea
+                      value={editForm.questionText}
+                      onChange={(e) => setEditForm({ ...editForm, questionText: e.target.value })}
+                      rows={2}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      {(['A', 'B', 'C', 'D'] as const).map((opt) => (
+                        <div key={opt} className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name={`edit-correct-${q.id}`}
+                            checked={editForm.correctAnswer === opt}
+                            onChange={() => setEditForm({ ...editForm, correctAnswer: opt })}
+                            className="accent-green-700"
+                          />
+                          <input
+                            value={editForm[`option${opt}` as 'optionA']}
+                            onChange={(e) => setEditForm({ ...editForm, [`option${opt}`]: e.target.value })}
+                            className={inputClass}
+                            style={inputStyle}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {editError && (
+                      <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#fef2f2', color: '#dc2626' }}>
+                        {editError}
                       </div>
-                    ))}
+                    )}
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+                        style={{ borderColor: '#e5e7eb', color: '#6b7280' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={submitEdit}
+                        disabled={editLoading}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                        style={{ background: '#2d6a4f' }}
+                      >
+                        {editLoading ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {!q.sourceQuestionId && (
-                    <button
-                      onClick={() => handleDiscard(q)}
-                      disabled={toggleLoadingId === q.id}
-                      className="px-3 py-1.5 rounded-lg border text-xs font-medium"
-                      style={{ borderColor: '#e5e7eb', color: '#6b7280' }}
-                    >
-                      Discard
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleToggle(q)}
-                    disabled={toggleLoadingId === q.id}
-                    className="px-3 py-1.5 rounded-lg border text-xs font-medium"
-                    style={
-                      q.isActive
-                        ? { borderColor: '#fecaca', color: '#dc2626' }
-                        : { borderColor: '#bbf7d0', color: '#166534' }
-                    }
-                  >
-                    {q.isActive ? 'Archive' : 'Restore'}
-                  </button>
-                </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 mb-1">
+                        {i + 1}. {q.questionText}
+                        {!q.sourceQuestionId && (
+                          <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-medium" style={{ background: '#f0fdf4', color: '#166534' }}>new</span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 text-xs text-gray-500">
+                        {(['A', 'B', 'C', 'D'] as const).map((opt) => (
+                          <div
+                            key={opt}
+                            className={q.correctAnswer === opt ? 'font-semibold' : ''}
+                            style={{ color: q.correctAnswer === opt ? '#166534' : undefined }}
+                          >
+                            {opt}. {q[`option${opt}` as 'optionA']}
+                            {q.correctAnswer === opt && ' ✓'}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {!q.sourceQuestionId && (
+                        <button
+                          onClick={() => handleDiscard(q)}
+                          disabled={toggleLoadingId === q.id}
+                          className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+                          style={{ borderColor: '#e5e7eb', color: '#6b7280' }}
+                        >
+                          Discard
+                        </button>
+                      )}
+                      <button
+                        onClick={() => startEdit(q)}
+                        className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+                        style={{ borderColor: '#e5e7eb', color: '#374151' }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleToggle(q)}
+                        disabled={toggleLoadingId === q.id}
+                        className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+                        style={
+                          q.isActive
+                            ? { borderColor: '#fecaca', color: '#dc2626' }
+                            : { borderColor: '#bbf7d0', color: '#166534' }
+                        }
+                      >
+                        {q.isActive ? 'Archive' : 'Restore'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -362,7 +491,9 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
         isOpen={saveModalOpen}
         diff={diff}
         versions={versions}
+        isBaseVersionUsed={isBaseVersionUsed}
         onSave={handleSave}
+        onApplyDirectly={handleApplyDirectly}
         onUsePreviousVersion={handleUsePreviousVersion}
         onCancel={() => setSaveModalOpen(false)}
         loading={saveLoading}

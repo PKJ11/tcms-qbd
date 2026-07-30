@@ -5,6 +5,7 @@ import {
   DeleteObjectCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3'
+import type { Readable } from 'stream'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // ─── S3 Client (works with MinIO, AWS S3, Cloudflare R2) ─────────
@@ -101,6 +102,24 @@ export async function getSignedFileUrl(
     new GetObjectCommand({ Bucket: BUCKET, Key: key }),
     { expiresIn }
   )
+}
+
+// ─── Fetch file bytes directly (server-side rendering/preview) ──
+// Unlike getSignedFileUrl, this never hands a URL to the browser —
+// used when we need to parse the file content on the server (e.g.
+// converting docx/xlsx/csv to HTML for the in-app preview modal).
+
+export async function getFileBuffer(key: string): Promise<Buffer> {
+  const response = await s3Client.send(
+    new GetObjectCommand({ Bucket: BUCKET, Key: key })
+  )
+
+  const stream = response.Body as Readable
+  const chunks: Buffer[] = []
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks)
 }
 
 // ─── Check if file exists ─────────────────────────────────────────

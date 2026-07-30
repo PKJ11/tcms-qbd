@@ -3,15 +3,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '@/lib/utils'
 import { JustificationModal } from '@/components/JustificationModal'
+import { FileViewerModal } from './FileViewerModal'
 
 interface Version {
-  id:            string
-  versionLabel:  string
-  versionType:   string
-  status:        string
-  effectiveDate: string
-  uploadedBy:    { id: string; name: string }
-  approvedBy:    { id: string; name: string } | null
+  id:           string
+  versionLabel: string
+  status:       string
+  uploadedBy:   { id: string; name: string }
+  approvedBy:   { id: string; name: string } | null
 }
 
 interface Material {
@@ -30,11 +29,6 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   RETIRED:  { bg: '#f9fafb', color: '#6b7280' },
 }
 
-const VERSION_COLORS: Record<string, { bg: string; color: string; label: string }> = {
-  MAJOR: { bg: '#fef2f2', color: '#dc2626', label: 'Assign the test' },
-  MINOR: { bg: '#eff6ff', color: '#1d4ed8', label: 'Acknowledge everyone' },
-}
-
 export function ContentList({
   canUpload,
   topicId,
@@ -49,6 +43,7 @@ export function ContentList({
   const [retireTarget,  setRetireTarget]  = useState<Material | null>(null)
   const [approveTarget, setApproveTarget] = useState<Version  | null>(null)
   const [modalLoading,  setModalLoading]  = useState(false)
+  const [viewTarget,    setViewTarget]    = useState<{ materialId: string; versionId: string; title: string } | null>(null)
 
   const fetchMaterials = useCallback(async () => {
   setLoading(true)
@@ -104,12 +99,11 @@ export function ContentList({
     fetchMaterials()
   }
 
-  async function handleView(materialId: string, versionId: string) {
-    const res  = await fetch(
-      `/api/content/${materialId}/versions/${versionId}/view`
-    )
-    const data = await res.json()
-    if (data.url) window.open(data.url, '_blank')
+  function handleView(materialId: string, versionId: string, title: string) {
+    // Opens the material preview modal. PowerPoint files show an
+    // "Open file" link inside the modal since they can't be previewed
+    // inline — everything else renders directly.
+    setViewTarget({ materialId, versionId, title })
   }
 
   return (
@@ -237,7 +231,7 @@ export function ContentList({
                     {/* View latest approved */}
                     {latestVersion?.status === 'APPROVED' && (
                       <button
-                        onClick={() => handleView(material.id, latestVersion.id)}
+                        onClick={() => handleView(material.id, latestVersion.id, material.title)}
                         className="px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors"
                         style={{ borderColor: '#e5e7eb', color: '#374151' }}
                       >
@@ -273,7 +267,7 @@ export function ContentList({
                     <table className="w-full text-xs border-collapse">
                       <thead>
                         <tr style={{ background: '#f9fafb' }}>
-                          {['Version','Type','Status','Effective date','Uploaded by','Approved by','Change summary',''].map((h) => (
+                          {['Version','Status','Uploaded by','Approved by','Change summary',''].map((h) => (
                             <th
                               key={h}
                               className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide"
@@ -285,8 +279,7 @@ export function ContentList({
                       </thead>
                       <tbody>
                         {material.versions.map((version) => {
-                          const vStyle = VERSION_COLORS[version.versionType] ?? VERSION_COLORS.MINOR
-                          const sStyle = STATUS_COLORS[version.status]       ?? STATUS_COLORS.DRAFT
+                          const sStyle = STATUS_COLORS[version.status] ?? STATUS_COLORS.DRAFT
 
                           return (
                             <tr
@@ -300,21 +293,10 @@ export function ContentList({
                               <td className="px-4 py-3">
                                 <span
                                   className="px-2 py-0.5 rounded-full text-xs font-semibold"
-                                  style={vStyle}
-                                >
-                                  {vStyle.label}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <span
-                                  className="px-2 py-0.5 rounded-full text-xs font-semibold"
                                   style={sStyle}
                                 >
                                   {version.status}
                                 </span>
-                              </td>
-                              <td className="px-4 py-3 text-gray-500">
-                                {formatDate(version.effectiveDate)}
                               </td>
                               <td className="px-4 py-3 text-gray-500">
                                 {version.uploadedBy.name}
@@ -328,7 +310,7 @@ export function ContentList({
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2">
                                   <button
-                                    onClick={() => handleView(material.id, version.id)}
+                                    onClick={() => handleView(material.id, version.id, material.title)}
                                     className="px-2 py-1 rounded border text-xs"
                                     style={{ borderColor: '#e5e7eb', color: '#374151' }}
                                   >
@@ -372,15 +354,21 @@ export function ContentList({
       <JustificationModal
         isOpen={!!approveTarget}
         title={`Approve version v${approveTarget?.versionLabel ?? ''}`}
-        description={
-          approveTarget?.versionType === 'MAJOR'
-            ? 'Approving this version makes it available for training and assigns the test again to everyone who already completed it.'
-            : 'Approving this version makes it available for training and notifies everyone who already completed it that the document changed.'
-        }
+        description="Approving this version makes it available for training."
         onConfirm={handleApprove}
         onCancel={() => setApproveTarget(null)}
         loading={modalLoading}
       />
+
+      {/* File preview modal */}
+      {viewTarget && (
+        <FileViewerModal
+          title={viewTarget.title}
+          materialId={viewTarget.materialId}
+          versionId={viewTarget.versionId}
+          onClose={() => setViewTarget(null)}
+        />
+      )}
     </>
   )
 }

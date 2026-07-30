@@ -1,5 +1,4 @@
 export type ContentStatus = 'DRAFT' | 'APPROVED' | 'RETIRED'
-export type VersionType   = 'MAJOR' | 'MINOR'
 export type FileType      = 'PPT' | 'PDF' | 'VIDEO' | 'OTHER'
 
 export interface MaterialListItem {
@@ -16,9 +15,7 @@ export interface MaterialListItem {
   versions: {
     id:           string
     versionLabel: string
-    versionType:  VersionType
     status:       ContentStatus
-    effectiveDate: Date
     uploadedBy: {
       id:   string
       name: string
@@ -35,12 +32,10 @@ export interface MaterialVersion {
   materialId:    string
   versionNo:     number
   versionLabel:  string
-  versionType:   VersionType
   fileUrl:       string
   fileName:      string
   fileType:      FileType
   changeSummary: string
-  effectiveDate: Date
   status:        ContentStatus
   uploadedById:  string
   approvedById:  string | null
@@ -60,8 +55,6 @@ export interface CreateMaterialInput {
   title:         string
   topicId:       string
   changeSummary: string
-  effectiveDate: string
-  versionType:   VersionType
   fileType:      FileType
 }
 

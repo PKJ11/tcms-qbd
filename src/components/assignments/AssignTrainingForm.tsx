@@ -3,20 +3,33 @@
 import { useState, useEffect } from 'react'
 import { useRouter }           from 'next/navigation'
 import { JustificationModal }  from '@/components/JustificationModal'
+import { AssignmentTree }      from './AssignmentTree/AssignmentTree'
+import { useAssignmentTree }   from './AssignmentTree/useAssignmentTree'
+import type { DepartmentNode } from './AssignmentTree/useAssignmentTree'
 
 interface Topic   { id: string; name: string }
-interface Section { id: string; name: string }
-interface Unit    { id: string; name: string; sections: Section[] }
-interface Department {
-  id:       string
-  name:     string
-  code:     string
-  units:    Unit[]
-  _count?:  { persons: number }
-}
 interface Person {
   id: string; name: string; employeeId: string; designation: string; roles: string[]
   department: { id: string; name: string } | null
+}
+
+// Raw shape returned by GET /api/departments (includes active-person _count at every level)
+interface RawSection { id: string; name: string; code: string; _count: { persons: number } }
+interface RawUnit    { id: string; name: string; _count: { persons: number }; sections: RawSection[] }
+interface RawDepartment {
+  id: string; name: string; code: string; _count: { persons: number }; units: RawUnit[]
+}
+
+function toDepartmentNode(d: RawDepartment): DepartmentNode {
+  return {
+    id: d.id, name: d.name, code: d.code, personCount: d._count.persons,
+    units: d.units.map((u) => ({
+      id: u.id, name: u.name, personCount: u._count.persons,
+      sections: u.sections.map((s) => ({
+        id: s.id, name: s.name, code: s.code, personCount: s._count.persons,
+      })),
+    })),
+  }
 }
 
 interface Props {
@@ -48,12 +61,10 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
 
   const preselectedTopic = topics.find((t) => t.id === initialTopicId)
 
-  // ── Multi-department + per-department section selection (bulk mode) ──
-  const [departments,      setDepartments]     = useState<Department[]>([])
-  const [selectedDeptIds,  setSelectedDeptIds]  = useState<string[]>([])
-  // Map of departmentId -> selected sectionIds for that department.
-  // Empty/absent array = whole department (no section filter).
-  const [sectionSelections, setSectionSelections] = useState<Record<string, string[]>>({})
+  // ── Department/Unit/Section/Person cascading tree (bulk mode) ──────
+  const [departments, setDepartments] = useState<DepartmentNode[]>([])
+  const tree = useAssignmentTree(departments)
+  const [resolvedPersonIds, setResolvedPersonIds] = useState<string[]>([])
 
   const [persons,         setPersons]         = useState<Person[]>([])
   const [managers,        setManagers]        = useState<Person[]>([])
@@ -66,12 +77,12 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
   const [error,     setError]     = useState<string | null>(null)
   const [success,   setSuccess]   = useState<string | null>(null)
 
-  // Load departments with sections
+  // Load departments -> units -> sections, with active-person counts at each level
   useEffect(() => {
     async function fetchDepts() {
       const res  = await fetch('/api/departments')
       const data = await res.json()
-      setDepartments(data.departments ?? [])
+      setDepartments((data.departments ?? []).map(toDepartmentNode))
     }
     fetchDepts()
   }, [])
@@ -101,41 +112,6 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
     fetchPersons()
   }, [mode])
 
-  // ── Department toggle (checkbox) ────────────────────────────────
-  function toggleDepartment(deptId: string) {
-    setSelectedDeptIds((prev) => {
-      if (prev.includes(deptId)) {
-        // Deselecting — also clear its section selections
-        setSectionSelections((sPrev) => {
-          const next = { ...sPrev }
-          delete next[deptId]
-          return next
-        })
-        return prev.filter((id) => id !== deptId)
-      }
-      return [...prev, deptId]
-    })
-  }
-
-  // ── Section toggle within a specific department ─────────────────
-  function toggleSection(deptId: string, sectionId: string) {
-    setSectionSelections((prev) => {
-      const current = prev[deptId] ?? []
-      const next = current.includes(sectionId)
-        ? current.filter((id) => id !== sectionId)
-        : [...current, sectionId]
-      return { ...prev, [deptId]: next }
-    })
-  }
-
-  function toggleAllSections(deptId: string, allSectionIds: string[]) {
-    setSectionSelections((prev) => {
-      const current = prev[deptId] ?? []
-      const next = current.length === allSectionIds.length ? [] : allSectionIds
-      return { ...prev, [deptId]: next }
-    })
-  }
-
   function togglePerson(id: string) {
     setSelectedPersons((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
@@ -155,7 +131,7 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
     e.target.style.borderColor = '#d1d5db'
   }
 
-  function handleSubmitClick(e: React.FormEvent) {
+  async function handleSubmitClick(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
 
@@ -163,11 +139,15 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
       setError('Topic and due date are required.')
       return
     }
-    if (mode === 'bulk' && selectedDeptIds.length === 0) {
-      setError('Please select at least one department.')
-      return
-    }
-    if (mode === 'individual' && selectedPersons.length === 0) {
+
+    if (mode === 'bulk') {
+      const ids = await tree.resolveSelectedPersonIds()
+      if (ids.length === 0) {
+        setError('Please select at least one department, unit, section, or person.')
+        return
+      }
+      setResolvedPersonIds(ids)
+    } else if (selectedPersons.length === 0) {
       setError('Please select at least one person.')
       return
     }
@@ -180,34 +160,17 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
     setLoading(true)
     setError(null)
 
-    const endpoint = mode === 'bulk' ? '/api/assignments/bulk' : '/api/assignments'
-    const body = mode === 'bulk'
-      ? {
-          selections: selectedDeptIds.map((deptId) => ({
-            departmentId: deptId,
-            sectionIds:
-              sectionSelections[deptId] && sectionSelections[deptId].length > 0
-                ? sectionSelections[deptId]
-                : undefined,
-          })),
-          topicId: form.topicId,
-          trigger: form.trigger,
-          dueDate: form.dueDate,
-          justification,
-          needIdentifiedById: form.needIdentifiedById || undefined,
-          needBasis:          form.needBasis          || undefined,
-        }
-      : {
-          personIds: selectedPersons,
-          topicId:   form.topicId,
-          trigger:   form.trigger,
-          dueDate:   form.dueDate,
-          justification,
-          needIdentifiedById: form.needIdentifiedById || undefined,
-          needBasis:          form.needBasis          || undefined,
-        }
+    const body = {
+      personIds: mode === 'bulk' ? resolvedPersonIds : selectedPersons,
+      topicId: form.topicId,
+      trigger: form.trigger,
+      dueDate: form.dueDate,
+      justification,
+      needIdentifiedById: form.needIdentifiedById || undefined,
+      needBasis:          form.needBasis          || undefined,
+    }
 
-    const res  = await fetch(endpoint, {
+    const res  = await fetch('/api/assignments', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(body),
@@ -233,8 +196,6 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
 
   const inputClass = "w-full px-4 py-2.5 rounded-lg border text-sm outline-none transition-all"
   const inputStyle = { borderColor: '#d1d5db', background: '#fff' }
-
-  const selectedDepartments = departments.filter((d) => selectedDeptIds.includes(d.id))
 
   return (
     <>
@@ -374,127 +335,18 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
             </div>
           </div>
 
-          {/* Bulk mode — multi-department + per-department section selection */}
+          {/* Bulk mode — Department -> Unit -> Section -> Person cascading tree.
+              Checking a Department/Unit pre-selects everyone beneath it; the
+              trainer can expand into any node and uncheck individuals. */}
           {mode === 'bulk' && (
-            <div className="flex flex-col gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Departments <span className="text-red-500">*</span>
-                  <span className="text-xs font-normal text-gray-400 ml-2">
-                    (select one or more)
-                  </span>
-                </label>
-                <div
-                  className="border rounded-lg overflow-hidden"
-                  style={{ borderColor: '#e5e7eb' }}
-                >
-                  {departments.map((d) => {
-                    const checked = selectedDeptIds.includes(d.id)
-                    return (
-                      <label
-                        key={d.id}
-                        className="flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors"
-                        style={{
-                          borderBottom: '1px solid #f3f4f6',
-                          background:   checked ? '#f0fdf4' : '#fff',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleDepartment(d.id)}
-                          className="w-4 h-4 accent-green-700"
-                        />
-                        <span className="text-sm font-medium text-gray-900">
-                          {d.name}{d._count ? ` (${d._count.persons} people)` : ''}
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Per-department section pickers (labeled with their Unit) */}
-              {selectedDepartments.map((dept) => {
-                const deptSections = dept.units.flatMap((u) =>
-                  u.sections.map((s) => ({ ...s, label: `${u.name} — ${s.name}` }))
-                )
-
-                if (deptSections.length === 0) {
-                  return (
-                    <div
-                      key={dept.id}
-                      className="text-xs px-3 py-2 rounded-lg"
-                      style={{ background: '#f9fafb', color: '#6b7280' }}
-                    >
-                      <strong>{dept.name}</strong> has no sections — training will be assigned to all persons in this department.
-                    </div>
-                  )
-                }
-
-                const deptSectionIds = sectionSelections[dept.id] ?? []
-                const allSectionIds  = deptSections.map((s) => s.id)
-
-                return (
-                  <div key={dept.id}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      {dept.name} — Sections
-                      <span className="text-xs font-normal text-gray-400 ml-2">
-                        (leave all unselected to assign to entire department)
-                      </span>
-                    </label>
-                    <div
-                      className="border rounded-lg overflow-hidden"
-                      style={{ borderColor: '#e5e7eb' }}
-                    >
-                      <div
-                        className="flex items-center justify-between px-4 py-2 cursor-pointer"
-                        style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}
-                      >
-                        <span className="text-xs font-semibold text-gray-600">
-                          {deptSectionIds.length === 0
-                            ? `All sections (${deptSections.length})`
-                            : `${deptSectionIds.length} of ${deptSections.length} selected`}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => toggleAllSections(dept.id, allSectionIds)}
-                          className="text-xs font-medium"
-                          style={{ color: '#2d6a4f' }}
-                        >
-                          {deptSectionIds.length === allSectionIds.length ? 'Deselect all' : 'Select all'}
-                        </button>
-                      </div>
-                      {deptSections.map((section) => {
-                        const selected = deptSectionIds.includes(section.id)
-                        return (
-                          <label
-                            key={section.id}
-                            className="flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors"
-                            style={{
-                              borderBottom: '1px solid #f3f4f6',
-                              background:   selected ? '#f0fdf4' : '#fff',
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selected}
-                              onChange={() => toggleSection(dept.id, section.id)}
-                              className="w-4 h-4 accent-green-700"
-                            />
-                            <span className="text-sm text-gray-800">{section.label}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1.5">
-                      {deptSectionIds.length === 0
-                        ? `Training will be assigned to all persons in ${dept.name}`
-                        : `Training will be assigned to persons in ${deptSectionIds.length} selected section(s) of ${dept.name} only`}
-                    </p>
-                  </div>
-                )
-              })}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Departments / units / sections <span className="text-red-500">*</span>
+                <span className="text-xs font-normal text-gray-400 ml-2">
+                  (check a department or unit to select everyone in it — expand to review or uncheck individuals)
+                </span>
+              </label>
+              <AssignmentTree departments={departments} tree={tree} />
             </div>
           )}
 
@@ -600,11 +452,11 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
               </a>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || tree.resolving}
                 className="px-5 py-2 rounded-lg text-sm font-medium text-white"
-                style={{ background: loading ? '#4a9e6f' : '#2d6a4f' }}
+                style={{ background: (loading || tree.resolving) ? '#4a9e6f' : '#2d6a4f' }}
               >
-                {loading ? 'Assigning...' : 'Assign training'}
+                {tree.resolving ? 'Resolving selection...' : loading ? 'Assigning...' : 'Assign training'}
               </button>
             </div>
           )}
@@ -616,7 +468,7 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
         title="Confirm training assignment"
         description={
           mode === 'bulk'
-            ? `This will assign training to active people in ${selectedDepartments.length} selected department(s).`
+            ? `This will assign training to ${resolvedPersonIds.length} selected person(s).`
             : `This will assign training to ${selectedPersons.length} selected person(s).`
         }
         onConfirm={handleConfirm}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { MaterialPreview } from '@/components/content/MaterialPreview'
 
 interface MaterialVersion {
   id:       string
@@ -25,25 +26,11 @@ interface Props {
 export function MaterialViewerModal({ assignmentId, material, trainingType, onClose, onConfirmed }: Props) {
   const version = material.versions[0]
 
-  const [url,       setUrl]       = useState<string | null>(null)
-  const [loading,   setLoading]   = useState(true)
   const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      await fetch(`/api/assignments/${assignmentId}/view`, { method: 'POST' })
-      const res  = await fetch(`/api/content/${material.id}/versions/${version.id}/view`)
-      const data = await res.json()
-      if (!cancelled) {
-        setUrl(data.url ?? null)
-        setLoading(false)
-      }
-    }
-    load()
-    return () => { cancelled = true }
-  }, [assignmentId, material.id, version.id])
+    fetch(`/api/assignments/${assignmentId}/view`, { method: 'POST' })
+  }, [assignmentId])
 
   async function handleConfirm() {
     setConfirming(true)
@@ -78,32 +65,7 @@ export function MaterialViewerModal({ assignmentId, material, trainingType, onCl
         </div>
 
         <div className="flex-1 overflow-auto p-4" style={{ minHeight: '400px' }}>
-          {loading ? (
-            <div className="flex items-center justify-center h-full text-sm text-gray-400">
-              Loading material...
-            </div>
-          ) : !url ? (
-            <div className="flex items-center justify-center h-full text-sm text-gray-400">
-              Could not load this material.
-            </div>
-          ) : version.fileType === 'PDF' ? (
-            <iframe src={url} className="w-full h-full" style={{ minHeight: '480px', border: 'none' }} />
-          ) : version.fileType === 'VIDEO' ? (
-            <video controls src={url} className="w-full h-full" style={{ maxHeight: '480px' }} />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-sm text-gray-500">
-              <p>Preview isn&apos;t available for this file type.</p>
-              <a
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-                style={{ background: '#2d6a4f' }}
-              >
-                Open file
-              </a>
-            </div>
-          )}
+          <MaterialPreview materialId={material.id} versionId={version.id} />
         </div>
 
         <div

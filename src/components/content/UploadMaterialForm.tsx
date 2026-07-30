@@ -8,23 +8,10 @@ interface Topic { id: string; name: string }
 interface Props  { topics: Topic[]; initialTopicId?: string }
 
 const FILE_TYPES = [
-  { value: 'PPT',   label: 'PowerPoint (PPT/PPTX)', accept: '.ppt,.pptx'           },
-  { value: 'PDF',   label: 'PDF Document',           accept: '.pdf'                 },
-  { value: 'VIDEO', label: 'Video',                  accept: '.mp4,.mov,.avi,.webm' },
-  { value: 'OTHER', label: 'Other',                  accept: '.doc,.docx,.xls,.xlsx'},
-]
-
-const VERSION_TYPES = [
-  {
-    value:       'MINOR',
-    label:       'Acknowledge everyone',
-    description: 'Everyone who already completed this training is notified the document changed — no retest required',
-  },
-  {
-    value:       'MAJOR',
-    label:       'Assign the test',
-    description: 'Everyone who already completed this training gets a new assignment and must redo it',
-  },
+  { value: 'PPT',   label: 'PowerPoint (PPT/PPTX)',    accept: '.ppt,.pptx'                },
+  { value: 'PDF',   label: 'PDF Document',              accept: '.pdf'                      },
+  { value: 'VIDEO', label: 'Video',                     accept: '.mp4,.mov,.avi,.webm'      },
+  { value: 'OTHER', label: 'Other (DOC/XLS/CSV)',       accept: '.doc,.docx,.xls,.xlsx,.csv'},
 ]
 
 export function UploadMaterialForm({ topics, initialTopicId }: Props) {
@@ -37,8 +24,6 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
     title:         '',
     topicId:       hasInitialTopic ? initialTopicId! : '',
     changeSummary: '',
-    effectiveDate: '',
-    versionType:   'MINOR',
     fileType:      'PPT',
   })
 
@@ -74,8 +59,7 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
     e.preventDefault()
     setError(null)
 
-    if (!form.title || !form.topicId || !form.changeSummary ||
-        !form.effectiveDate || !file) {
+    if (!form.title || !form.topicId || !form.changeSummary || !file) {
       setError('Please fill in all fields and select a file.')
       return
     }
@@ -94,8 +78,6 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
     formData.append('title',         form.title)
     formData.append('topicId',       form.topicId)
     formData.append('changeSummary', form.changeSummary)
-    formData.append('effectiveDate', form.effectiveDate)
-    formData.append('versionType',   form.versionType)
     formData.append('fileType',      form.fileType)
     formData.append('justification', justification)
 
@@ -170,72 +152,24 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
             </select>
           </div>
 
-          {/* File type + Version type */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                File type <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="fileType"
-                value={form.fileType}
-                onChange={handleChange}
-                className={inputClass}
-                style={inputStyle}
-                onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
-                onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
-              >
-                {FILE_TYPES.map((ft) => (
-                  <option key={ft.value} value={ft.value}>{ft.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Effective date <span className="text-red-500">*</span>
-              </label>
-              <input
-                name="effectiveDate"
-                type="date"
-                value={form.effectiveDate}
-                onChange={handleChange}
-                className={inputClass}
-                style={inputStyle}
-                onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
-                onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
-              />
-            </div>
-          </div>
-
-          {/* Version type selection */}
+          {/* File type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              What should happen for previously trained staff? <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              File type <span className="text-red-500">*</span>
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              {VERSION_TYPES.map((vt) => {
-                const selected = form.versionType === vt.value
-                return (
-                  <button
-                    key={vt.value}
-                    type="button"
-                    onClick={() => setForm((p) => ({ ...p, versionType: vt.value }))}
-                    className="p-3 rounded-lg border text-left transition-all"
-                    style={{
-                      borderColor: selected ? '#2d6a4f' : '#e5e7eb',
-                      background:  selected ? '#f0fdf4' : '#fff',
-                    }}
-                  >
-                    <div className="text-sm font-medium text-gray-900">
-                      {vt.label}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {vt.description}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
+            <select
+              name="fileType"
+              value={form.fileType}
+              onChange={handleChange}
+              className={inputClass}
+              style={inputStyle}
+              onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
+              onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
+            >
+              {FILE_TYPES.map((ft) => (
+                <option key={ft.value} value={ft.value}>{ft.label}</option>
+              ))}
+            </select>
           </div>
 
           {/* Change summary */}
@@ -405,7 +339,7 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
       <JustificationModal
         isOpen={modalOpen}
         title="Confirm upload"
-        description={`Uploading "${form.title}". Once approved, ${form.versionType === 'MAJOR' ? 'everyone who already completed this training will be assigned it again.' : 'everyone who already completed this training will just be notified the document changed.'}`}
+        description={`Uploading "${form.title}".`}
         onConfirm={handleConfirm}
         onCancel={() => setModalOpen(false)}
         loading={loading}

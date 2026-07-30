@@ -3,7 +3,6 @@ export {
   getMyAssignments,
   getAssignmentById,
   createAssignments,
-  bulkAssignByDepartment,
   autoAssignInductionTraining,
   startAssignment,
   revertAssignment,
@@ -11,8 +10,6 @@ export {
   acknowledgeAssignment,
   markAssignmentViewed,
   confirmAssignmentMaterial,
-  getPersonsForAssignment,
-  getDepartmentsForAssignment,
   getActiveTopicsForAssignment,
   personHasSubordinates
 } from './actions'
@@ -21,7 +18,6 @@ export type {
   AssignmentListItem,
   MyAssignment,
   CreateAssignmentInput,
-  BulkAssignmentInput,
   AssignmentStatus,
   TrainingTrigger,
 } from './types'

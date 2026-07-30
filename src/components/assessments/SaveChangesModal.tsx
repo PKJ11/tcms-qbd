@@ -18,20 +18,22 @@ interface Diff {
 }
 
 interface Props {
-  isOpen:            boolean
-  diff:              Diff
-  versions:          VersionSummary[]
-  onSave:            (versionLabel: string, justification: string) => void
+  isOpen:               boolean
+  diff:                 Diff
+  versions:             VersionSummary[]
+  isBaseVersionUsed:    boolean
+  onSave:               (versionLabel: string, justification: string) => void
+  onApplyDirectly:      (justification: string) => void
   onUsePreviousVersion: (versionId: string) => void
-  onCancel:          () => void
-  loading?:          boolean
-  error?:            string | null
+  onCancel:             () => void
+  loading?:             boolean
+  error?:               string | null
 }
 
 export function SaveChangesModal({
-  isOpen, diff, versions, onSave, onUsePreviousVersion, onCancel, loading = false, error = null,
+  isOpen, diff, versions, isBaseVersionUsed, onSave, onApplyDirectly, onUsePreviousVersion, onCancel, loading = false, error = null,
 }: Props) {
-  const [mode, setMode] = useState<'save' | 'previous'>('save')
+  const [mode, setMode] = useState<'save' | 'apply' | 'previous'>('save')
   const [versionLabel, setVersionLabel] = useState('')
   const [justification, setJustification] = useState('')
   const [selectedVersionId, setSelectedVersionId] = useState('')
@@ -39,9 +41,10 @@ export function SaveChangesModal({
   if (!isOpen) return null
 
   const hasChanges = diff.added + diff.archived + diff.restored + diff.edited > 0
-  const canSave = mode === 'save'
-    ? versionLabel.trim().length > 0 && justification.trim().length >= 10
-    : selectedVersionId.length > 0
+  const canSave =
+    mode === 'save'     ? versionLabel.trim().length > 0 && justification.trim().length >= 10 :
+    mode === 'apply'     ? justification.trim().length >= 10 :
+    selectedVersionId.length > 0
 
   function handleClose() {
     setMode('save')
@@ -55,6 +58,8 @@ export function SaveChangesModal({
     if (!canSave) return
     if (mode === 'save') {
       onSave(versionLabel.trim(), justification.trim())
+    } else if (mode === 'apply') {
+      onApplyDirectly(justification.trim())
     } else {
       onUsePreviousVersion(selectedVersionId)
     }
@@ -105,6 +110,15 @@ export function SaveChangesModal({
             >
               Save as new version
             </button>
+            {!isBaseVersionUsed && (
+              <button
+                onClick={() => setMode('apply')}
+                className="flex-1 py-1.5 rounded-md font-medium"
+                style={mode === 'apply' ? { background: '#2d6a4f', color: '#fff' } : { color: '#6b7280' }}
+              >
+                Apply to this version
+              </button>
+            )}
             <button
               onClick={() => setMode('previous')}
               className="flex-1 py-1.5 rounded-md font-medium"
@@ -114,7 +128,7 @@ export function SaveChangesModal({
             </button>
           </div>
 
-          {mode === 'save' ? (
+          {mode === 'save' && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -144,13 +158,40 @@ export function SaveChangesModal({
                 <p className="text-xs text-gray-400 mt-1">Minimum 10 characters — permanently recorded in the audit trail.</p>
               </div>
             </>
-          ) : (
+          )}
+
+          {mode === 'apply' && (
+            <div>
+              <p className="text-xs text-gray-400 mb-2">
+                This version hasn't been assigned to anyone yet, so your changes can be written straight into it —
+                no new version number, nothing else changes. Once this version is used by a training assignment,
+                this option disappears and further changes require saving a new version.
+              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Reason / Justification <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={justification}
+                onChange={(e) => setJustification(e.target.value)}
+                placeholder="Describe why these changes are being applied..."
+                rows={3}
+                className={inputClass}
+                style={inputStyle}
+                autoFocus
+              />
+              <p className="text-xs text-gray-400 mt-1">Minimum 10 characters — permanently recorded in the audit trail.</p>
+            </div>
+          )}
+
+          {mode === 'previous' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Load a previous version into the editor
               </label>
               <p className="text-xs text-gray-400 mb-2">
                 This only changes what you're editing — no new version is created until you save again.
+                Any new questions you've typed but not saved yet are kept; archive/restore/edit changes
+                made against the current version are reset to match the one you pick.
               </p>
               <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
                 {versions.map((v) => (
@@ -192,7 +233,9 @@ export function SaveChangesModal({
             className="px-4 py-2 rounded-lg text-sm font-medium text-white"
             style={{ background: !canSave || loading ? '#9ca3af' : '#2d6a4f' }}
           >
-            {loading ? 'Saving...' : mode === 'save' ? 'Save version' : 'Load version'}
+            {loading
+              ? (mode === 'apply' ? 'Applying...' : 'Saving...')
+              : mode === 'save' ? 'Save version' : mode === 'apply' ? 'Apply changes' : 'Load version'}
           </button>
         </div>
       </div>

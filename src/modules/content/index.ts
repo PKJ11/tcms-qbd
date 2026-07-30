@@ -3,7 +3,7 @@ export {
   getMaterialById,
   uploadMaterial,
   approveMaterialVersion,
-  getViewUrl,
+  getMaterialPreview,
   retireMaterial,
   getActiveTopics,
 } from './actions'
@@ -13,6 +13,7 @@ export type {
   MaterialVersion,
   CreateMaterialInput,
   FileType,
-  VersionType,
   ContentStatus,
 } from './types'
+
+export type { PreviewResult } from './actions'

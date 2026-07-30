@@ -37,7 +37,6 @@ export interface MyAssignment extends AssignmentListItem {
       versions: {
         id:           string
         versionLabel: string
-        versionType:  string
         fileType:     string
         status:       string
       }[]
@@ -52,18 +51,4 @@ export interface CreateAssignmentInput {
   dueDate:   string
   needIdentifiedById?: string | null
   needBasis?: string | null
-}
-
-export interface DepartmentSectionSelection {
-  departmentId: string
-  sectionIds?:  string[]   // optional subset of that department's sections; empty/undefined = whole department
-}
-
-export interface BulkAssignmentInput {
-  selections:          DepartmentSectionSelection[]
-  topicId:             string
-  trigger:             TrainingTrigger
-  dueDate:             string
-  needIdentifiedById?: string | null
-  needBasis?:          string | null
 }

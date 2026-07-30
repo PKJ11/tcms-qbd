@@ -5,12 +5,12 @@ import { logAuditEvent }   from '@/modules/audit-trail'
 import {
   uploadFile,
   getSignedFileUrl,
+  getFileBuffer,
   validateFileType,
   validateFileSize,
 } from '@/lib/storage'
 import { createMaterialSchema } from './schema'
 import { CreateMaterialInput } from './types'
-import { resolveVersionPins, pinAssignmentMaterialVersions } from '@/modules/assignments/version-pins'
 
 // ── Allowed file types per category ──────────────────────────────
 
@@ -18,7 +18,7 @@ const ALLOWED_EXTENSIONS: Record<string, string[]> = {
   PPT:   ['ppt', 'pptx'],
   PDF:   ['pdf'],
   VIDEO: ['mp4', 'mov', 'avi', 'webm'],
-  OTHER: ['doc', 'docx', 'xls', 'xlsx'],
+  OTHER: ['doc', 'docx', 'xls', 'xlsx', 'csv'],
 }
 
 const MIME_TYPES: Record<string, string> = {
@@ -31,6 +31,9 @@ const MIME_TYPES: Record<string, string> = {
   webm: 'video/webm',
   doc:  'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls:  'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  csv:  'text/csv',
 }
 
 // ── Shared select ─────────────────────────────────────────────────
@@ -49,9 +52,7 @@ const MATERIAL_SELECT = {
     select: {
       id:            true,
       versionLabel:  true,
-      versionType:   true,
       status:        true,
-      effectiveDate: true,
       uploadedBy:    { select: { id: true, name: true } },
       approvedBy:    { select: { id: true, name: true } },
     },
@@ -96,12 +97,10 @@ export async function getMaterialById(id: string) {
           id:            true,
           versionNo:     true,
           versionLabel:  true,
-          versionType:   true,
           fileUrl:       true,
           fileName:      true,
           fileType:      true,
           changeSummary: true,
-          effectiveDate: true,
           status:        true,
           uploadedById:  true,
           approvedById:  true,
@@ -180,7 +179,7 @@ export async function uploadMaterial(
     if (!existing) {
       // ── Create new material ──────────────────────────────────
       versionNo    = 1
-      versionLabel = '1.0'
+      versionLabel = '1'
 
       const material = await tx.trainingMaterial.create({
         data: {
@@ -196,19 +195,8 @@ export async function uploadMaterial(
       // ── New version of existing material ─────────────────────
       materialId = existing.id
       const lastVersion = existing.versions[0]
-      const lastNo      = lastVersion?.versionNo ?? 0
-
-      if (input.versionType === 'MAJOR') {
-        // 1.x → 2.0
-        versionNo    = Math.floor(lastNo / 10 + 1) * 10
-        versionLabel = `${Math.floor(versionNo / 10)}.0`
-      } else {
-        // 1.0 → 1.1
-        versionNo    = lastNo + 1
-        const major  = Math.floor(lastNo / 10)
-        const minor  = (lastNo % 10) + 1
-        versionLabel = `${major}.${minor}`
-      }
+      versionNo    = (lastVersion?.versionNo ?? 0) + 1
+      versionLabel = String(versionNo)
 
       // Update material current version
       await tx.trainingMaterial.update({
@@ -226,12 +214,10 @@ export async function uploadMaterial(
         materialId,
         versionNo,
         versionLabel,
-        versionType:   input.versionType,
         fileUrl:       uploadResult.key,
         fileName,
         fileType:      input.fileType,
         changeSummary: input.changeSummary,
-        effectiveDate: new Date(input.effectiveDate),
         status:        'DRAFT',
         uploadedById:  actorId,
       },
@@ -251,7 +237,6 @@ export async function uploadMaterial(
     afterValue:    {
       title:        input.title,
       versionLabel: result.versionLabel,
-      versionType:  input.versionType,
       fileName,
       fileSize,
     },
@@ -276,11 +261,6 @@ export async function approveMaterialVersion(
           id:      true,
           title:   true,
           topicId: true,
-          versions: {
-            where:   { status: 'APPROVED' },
-            orderBy: { versionNo: 'desc' },
-            take:    1,
-          },
         },
       },
     },
@@ -306,26 +286,6 @@ export async function approveMaterialVersion(
       where: { id: version.materialId },
       data:  { status: 'APPROVED' },
     })
-
-    if (version.versionType === 'MAJOR') {
-      // Reassign the test — creates a new mandatory assignment for everyone
-      // who previously completed this training.
-      await triggerRetrainingForMajorVersion(
-        tx,
-        version.material.topicId,
-        version.materialId,
-        actorId,
-        justification
-      )
-    } else {
-      // Acknowledge only — just notify everyone who previously completed
-      // this training that the document changed, no new assignment.
-      await notifyDocumentChanged(
-        tx,
-        version.material.topicId,
-        version.material.title
-      )
-    }
   })
 
   // Audit log
@@ -341,119 +301,27 @@ export async function approveMaterialVersion(
   })
 }
 
-// ── Trigger retraining on major version ──────────────────────────
-// URS-CNT-005 — major version change triggers retraining
+// ── Get in-modal preview content for a file ──────────────────────
+// Never hands a raw download URL to the browser for docx/xlsx/csv —
+// those are converted to HTML server-side. PDF/video/PPT still use a
+// short-lived signed URL since browsers render those natively inline
+// (PDF/video) or the file is opened outside the modal (PPT).
 
-async function triggerRetrainingForMajorVersion(
-  tx:          Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>,
-  topicId:     string,
-  materialId:  string,
-  actorId:     string,
-  justification: string
-) {
-  // Find all persons who previously COMPLETED training on this topic
-  const completedAssignments = await tx.trainingAssignment.findMany({
-    where: {
-      topicId,
-      status: 'COMPLETED',
-    },
-    select: {
-      personId: true,
-      id:       true,
-    },
-  })
+export type PreviewResult =
+  | { kind: 'pdf' | 'video' | 'external'; url: string }
+  | { kind: 'html'; html: string }
 
-  if (completedAssignments.length === 0) return
-
-  // Create new RETRAINING assignments for each person
-  const dueDate = new Date()
-  dueDate.setDate(dueDate.getDate() + 30) // 30 days to complete
-
-  // The material version just approved (and any other topic materials'
-  // current versions) — resolved now since it's already committed within
-  // this same transaction.
-  const pins = await resolveVersionPins(tx, topicId)
-  const batchStartedAt = new Date()
-
-  await tx.trainingAssignment.createMany({
-    data: completedAssignments.map((a) => ({
-      personId:              a.personId,
-      topicId,
-      trigger:               'RETRAINING' as const,
-      status:                'NOT_STARTED' as const,
-      assignedById:          actorId,
-      dueDate,
-      questionBankVersionId: pins.questionBankVersionId,
-    })),
-    skipDuplicates: true,
-  })
-
-  if (pins.materialPins.length > 0) {
-    const createdAssignments = await tx.trainingAssignment.findMany({
-      where: {
-        topicId,
-        trigger:   'RETRAINING',
-        personId:  { in: completedAssignments.map((a) => a.personId) },
-        createdAt: { gte: batchStartedAt },
-      },
-      select: { id: true },
-    })
-    await pinAssignmentMaterialVersions(tx, createdAssignments.map((a) => a.id), pins.materialPins)
-  }
-
-  // Create notifications for impacted persons
-  await tx.notification.createMany({
-    data: completedAssignments.map((a) => ({
-      personId: a.personId,
-      type:     'RETRAINING' as const,
-      channel:  'IN_APP'     as const,
-      title:    'Retraining required',
-      message:  `Training material has been updated (major version). Please complete retraining within 30 days.`,
-    })),
-  })
-}
-
-// ── Notify on acknowledge-only version change ────────────────────
-// Everyone who already completed this topic's training is just informed
-// the document changed — no new assignment is created.
-
-async function notifyDocumentChanged(
-  tx:          Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>,
-  topicId:     string,
-  materialTitle: string
-) {
-  const completedAssignments = await tx.trainingAssignment.findMany({
-    where:  { topicId, status: 'COMPLETED' },
-    select: { personId: true },
-  })
-
-  if (completedAssignments.length === 0) return
-
-  await tx.notification.createMany({
-    data: completedAssignments.map((a) => ({
-      personId: a.personId,
-      type:     'DOCUMENT_UPDATED' as const,
-      channel:  'IN_APP'           as const,
-      title:    'Training document changed',
-      message:  `"${materialTitle}" has been updated. Please review the latest version.`,
-    })),
-  })
-}
-
-// ── Get signed URL for viewing a file ────────────────────────────
-
-export async function getViewUrl(
+export async function getMaterialPreview(
   versionId: string,
   actorId:   string
-): Promise<string> {
+): Promise<PreviewResult> {
   const version = await prisma.materialVersion.findUnique({
     where:  { id: versionId },
-    select: { fileUrl: true, status: true },
+    select: { fileUrl: true, fileName: true, fileType: true },
   })
 
   if (!version) throw new Error('Version not found')
 
-  // Log the view event
   await logAuditEvent({
     userId:        actorId,
     action:        'UPDATE',
@@ -465,8 +333,126 @@ export async function getViewUrl(
     justification: 'User viewed training material',
   })
 
-  // Return signed URL valid for 2 hours
-  return getSignedFileUrl(version.fileUrl, 7200)
+  if (version.fileType === 'PDF') {
+    return { kind: 'pdf', url: await getSignedFileUrl(version.fileUrl, 7200) }
+  }
+  if (version.fileType === 'VIDEO') {
+    return { kind: 'video', url: await getSignedFileUrl(version.fileUrl, 7200) }
+  }
+  if (version.fileType === 'PPT') {
+    return { kind: 'external', url: await getSignedFileUrl(version.fileUrl, 7200) }
+  }
+
+  // OTHER — doc/docx, xls/xlsx, csv: render to HTML server-side
+  const ext    = version.fileName.split('.').pop()?.toLowerCase() ?? ''
+  const buffer = await getFileBuffer(version.fileUrl)
+
+  if (ext === 'doc' || ext === 'docx') {
+    const mammoth = await import('mammoth')
+    const { value: html } = await mammoth.convertToHtml({ buffer })
+    return { kind: 'html', html }
+  }
+
+  if (ext === 'csv') {
+    return { kind: 'html', html: rowsToHtmlTable(parseCsv(buffer.toString('utf-8'))) }
+  }
+
+  if (ext === 'xls' || ext === 'xlsx') {
+    const { default: ExcelJS } = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    // exceljs's bundled type declarations don't structurally match our
+    // @types/node's Buffer generic, though it's the same Buffer at runtime.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await workbook.xlsx.load(buffer as any)
+    const sheet = workbook.worksheets[0]
+
+    const rows: string[][] = []
+    sheet?.eachRow((row) => {
+      const values = (row.values as unknown[]).slice(1) // index 0 is unused by ExcelJS
+      rows.push(values.map(cellToDisplayString))
+    })
+    return { kind: 'html', html: rowsToHtmlTable(rows) }
+  }
+
+  throw new Error('Preview not available for this file type')
+}
+
+// ── Preview rendering helpers ─────────────────────────────────────
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function rowsToHtmlTable(rows: string[][]): string {
+  const body = rows
+    .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`)
+    .join('')
+  return `<table>${body}</table>`
+}
+
+function cellToDisplayString(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (value instanceof Date)                 return value.toLocaleDateString()
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    if (Array.isArray(obj.richText)) {
+      return (obj.richText as { text: string }[]).map((r) => r.text).join('')
+    }
+    if ('result' in obj) return String(obj.result ?? '')
+    if ('text'   in obj) return String(obj.text)
+    return ''
+  }
+  return String(value)
+}
+
+// Minimal RFC-4180 CSV parser — handles quoted fields, escaped quotes
+// ("") and both \n and \r\n line endings. No external dependency needed
+// for something this small, and it avoids pulling a parser library in
+// just for previewing a comma-separated file.
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ''
+  let inQuotes = false
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++ }
+        else inQuotes = false
+      } else {
+        field += c
+      }
+      continue
+    }
+
+    if (c === '"') {
+      inQuotes = true
+    } else if (c === ',') {
+      row.push(field); field = ''
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++
+      row.push(field); field = ''
+      rows.push(row); row = []
+    } else {
+      field += c
+    }
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    row.push(field)
+    rows.push(row)
+  }
+
+  return rows
 }
 
 // ── Retire material version ───────────────────────────────────────

@@ -15,12 +15,6 @@ export const createMaterialSchema = z.object({
     .min(5,   'Change summary must be at least 5 characters')
     .max(500, 'Change summary too long'),
 
-  effectiveDate: z
-    .string()
-    .min(1, 'Effective date is required'),
-
-  versionType: z.enum(['MAJOR', 'MINOR']),
-
   fileType: z.enum(['PPT', 'PDF', 'VIDEO', 'OTHER']),
 })
 

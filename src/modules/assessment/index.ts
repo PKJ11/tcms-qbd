@@ -17,6 +17,7 @@ export {
   discardStagedItem,
   rebaseWorkingSet,
   saveQuestionBankVersion,
+  applyChangesToCurrentVersion,
   getQuestionBankVersions,
   getQuestionBankVersionQuestions,
 } from './versioning'

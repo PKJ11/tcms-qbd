@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession }    from '@/lib/auth'
 import { getMaterials, uploadMaterial } from '@/modules/content'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
-import type { CreateMaterialInput, FileType, VersionType } from '@/modules/content'
+import type { CreateMaterialInput, FileType } from '@/modules/content'
 
 export async function GET(req: NextRequest) {
   console.log("Entered in the uploadmaterial function")
@@ -41,13 +41,11 @@ export async function POST(req: NextRequest) {
     const title         = formData.get('title')         as string | null
     const topicId       = formData.get('topicId')       as string | null
     const changeSummary = formData.get('changeSummary') as string | null
-    const effectiveDate = formData.get('effectiveDate') as string | null
-    const versionType   = formData.get('versionType')   as string | null
     const fileType      = formData.get('fileType')      as string | null
     const justification = formData.get('justification') as string | null
 
     if (!file || !title || !topicId || !changeSummary ||
-        !effectiveDate || !versionType || !fileType || !justification) {
+        !fileType || !justification) {
       return NextResponse.json(
         { message: 'All fields are required' },
         { status: 400 }
@@ -62,9 +60,7 @@ export async function POST(req: NextRequest) {
       title,
       topicId,
       changeSummary,
-      effectiveDate,
-      versionType:  versionType as VersionType,
-      fileType:     fileType    as FileType,
+      fileType: fileType as FileType,
     }
 
     const result = await uploadMaterial(

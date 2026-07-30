@@ -11,7 +11,6 @@ interface Material {
   versions: {
     id:           string
     versionLabel: string
-    versionType:  string
     fileType:     string
     status:       string
   }[]
