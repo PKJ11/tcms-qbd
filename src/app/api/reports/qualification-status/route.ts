@@ -6,6 +6,9 @@ import {
 } from '@/modules/reports'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 import { resolveScopeFilter }      from '@/lib/subordinates'
+import { formatDate }              from '@/lib/utils'
+import { QualificationStatusPdf }  from '@/modules/reports/pdf/QualificationStatusPdf'
+import { renderReportPdf }         from '@/modules/reports/pdf/render'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -52,6 +55,22 @@ export async function GET(req: NextRequest) {
       headers: {
         'Content-Type':        'text/csv',
         'Content-Disposition': 'attachment; filename="qualification-status.csv"',
+      },
+    })
+  }
+
+  if (format === 'pdf') {
+    const buffer = await renderReportPdf(
+      QualificationStatusPdf({
+        rows,
+        preparedByName: session.user.name,
+        preparedDate:   formatDate(new Date()),
+      })
+    )
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type':        'application/pdf',
+        'Content-Disposition': 'attachment; filename="qualification-status.pdf"',
       },
     })
   }

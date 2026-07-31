@@ -416,7 +416,7 @@ export async function deactivatePerson(
 
   await logAuditEvent({
     userId: actorId,
-    action: 'DELETE',
+    action: 'DEACTIVATE',
     module: 'PERSONNEL',
     recordId: id,
     recordType: 'Person',

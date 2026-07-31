@@ -2,8 +2,9 @@
 
 import { prisma }        from '@/lib/prisma'
 import { logAuditEvent } from '@/modules/audit-trail'
-import { stageQuestionSchema } from './schema'
+import { stageQuestionSchema, findDuplicateOption } from './schema'
 import type { StageQuestionInput, VersionDiffSummary } from './types'
+import { assertQuestionBankEditAccess, assertWorkingSetItemEditAccess } from './access'
 
 // ─────────────────────────────────────────────────────────────────
 // WORKING SET — staged edits, nothing here is real until Save Changes
@@ -79,6 +80,8 @@ export async function stageNewQuestion(
   input:   StageQuestionInput,
   actorId: string
 ) {
+  await assertQuestionBankEditAccess(bankId, actorId)
+
   const parsed = stageQuestionSchema.safeParse(input)
   if (!parsed.success) throw new Error(parsed.error.message)
 
@@ -111,8 +114,18 @@ export async function stageQuestionEdit(
   input:   Partial<StageQuestionInput>,
   actorId: string
 ) {
+  await assertWorkingSetItemEditAccess(itemId, actorId)
+
   const item = await prisma.questionBankWorkingSetItem.findUnique({ where: { id: itemId } })
   if (!item) throw new Error('Staged question not found')
+
+  const duplicateField = findDuplicateOption({
+    optionA: input.optionA ?? item.optionA,
+    optionB: input.optionB ?? item.optionB,
+    optionC: input.optionC ?? item.optionC,
+    optionD: input.optionD ?? item.optionD,
+  })
+  if (duplicateField) throw new Error('Options must all be different')
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.questionBankWorkingSetItem.update({
@@ -139,6 +152,8 @@ export async function stageArchiveToggle(
   isActive: boolean,
   actorId:  string
 ) {
+  await assertWorkingSetItemEditAccess(itemId, actorId)
+
   const item = await prisma.questionBankWorkingSetItem.findUnique({ where: { id: itemId } })
   if (!item) throw new Error('Staged question not found')
 
@@ -158,6 +173,8 @@ export async function stageArchiveToggle(
 // Removes a staged-new question that hasn't been saved yet. A question that
 // came from a previous version can only be archived, never deleted outright.
 export async function discardStagedItem(itemId: string, actorId: string) {
+  await assertWorkingSetItemEditAccess(itemId, actorId)
+
   const item = await prisma.questionBankWorkingSetItem.findUnique({ where: { id: itemId } })
   if (!item) throw new Error('Staged question not found')
   if (item.sourceQuestionId) {
@@ -181,6 +198,8 @@ export async function rebaseWorkingSet(
   baseVersionId: string,
   actorId:       string
 ) {
+  await assertQuestionBankEditAccess(bankId, actorId)
+
   const version = await prisma.questionBankVersion.findUnique({
     where:  { id: baseVersionId },
     select: { id: true, bankId: true, questions: { select: CLONE_SELECT, orderBy: { createdAt: 'asc' } } },
@@ -225,6 +244,8 @@ export async function saveQuestionBankVersion(
   justification: string,
   actorId:       string
 ): Promise<{ version: { id: string; versionNo: number; versionLabel: string }; diff: VersionDiffSummary }> {
+  await assertQuestionBankEditAccess(bankId, actorId)
+
   const label = versionLabel?.trim()
   if (!label) throw new Error('Version name is required')
 
@@ -346,6 +367,8 @@ export async function applyChangesToCurrentVersion(
   justification: string,
   actorId:       string
 ): Promise<{ versionId: string; diff: VersionDiffSummary }> {
+  await assertQuestionBankEditAccess(bankId, actorId)
+
   const bank = await prisma.questionBank.findUnique({
     where:  { id: bankId },
     select: { currentVersionId: true },

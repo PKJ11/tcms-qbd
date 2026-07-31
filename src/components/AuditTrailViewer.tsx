@@ -38,7 +38,8 @@ interface PersonOption {
 const ACTION_COLORS: Record<string, { bg: string; color: string }> = {
   CREATE:   { bg: '#f0fdf4', color: '#166534' },
   UPDATE:   { bg: '#eff6ff', color: '#1d4ed8' },
-  DELETE:   { bg: '#fef2f2', color: '#dc2626' },
+  DELETE:     { bg: '#fef2f2', color: '#dc2626' },
+  DEACTIVATE: { bg: '#fef2f2', color: '#dc2626' },
   LOGIN:    { bg: '#f5f3ff', color: '#6d28d9' },
   LOGOUT:   { bg: '#fafafa', color: '#6b7280' },
   APPROVE:  { bg: '#f0fdf4', color: '#166534' },
@@ -263,7 +264,7 @@ export function AuditTrailViewer() {
           >
             <option value="">All actions</option>
             {[
-              'CREATE','UPDATE','DELETE','LOGIN',
+              'CREATE','UPDATE','DELETE','DEACTIVATE','LOGIN',
               'LOGOUT','APPROVE','REJECT','UPLOAD',
               'GENERATE','ASSIGN','REVOKE',
             ].map((a) => (

@@ -6,9 +6,12 @@ import {
   rejectQualification,
 } from '@/modules/qualification'
 import { canManageQualifications } from '@/lib/permissions'
+import { formatDate } from '@/lib/utils'
+import { QualificationRecordPdf } from '@/modules/reports/pdf/QualificationRecordPdf'
+import { renderReportPdf } from '@/modules/reports/pdf/render'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const session = await getSession()
@@ -19,6 +22,24 @@ export async function GET(
   const qualification = await getQualificationById(params.id)
   if (!qualification) {
     return NextResponse.json({ message: 'Not found' }, { status: 404 })
+  }
+
+  const format = req.nextUrl.searchParams.get('format')
+
+  if (format === 'pdf') {
+    const buffer = await renderReportPdf(
+      QualificationRecordPdf({
+        qual: qualification,
+        preparedByName: session.user.name,
+        preparedDate:   formatDate(new Date()),
+      })
+    )
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type':        'application/pdf',
+        'Content-Disposition': `attachment; filename="qualification-${params.id}.pdf"`,
+      },
+    })
   }
 
   return NextResponse.json({ qualification })

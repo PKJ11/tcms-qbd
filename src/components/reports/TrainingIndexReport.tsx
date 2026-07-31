@@ -105,8 +105,8 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
   useEffect(() => { fetchIndex() }, [fetchIndex])
   useEffect(() => { setFilters(EMPTY_REPORT_FILTERS) }, [selectedId])
 
-  function handleExport() {
-    window.open(`/api/reports/training-index/${selectedId}?scope=${scope}&format=csv`, '_blank')
+  function handleExport(format: 'csv' | 'pdf') {
+    window.open(`/api/reports/training-index/${selectedId}?scope=${scope}&format=${format}`, '_blank')
   }
 
   const selectedPerson = persons.find((p:any) => p.id === selectedId)
@@ -159,7 +159,7 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
             </select>
           )}
           <button
-            onClick={handleExport}
+            onClick={() => handleExport('csv')}
             className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2"
             style={{ borderColor: '#e5e7eb', color: '#374151' }}
           >
@@ -169,6 +169,18 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
               <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
             Export CSV
+          </button>
+          <button
+            onClick={() => handleExport('pdf')}
+            className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2"
+            style={{ borderColor: '#e5e7eb', color: '#374151' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export PDF
           </button>
         </div>
       </div>

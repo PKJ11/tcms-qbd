@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { stageNewQuestion } from '@/modules/assessment'
+import { stageNewQuestion, ForbiddenError } from '@/modules/assessment'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function POST(
@@ -21,6 +21,9 @@ export async function POST(
     const item = await stageNewQuestion(params.id, input, session.user.id)
     return NextResponse.json({ item }, { status: 201 })
   } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ message: error.message }, { status: 403 })
+    }
     const message = error instanceof Error ? error.message : 'Failed to stage question'
     return NextResponse.json({ message }, { status: 400 })
   }

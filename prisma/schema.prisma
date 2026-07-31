@@ -119,6 +119,7 @@ enum AuditAction {
   CREATE
   UPDATE
   DELETE
+  DEACTIVATE
   LOGIN
   LOGOUT
   APPROVE
@@ -310,6 +311,8 @@ model Person {
   validationRunsExecuted      ValidationRun[]       @relation("valRunExecutor")
   validationRunsApproved      ValidationRun[]       @relation("valRunApprover")
   testResultsExecuted         TestResult[]          @relation("testResultExecutor")
+  questionBankAccessGranted   QuestionBankCollaborator[] @relation("questionBankCollaboratorPerson")
+  questionBankAccessAddedBy   QuestionBankCollaborator[] @relation("questionBankCollaboratorAddedBy")
 
   @@map("persons")
 }
@@ -498,13 +501,32 @@ model QuestionBank {
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
-  topic          TrainingTopic           @relation(fields: [topicId], references: [id])
-  currentVersion QuestionBankVersion?    @relation("currentVersion", fields: [currentVersionId], references: [id])
-  versions       QuestionBankVersion[]   @relation("bankVersions")
+  topic          TrainingTopic              @relation(fields: [topicId], references: [id])
+  currentVersion QuestionBankVersion?       @relation("currentVersion", fields: [currentVersionId], references: [id])
+  versions       QuestionBankVersion[]      @relation("bankVersions")
   workingSet     QuestionBankWorkingSet?
   attempts       AssessmentAttempt[]
+  collaborators  QuestionBankCollaborator[]
 
   @@map("question_banks")
+}
+
+// Grants a Trainer/Guest Trainer who did NOT create the topic permission to
+// edit its question bank (add/edit/archive questions, save versions). Only
+// the topic's creator can manage this list — see assertQuestionBankOwner().
+model QuestionBankCollaborator {
+  id        String   @id @default(cuid())
+  bankId    String
+  personId  String
+  addedById String
+  createdAt DateTime @default(now())
+
+  bank    QuestionBank @relation(fields: [bankId], references: [id])
+  person  Person       @relation("questionBankCollaboratorPerson", fields: [personId], references: [id])
+  addedBy Person       @relation("questionBankCollaboratorAddedBy", fields: [addedById], references: [id])
+
+  @@unique([bankId, personId])
+  @@map("question_bank_collaborators")
 }
 
 // Immutable snapshot of a question bank's question set. Created only when a

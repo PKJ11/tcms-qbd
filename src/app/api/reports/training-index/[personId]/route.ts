@@ -6,6 +6,10 @@ import {
 } from '@/modules/reports'
 import { hasAnyRole } from '@/lib/permissions'
 import { isInTeam, REPORT_OVERSIGHT_ROLES } from '@/lib/subordinates'
+import { prisma }        from '@/lib/prisma'
+import { formatDate }    from '@/lib/utils'
+import { TrainingIndexPdf } from '@/modules/reports/pdf/TrainingIndexPdf'
+import { renderReportPdf }  from '@/modules/reports/pdf/render'
 
 export async function GET(
   req: NextRequest,
@@ -51,6 +55,29 @@ export async function GET(
       headers: {
         'Content-Type':        'text/csv',
         'Content-Disposition': `attachment; filename="training-index-${params.personId}.csv"`,
+      },
+    })
+  }
+
+  if (format === 'pdf') {
+    const person = await prisma.person.findUnique({
+      where:  { id: params.personId },
+      select: { name: true, employeeId: true },
+    })
+
+    const buffer = await renderReportPdf(
+      TrainingIndexPdf({
+        entries,
+        personName:       person?.name ?? '—',
+        personEmployeeId: person?.employeeId ?? '—',
+        preparedByName:   session.user.name,
+        preparedDate:     formatDate(new Date()),
+      })
+    )
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type':        'application/pdf',
+        'Content-Disposition': `attachment; filename="training-index-${params.personId}.pdf"`,
       },
     })
   }

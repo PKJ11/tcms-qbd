@@ -299,7 +299,7 @@ export async function deactivateTopic(
 
   await logAuditEvent({
     userId:        actorId,
-    action:        'DELETE',
+    action:        'DEACTIVATE',
     module:        'TRAINING_TOPIC',
     recordId:      id,
     recordType:    'TrainingTopic',

@@ -484,7 +484,7 @@ export async function retireMaterial(
 
   await logAuditEvent({
     userId:        actorId,
-    action:        'DELETE',
+    action:        'DEACTIVATE',
     module:        'CONTENT',
     recordId:      materialId,
     recordType:    'TrainingMaterial',

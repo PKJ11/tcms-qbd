@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { stageQuestionEdit, stageArchiveToggle, discardStagedItem } from '@/modules/assessment'
+import { stageQuestionEdit, stageArchiveToggle, discardStagedItem, ForbiddenError } from '@/modules/assessment'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function PATCH(
@@ -31,6 +31,9 @@ export async function PATCH(
     const item = await stageQuestionEdit(params.itemId, input, session.user.id)
     return NextResponse.json({ item })
   } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ message: error.message }, { status: 403 })
+    }
     const message = error instanceof Error ? error.message : 'Update failed'
     return NextResponse.json({ message }, { status: 400 })
   }
@@ -52,6 +55,9 @@ export async function DELETE(
     await discardStagedItem(params.itemId, session.user.id)
     return NextResponse.json({ message: 'Staged question discarded' })
   } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ message: error.message }, { status: 403 })
+    }
     const message = error instanceof Error ? error.message : 'Failed to discard question'
     return NextResponse.json({ message }, { status: 400 })
   }

@@ -3,6 +3,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { SaveChangesModal, type VersionSummary } from './SaveChangesModal'
 import { VersionHistory } from './VersionHistory'
+import { QuestionBankAccessPanel, type AccessSummary } from './QuestionBankAccessPanel'
+import { findDuplicateOption } from '@/modules/assessment/schema'
+
+function LockIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  )
+}
 
 interface WorkingSetItem {
   id:               string
@@ -43,6 +54,13 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const originalSnapshot = useRef<WorkingSetItem[]>([])
+
+  // Unknown until the access panel resolves it — editing controls stay
+  // hidden until then so a non-owner never briefly sees a button that
+  // would just be rejected by the server.
+  const [access, setAccess] = useState<AccessSummary | null>(null)
+  const accessKnown = access !== null
+  const canEdit      = access?.canEdit ?? false
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
@@ -95,6 +113,10 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
     setAddError(null)
     if (!form.questionText || !form.optionA || !form.optionB || !form.optionC || !form.optionD) {
       setAddError('All fields are required.')
+      return
+    }
+    if (findDuplicateOption(form)) {
+      setAddError('Options must all be different.')
       return
     }
     submitAdd()
@@ -237,6 +259,10 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
       setEditError('All fields are required.')
       return
     }
+    if (findDuplicateOption(editForm)) {
+      setEditError('Options must all be different.')
+      return
+    }
     setEditLoading(true)
 
     const res  = await fetch(`/api/assessments/banks/${bankId}/working-set/questions/${editingId}`, {
@@ -274,6 +300,15 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <QuestionBankAccessPanel bankId={bankId} onAccessChange={setAccess} />
+
+      {accessKnown && !canEdit && (
+        <div className="px-4 py-3 rounded-2xl text-sm flex items-center gap-2" style={{ background: '#fffbeb', color: '#92400e' }}>
+          <LockIcon />
+          {access?.ownerName} has not granted you access to add or edit questions in this question bank.
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-gray-700">
@@ -293,20 +328,46 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
               />
               Show archived
             </label>
-            <button
-              onClick={() => setShowForm(!showForm)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
-              style={{ background: '#2d6a4f' }}
-            >
-              {showForm ? 'Cancel' : '+ Add question'}
-            </button>
-            <button
-              onClick={openSaveModal}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40"
-              style={{ background: '#1d4ed8' }}
-            >
-              Save changes
-            </button>
+            {canEdit && (
+              <>
+                <button
+                  onClick={() => setShowForm(!showForm)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                  style={{ background: '#2d6a4f' }}
+                >
+                  {showForm ? 'Cancel' : '+ Add question'}
+                </button>
+                <button
+                  onClick={openSaveModal}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40"
+                  style={{ background: '#1d4ed8' }}
+                >
+                  Save changes
+                </button>
+              </>
+            )}
+            {accessKnown && !canEdit && (
+              <>
+                <button
+                  disabled
+                  title={`${access?.ownerName} has not granted you access to add questions`}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 cursor-not-allowed"
+                  style={{ background: '#f3f4f6', color: '#9ca3af' }}
+                >
+                  <LockIcon />
+                  Add question
+                </button>
+                <button
+                  disabled
+                  title={`${access?.ownerName} has not granted you access to edit this question bank`}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 cursor-not-allowed"
+                  style={{ background: '#f3f4f6', color: '#9ca3af' }}
+                >
+                  <LockIcon />
+                  Save changes
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -446,37 +507,39 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
                         ))}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {!q.sourceQuestionId && (
+                    {canEdit && (
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {!q.sourceQuestionId && (
+                          <button
+                            onClick={() => handleDiscard(q)}
+                            disabled={toggleLoadingId === q.id}
+                            className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+                            style={{ borderColor: '#e5e7eb', color: '#6b7280' }}
+                          >
+                            Discard
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleDiscard(q)}
+                          onClick={() => startEdit(q)}
+                          className="px-3 py-1.5 rounded-lg border text-xs font-medium"
+                          style={{ borderColor: '#e5e7eb', color: '#374151' }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleToggle(q)}
                           disabled={toggleLoadingId === q.id}
                           className="px-3 py-1.5 rounded-lg border text-xs font-medium"
-                          style={{ borderColor: '#e5e7eb', color: '#6b7280' }}
+                          style={
+                            q.isActive
+                              ? { borderColor: '#fecaca', color: '#dc2626' }
+                              : { borderColor: '#bbf7d0', color: '#166534' }
+                          }
                         >
-                          Discard
+                          {q.isActive ? 'Archive' : 'Restore'}
                         </button>
-                      )}
-                      <button
-                        onClick={() => startEdit(q)}
-                        className="px-3 py-1.5 rounded-lg border text-xs font-medium"
-                        style={{ borderColor: '#e5e7eb', color: '#374151' }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleToggle(q)}
-                        disabled={toggleLoadingId === q.id}
-                        className="px-3 py-1.5 rounded-lg border text-xs font-medium"
-                        style={
-                          q.isActive
-                            ? { borderColor: '#fecaca', color: '#dc2626' }
-                            : { borderColor: '#bbf7d0', color: '#166534' }
-                        }
-                      >
-                        {q.isActive ? 'Archive' : 'Restore'}
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

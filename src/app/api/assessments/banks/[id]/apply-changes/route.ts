@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { applyChangesToCurrentVersion } from '@/modules/assessment'
+import { applyChangesToCurrentVersion, ForbiddenError } from '@/modules/assessment'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 // Commits the staged working set straight into the CURRENT version's real
@@ -27,6 +27,9 @@ export async function POST(
     const result = await applyChangesToCurrentVersion(params.id, justification, session.user.id)
     return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ message: error.message }, { status: 403 })
+    }
     const message = error instanceof Error ? error.message : 'Failed to apply changes'
     return NextResponse.json({ message }, { status: 400 })
   }

@@ -59,9 +59,9 @@ export function TopicCompletionReport({ scope, orgFilter }: { scope: ReportScope
   useEffect(() => { fetchReport(topicId) }, [topicId, fetchReport])
   useEffect(() => { setFilters(EMPTY_REPORT_FILTERS) }, [topicId])
 
-  function handleExport() {
+  function handleExport(format: 'csv' | 'pdf') {
     if (!topicId) return
-    const params = new URLSearchParams({ topicId, scope, format: 'csv', ...orgFilterParams(orgFilter) })
+    const params = new URLSearchParams({ topicId, scope, format, ...orgFilterParams(orgFilter) })
     window.open(`/api/reports/topic-completion?${params}`, '_blank')
   }
 
@@ -105,12 +105,20 @@ export function TopicCompletionReport({ scope, orgFilter }: { scope: ReportScope
             ))}
           </select>
           <button
-            onClick={handleExport}
+            onClick={() => handleExport('csv')}
             disabled={!topicId}
             className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2 disabled:opacity-40"
             style={{ borderColor: '#e5e7eb', color: '#374151' }}
           >
             Export CSV
+          </button>
+          <button
+            onClick={() => handleExport('pdf')}
+            disabled={!topicId}
+            className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2 disabled:opacity-40"
+            style={{ borderColor: '#e5e7eb', color: '#374151' }}
+          >
+            Export PDF
           </button>
         </div>
       </div>

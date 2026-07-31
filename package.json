@@ -4,12 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "postinstall": "prisma generate",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "seed": "ts-node --project prisma/tsconfig.seed.json prisma/seed.ts",
     "seed:rtm": "ts-node --project prisma/tsconfig.seed.json prisma/seed-rtm.ts",
-    "seed:transfer-demo": "ts-node --project prisma/tsconfig.seed.json prisma/seed-transfer-demo.ts"
+    "seed:transfer-demo": "ts-node --project prisma/tsconfig.seed.json prisma/seed-transfer-demo.ts",
+    "seed:demo": "ts-node --project prisma/tsconfig.seed.json prisma/seed-demo-data.ts"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
@@ -18,6 +20,7 @@
     "@aws-sdk/client-s3": "^3.1075.0",
     "@aws-sdk/s3-request-presigner": "^3.1075.0",
     "@prisma/client": "^5.22.0",
+    "@react-pdf/renderer": "^4.5.1",
     "@tanstack/react-query": "^5.101.1",
     "@types/bcryptjs": "^2.4.6",
     "axios": "^1.18.1",

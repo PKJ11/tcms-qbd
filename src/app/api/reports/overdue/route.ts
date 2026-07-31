@@ -6,6 +6,9 @@ import {
 } from '@/modules/reports'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 import { resolveScopeFilter }      from '@/lib/subordinates'
+import { formatDate }              from '@/lib/utils'
+import { OverdueReportPdf }        from '@/modules/reports/pdf/OverdueReportPdf'
+import { renderReportPdf }         from '@/modules/reports/pdf/render'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -49,6 +52,22 @@ export async function GET(req: NextRequest) {
       headers: {
         'Content-Type':        'text/csv',
         'Content-Disposition': 'attachment; filename="overdue-report.csv"',
+      },
+    })
+  }
+
+  if (format === 'pdf') {
+    const buffer = await renderReportPdf(
+      OverdueReportPdf({
+        rows,
+        preparedByName: session.user.name,
+        preparedDate:   formatDate(new Date()),
+      })
+    )
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type':        'application/pdf',
+        'Content-Disposition': 'attachment; filename="overdue-report.pdf"',
       },
     })
   }

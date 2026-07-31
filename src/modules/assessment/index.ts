@@ -22,6 +22,14 @@ export {
   getQuestionBankVersionQuestions,
 } from './versioning'
 
+export {
+  getQuestionBankAccess,
+  addQuestionBankCollaborator,
+  removeQuestionBankCollaborator,
+} from './access'
+
+export { ForbiddenError } from './errors'
+
 export type {
   QuestionBankDetail,
   QuestionItem,

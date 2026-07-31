@@ -3,6 +3,9 @@ import { getSession } from '@/lib/auth'
 import { getTopicsForReport, getTopicCompletionReport, convertToCSV } from '@/modules/reports'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 import { resolveScopeFilter } from '@/lib/subordinates'
+import { formatDate } from '@/lib/utils'
+import { TopicCompletionPdf } from '@/modules/reports/pdf/TopicCompletionPdf'
+import { renderReportPdf } from '@/modules/reports/pdf/render'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -59,6 +62,22 @@ export async function GET(req: NextRequest) {
       headers: {
         'Content-Type':        'text/csv',
         'Content-Disposition': `attachment; filename="topic-completion-${report.topicName}.csv"`,
+      },
+    })
+  }
+
+  if (format === 'pdf') {
+    const buffer = await renderReportPdf(
+      TopicCompletionPdf({
+        report,
+        preparedByName: session.user.name,
+        preparedDate:   formatDate(new Date()),
+      })
+    )
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type':        'application/pdf',
+        'Content-Disposition': `attachment; filename="topic-completion-${report.topicName}.pdf"`,
       },
     })
   }
