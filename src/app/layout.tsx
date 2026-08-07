@@ -1,9 +1,13 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import localFont from 'next/font/local'
 import './globals.css'
 import { Providers } from './providers'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = localFont({
+  src: './fonts/Inter-Variable.woff2',
+  variable: '--font-inter',
+  weight: '100 900',
+})
 
 export const metadata: Metadata = {
   title: 'TCMS — Training & Competency Management System',
