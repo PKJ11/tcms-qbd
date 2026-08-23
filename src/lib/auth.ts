@@ -12,8 +12,14 @@ function daysSince(date: Date): number {
   return Math.floor((Date.now() - date.getTime()) / (24 * 60 * 60 * 1000))
 }
 
+// Absolute token lifetime is now short — the real session length is governed
+// by the client-side idle-timeout flow (see useIdleSessionTimeout), which
+// keeps the token alive via update() calls while the user is active and lets
+// it expire on its own as a hard backstop if that client logic never runs
+// (JS disabled, frozen tab, etc). updateAge is low so any session touch
+// (navigation, update() call) re-issues the cookie with a fresh expiry.
 export const authOptions: NextAuthOptions = {
-  session: { strategy: 'jwt', maxAge: 8 * 60 * 60 },
+  session: { strategy: 'jwt', maxAge: 4 * 60, updateAge: 60 },
   pages:   { signIn: '/login' },
 
   providers: [

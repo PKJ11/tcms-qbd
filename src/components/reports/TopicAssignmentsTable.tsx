@@ -41,7 +41,7 @@ export function TopicAssignmentsTable({
     <table className="w-full text-sm border-collapse">
       <thead>
         <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-          {['#', 'Trainee', 'Status', 'Assigned', 'Due', 'Completed', 'Assigned by', 'Bank version', 'Material version(s)'].map((h) => (
+          {['#', 'Trainee', 'Status', 'Assigned', 'Due', 'Completed', 'Assigned by', 'Questions version', 'Material version(s)'].map((h) => (
             <th
               key={h}
               className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"

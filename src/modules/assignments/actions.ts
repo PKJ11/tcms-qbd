@@ -736,13 +736,19 @@ export async function acknowledgeAssignment(
   const assignment = await prisma.trainingAssignment.findUnique({
     where:  { id: assignmentId },
     select: {
-      id: true, personId: true, status: true, topicId: true, trigger: true,
+      id: true, personId: true, status: true, topicId: true, trigger: true, acknowledged: true,
       topic: { select: { trainingType: true } },
     },
   })
 
   if (!assignment)                     throw new Error('Assignment not found')
   if (assignment.personId !== actorId) throw new Error('Not authorised')
+
+  // Already acknowledged — nothing changes, so don't touch the record or
+  // write a second "training completed" entry to the audit trail.
+  if (assignment.acknowledged) {
+    return { completed: assignment.status === 'COMPLETED' }
+  }
 
   // Only Acknowledgement-Only topics complete on the ack button itself —
   // Material-Only completes on view, Material+MCQ completes on passing the assessment.
@@ -775,7 +781,9 @@ export async function acknowledgeAssignment(
       acknowledged: true,
       completed:    willComplete,
     },
-    justification: 'User acknowledged reading and understanding the training material',
+    justification: willComplete
+      ? 'Training completed — user acknowledged reading and understanding the training material'
+      : 'User acknowledged reading and understanding the training material',
   })
 
   return { completed: willComplete }
@@ -892,7 +900,7 @@ export async function confirmAssignmentMaterial(
         recordType:    'TrainingAssignment',
         beforeValue:   { status: assignment.status },
         afterValue:    { status: 'COMPLETED' },
-        justification: 'User confirmed all training material as reviewed',
+        justification: 'Training completed — user confirmed all training material as reviewed',
       })
     }
   } else {

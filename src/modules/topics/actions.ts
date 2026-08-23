@@ -31,6 +31,15 @@ const TOPIC_SELECT = {
       materials:   true,
     },
   },
+  questionBank: {
+    select: {
+      currentVersion: {
+        select: {
+          _count: { select: { questions: true } },
+        },
+      },
+    },
+  },
 } as const
 
 // Validate every scope's department/unit/section actually exist and nest correctly

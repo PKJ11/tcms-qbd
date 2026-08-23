@@ -1,3 +1,3 @@
-// Distinguishes authorization failures from ordinary validation errors so
-// API routes can return 403 instead of 400.
-export class ForbiddenError extends Error {}
+// Re-exported for backward compatibility — the canonical definition now
+// lives in a shared location since it's used outside the assessment module.
+export { ForbiddenError } from '@/lib/errors'

@@ -52,11 +52,9 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
   const [mode, setMode] = useState<'bulk' | 'individual'>('bulk')
 
   const [form, setForm] = useState({
-    topicId:            initialTopicId ?? '',
-    trigger:            'INDUCTION',
-    dueDate:            '',
-    needIdentifiedById: '',
-    needBasis:          '',
+    topicId: initialTopicId ?? '',
+    trigger: 'INDUCTION',
+    dueDate: '',
   })
 
   const preselectedTopic = topics.find((t) => t.id === initialTopicId)
@@ -67,7 +65,6 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
   const [resolvedPersonIds, setResolvedPersonIds] = useState<string[]>([])
 
   const [persons,         setPersons]         = useState<Person[]>([])
-  const [managers,        setManagers]        = useState<Person[]>([])
   const [selectedPersons, setSelectedPersons] = useState<string[]>([])
   const [loadingPersons,  setLoadingPersons]  = useState(false)
   const [personSearch,    setPersonSearch]    = useState('')
@@ -85,17 +82,6 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
       setDepartments((data.departments ?? []).map(toDepartmentNode))
     }
     fetchDepts()
-  }, [])
-
-  // Fetch potential "need identified by" managers
-  useEffect(() => {
-    async function fetchManagers() {
-      const res  = await fetch('/api/personnel?isActive=true')
-      const data = await res.json()
-      const people = (data.persons ?? []) as Person[]
-      setManagers(people.filter((p) => p.roles.some((r) => ['ADMINISTRATOR', 'TRAINER'].includes(r))))
-    }
-    fetchManagers()
   }, [])
 
   // Fetch persons when switching to individual mode
@@ -166,8 +152,6 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
       trigger: form.trigger,
       dueDate: form.dueDate,
       justification,
-      needIdentifiedById: form.needIdentifiedById || undefined,
-      needBasis:          form.needBasis          || undefined,
     }
 
     const res  = await fetch('/api/assignments', {
@@ -191,7 +175,8 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
         : '')
     )
 
-    setTimeout(() => router.push('/assignments'), 2200)
+    const returnTo = preselectedTopic ? `/topics/${preselectedTopic.id}` : '/assignments'
+    setTimeout(() => router.push(returnTo), 2200)
   }
 
   const inputClass = "w-full px-4 py-2.5 rounded-lg border text-sm outline-none transition-all"
@@ -233,8 +218,9 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
               name="topicId"
               value={form.topicId}
               onChange={handleChange}
+              disabled={!!preselectedTopic}
               className={inputClass}
-              style={inputStyle}
+              style={preselectedTopic ? { ...inputStyle, background: '#f3f4f6', color: '#6b7280', cursor: 'not-allowed' } : inputStyle}
               onFocus={focusOn}
               onBlur={focusOff}
             >
@@ -243,9 +229,9 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
-            {preselectedTopic && form.topicId === preselectedTopic.id && (
+            {preselectedTopic && (
               <p className="text-xs mt-1.5" style={{ color: '#2d6a4f' }}>
-                Pre-selected from "{preselectedTopic.name}" — change it above if needed.
+                Locked to "{preselectedTopic.name}" — go back to assign a different topic.
               </p>
             )}
           </div>
@@ -284,54 +270,6 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
                 onFocus={focusOn}
                 onBlur={focusOff}
               />
-            </div>
-          </div>
-
-          {/* Training Need Identification — per SOP Format 007-04 */}
-          <div
-            className="p-4 rounded-xl border"
-            style={{ background: '#fafafa', borderColor: '#e5e7eb' }}
-          >
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Training Need Identification (Format QbD/QA/F/007-04)
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Need identified by
-                </label>
-                <select
-                  name="needIdentifiedById"
-                  value={form.needIdentifiedById}
-                  onChange={handleChange}
-                  className={inputClass}
-                  style={inputStyle}
-                  onFocus={focusOn}
-                  onBlur={focusOff}
-                >
-                  <option value="">Select person (optional)</option>
-                  {managers.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} — {m.designation}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Basis of identification
-                </label>
-                <input
-                  name="needBasis"
-                  value={form.needBasis}
-                  onChange={handleChange}
-                  placeholder="e.g. Job description review, skill gap assessment"
-                  className={inputClass}
-                  style={inputStyle}
-                  onFocus={focusOn}
-                  onBlur={focusOff}
-                />
-              </div>
             </div>
           </div>
 
@@ -444,7 +382,7 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
           {!success && (
             <div className="flex items-center justify-end gap-3 pt-2">
               <a
-                href="/assignments"
+                href={preselectedTopic ? `/topics/${preselectedTopic.id}` : '/assignments'}
                 className="px-4 py-2 rounded-lg text-sm border font-medium"
                 style={{ borderColor: '#e5e7eb', color: '#374151' }}
               >

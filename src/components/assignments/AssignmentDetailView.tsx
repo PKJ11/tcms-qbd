@@ -151,7 +151,7 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
           Due {formatDate(assignment.dueDate)} &nbsp;·&nbsp; Assigned by {assignment.assignedBy.name}
           {trainingType === 'MATERIAL_MCQ' && assignment.questionBankVersion && (
             <>
-              &nbsp;·&nbsp; Question bank v{assignment.questionBankVersion.versionNo}
+              &nbsp;·&nbsp; Questions v{assignment.questionBankVersion.versionNo}
               {' '}({assignment.questionBankVersion.versionLabel}) used for this assignment
             </>
           )}
@@ -286,25 +286,6 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
         {/* Bottom action, branched by training type */}
         {assignment.status !== 'COMPLETED' && assignment.status !== 'CANCELLED' && (
           <div className="mt-4">
-            {trainingType === 'MATERIAL_MCQ' && (
-              allConfirmed ? (
-                <a
-                  href={`/assignments/${assignment.id}/assessment`}
-                  className="flex items-center justify-between p-3 rounded-lg border text-sm font-medium"
-                  style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}
-                >
-                  Take the assessment for this topic →
-                </a>
-              ) : (
-                <div
-                  className="p-3 rounded-lg border text-xs"
-                  style={{ background: '#fefce8', borderColor: '#fde68a', color: '#854d0e' }}
-                >
-                  Confirm every material above first — the assessment unlocks once all are reviewed.
-                </div>
-              )
-            )}
-
             {trainingType === 'MATERIAL_ONLY' && (
               <div
                 className="p-3 rounded-lg border text-xs"
@@ -339,6 +320,67 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
           </div>
         )}
       </div>
+
+      {/* Step 2 · Assessment — a distinct, sequential step: locked until every
+          material above is confirmed, then unlocks into a clear call to action. */}
+      {trainingType === 'MATERIAL_MCQ' &&
+        assignment.status !== 'COMPLETED' &&
+        assignment.status !== 'CANCELLED' && (
+        <div
+          className="bg-white rounded-2xl border p-6 mb-4"
+          style={{ borderColor: allConfirmed ? '#bbf7d0' : '#e5e7eb' }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
+              style={{
+                background: allConfirmed ? '#2d6a4f' : '#f3f4f6',
+                color:      allConfirmed ? '#fff'    : '#9ca3af',
+              }}
+            >
+              {allConfirmed ? '✓' : '2'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-sm font-semibold text-gray-900">Step 2 · Assessment</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {allConfirmed
+                  ? 'All materials reviewed — you\'re ready to begin.'
+                  : approvedMaterials.length === 0
+                  ? 'No material available yet for this topic — the assessment isn\'t unlocked.'
+                  : `Confirm every material above first (${confirmedIds.size}/${approvedMaterials.length} confirmed) to unlock the assessment.`}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            {allConfirmed ? (
+              <a
+                href={`/assignments/${assignment.id}/assessment`}
+                className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl text-sm font-semibold text-white transition-transform"
+                style={{ background: '#2d6a4f' }}
+              >
+                Start the assessment for this topic
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                  <polyline points="12 5 19 12 12 19"/>
+                </svg>
+              </a>
+            ) : (
+              <div
+                className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl text-sm font-semibold cursor-not-allowed select-none"
+                style={{ background: '#f3f4f6', color: '#9ca3af' }}
+                title="Confirm every material above to unlock the assessment"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                Assessment locked
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {viewerMaterial && (
         <MaterialViewerModal

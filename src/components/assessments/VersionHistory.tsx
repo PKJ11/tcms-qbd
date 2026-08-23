@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { filledOptions } from '@/modules/assessment/schema'
 
 interface VersionListItem {
   id:               string
@@ -21,8 +22,8 @@ interface VersionQuestions {
     questionText:  string
     optionA:       string
     optionB:       string
-    optionC:       string
-    optionD:       string
+    optionC:       string | null
+    optionD:       string | null
     correctAnswer: string
     isActive:      boolean
   }[]
@@ -93,14 +94,14 @@ export function VersionHistory({ bankId }: { bankId: string }) {
                           {!q.isActive && <span className="ml-2 text-xs" style={{ color: '#dc2626' }}>(archived at this version)</span>}
                         </div>
                         <div className="grid grid-cols-2 gap-1 text-xs text-gray-500">
-                          {(['A', 'B', 'C', 'D'] as const).map((opt) => (
+                          {filledOptions(q).map(({ letter, text }) => (
                             <div
-                              key={opt}
-                              className={q.correctAnswer === opt ? 'font-semibold' : ''}
-                              style={{ color: q.correctAnswer === opt ? '#166534' : undefined }}
+                              key={letter}
+                              className={q.correctAnswer === letter ? 'font-semibold' : ''}
+                              style={{ color: q.correctAnswer === letter ? '#166534' : undefined }}
                             >
-                              {opt}. {q[`option${opt}` as 'optionA']}
-                              {q.correctAnswer === opt && ' ✓'}
+                              {letter}. {text}
+                              {q.correctAnswer === letter && ' ✓'}
                             </div>
                           ))}
                         </div>

@@ -15,18 +15,10 @@ export {
   stageQuestionEdit,
   stageArchiveToggle,
   discardStagedItem,
-  rebaseWorkingSet,
   saveQuestionBankVersion,
-  applyChangesToCurrentVersion,
   getQuestionBankVersions,
   getQuestionBankVersionQuestions,
 } from './versioning'
-
-export {
-  getQuestionBankAccess,
-  addQuestionBankCollaborator,
-  removeQuestionBankCollaborator,
-} from './access'
 
 export { ForbiddenError } from './errors'
 

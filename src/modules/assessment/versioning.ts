@@ -2,9 +2,10 @@
 
 import { prisma }        from '@/lib/prisma'
 import { logAuditEvent } from '@/modules/audit-trail'
-import { stageQuestionSchema, findDuplicateOption } from './schema'
+import { stageQuestionSchema } from './schema'
 import type { StageQuestionInput, VersionDiffSummary } from './types'
 import { assertQuestionBankEditAccess, assertWorkingSetItemEditAccess } from './access'
+import { QUESTIONS_PER_ATTEMPT } from './constants'
 
 // ─────────────────────────────────────────────────────────────────
 // WORKING SET — staged edits, nothing here is real until Save Changes
@@ -21,6 +22,8 @@ const CLONE_SELECT = {
   isActive:      true,
 } as const
 
+// A brand-new bank has no version yet — the working set starts empty with
+// no base, and version 1.0 is only materialized on the first Save Changes.
 async function ensureWorkingSet(bankId: string, actorId: string) {
   const existing = await prisma.questionBankWorkingSet.findUnique({
     where:   { bankId },
@@ -34,45 +37,34 @@ async function ensureWorkingSet(bankId: string, actorId: string) {
       currentVersion: { select: { id: true, questions: { select: CLONE_SELECT, orderBy: { createdAt: 'asc' } } } },
     },
   })
-  if (!bank?.currentVersion) throw new Error('Question bank has no version to edit from')
+  if (!bank) throw new Error('Questions not found')
 
   return prisma.questionBankWorkingSet.create({
     data: {
       bankId,
-      baseVersionId: bank.currentVersion.id,
+      baseVersionId: bank.currentVersion?.id ?? null,
       updatedById:   actorId,
-      items: {
-        create: bank.currentVersion.questions.map((q) => ({
-          sourceQuestionId: q.id,
-          questionText:     q.questionText,
-          optionA:          q.optionA,
-          optionB:          q.optionB,
-          optionC:          q.optionC,
-          optionD:          q.optionD,
-          correctAnswer:    q.correctAnswer,
-          isActive:         q.isActive,
-        })),
-      },
+      items: bank.currentVersion
+        ? {
+            create: bank.currentVersion.questions.map((q) => ({
+              sourceQuestionId: q.id,
+              questionText:     q.questionText,
+              optionA:          q.optionA,
+              optionB:          q.optionB,
+              optionC:          q.optionC,
+              optionD:          q.optionD,
+              correctAnswer:    q.correctAnswer,
+              isActive:         q.isActive,
+            })),
+          }
+        : undefined,
     },
     include: { items: { orderBy: { id: 'asc' } } },
   })
 }
 
-async function isVersionUsed(versionId: string): Promise<boolean> {
-  const [assignmentCount, attemptCount] = await Promise.all([
-    prisma.trainingAssignment.count({ where: { questionBankVersionId: versionId } }),
-    prisma.assessmentAttempt.count({ where: { bankVersionId: versionId } }),
-  ])
-  return assignmentCount + attemptCount > 0
-}
-
-const LOCKED_MESSAGE =
-  'This version has already been used by a training assignment and can no longer be applied to directly — save a new version instead.'
-
 export async function getWorkingSet(bankId: string, actorId: string) {
-  const workingSet = await ensureWorkingSet(bankId, actorId)
-  const isBaseVersionUsed = await isVersionUsed(workingSet.baseVersionId)
-  return { ...workingSet, isBaseVersionUsed }
+  return ensureWorkingSet(bankId, actorId)
 }
 
 export async function stageNewQuestion(
@@ -84,6 +76,7 @@ export async function stageNewQuestion(
 
   const parsed = stageQuestionSchema.safeParse(input)
   if (!parsed.success) throw new Error(parsed.error.message)
+  const data = parsed.data
 
   const workingSet = await ensureWorkingSet(bankId, actorId)
 
@@ -92,12 +85,12 @@ export async function stageNewQuestion(
       data: {
         workingSetId:     workingSet.id,
         sourceQuestionId: null,
-        questionText:     input.questionText,
-        optionA:          input.optionA,
-        optionB:          input.optionB,
-        optionC:          input.optionC,
-        optionD:          input.optionD,
-        correctAnswer:    input.correctAnswer,
+        questionText:     data.questionText,
+        optionA:          data.optionA,
+        optionB:          data.optionB,
+        optionC:          data.optionC,
+        optionD:          data.optionD,
+        correctAnswer:    data.correctAnswer,
         isActive:         true,
       },
     })
@@ -119,24 +112,31 @@ export async function stageQuestionEdit(
   const item = await prisma.questionBankWorkingSetItem.findUnique({ where: { id: itemId } })
   if (!item) throw new Error('Staged question not found')
 
-  const duplicateField = findDuplicateOption({
-    optionA: input.optionA ?? item.optionA,
-    optionB: input.optionB ?? item.optionB,
-    optionC: input.optionC ?? item.optionC,
-    optionD: input.optionD ?? item.optionD,
-  })
-  if (duplicateField) throw new Error('Options must all be different')
+  // Merge onto the existing record so a partial edit still gets validated as
+  // a complete question (option count, gap rule, correct-answer validity).
+  const merged = {
+    questionText:  input.questionText  ?? item.questionText,
+    optionA:       input.optionA       ?? item.optionA,
+    optionB:       input.optionB       ?? item.optionB,
+    optionC:       input.optionC       !== undefined ? input.optionC : item.optionC,
+    optionD:       input.optionD       !== undefined ? input.optionD : item.optionD,
+    correctAnswer: input.correctAnswer ?? item.correctAnswer,
+  }
+
+  const parsed = stageQuestionSchema.safeParse(merged)
+  if (!parsed.success) throw new Error(parsed.error.message)
+  const data = parsed.data
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.questionBankWorkingSetItem.update({
       where: { id: itemId },
       data:  {
-        ...(input.questionText  !== undefined && { questionText:  input.questionText  }),
-        ...(input.optionA       !== undefined && { optionA:       input.optionA       }),
-        ...(input.optionB       !== undefined && { optionB:       input.optionB       }),
-        ...(input.optionC       !== undefined && { optionC:       input.optionC       }),
-        ...(input.optionD       !== undefined && { optionD:       input.optionD       }),
-        ...(input.correctAnswer !== undefined && { correctAnswer: input.correctAnswer }),
+        questionText:  data.questionText,
+        optionA:       data.optionA,
+        optionB:       data.optionB,
+        optionC:       data.optionC,
+        optionD:       data.optionD,
+        correctAnswer: data.correctAnswer,
       },
     })
     await tx.questionBankWorkingSet.update({
@@ -190,64 +190,16 @@ export async function discardStagedItem(itemId: string, actorId: string) {
   })
 }
 
-// "Select a previous version" — reloads the working set from that version's
-// exact snapshot. Purely exploratory: no QuestionBankVersion is created and
-// QuestionBank.currentVersionId is untouched until Save Changes runs.
-export async function rebaseWorkingSet(
-  bankId:        string,
-  baseVersionId: string,
-  actorId:       string
-) {
-  await assertQuestionBankEditAccess(bankId, actorId)
-
-  const version = await prisma.questionBankVersion.findUnique({
-    where:  { id: baseVersionId },
-    select: { id: true, bankId: true, questions: { select: CLONE_SELECT, orderBy: { createdAt: 'asc' } } },
-  })
-  if (!version || version.bankId !== bankId) throw new Error('Version not found for this bank')
-
-  const workingSet = await ensureWorkingSet(bankId, actorId)
-
-  await prisma.$transaction(async (tx) => {
-    await tx.questionBankWorkingSetItem.deleteMany({ where: { workingSetId: workingSet.id } })
-    await tx.questionBankWorkingSet.update({
-      where: { id: workingSet.id },
-      data:  {
-        baseVersionId: version.id,
-        updatedById:   actorId,
-        items: {
-          create: version.questions.map((q) => ({
-            sourceQuestionId: q.id,
-            questionText:     q.questionText,
-            optionA:          q.optionA,
-            optionB:          q.optionB,
-            optionC:          q.optionC,
-            optionD:          q.optionD,
-            correctAnswer:    q.correctAnswer,
-            isActive:         q.isActive,
-          })),
-        },
-      },
-    })
-  })
-
-  return getWorkingSet(bankId, actorId)
-}
-
 // ─────────────────────────────────────────────────────────────────
 // SAVE CHANGES — materializes the working set into a new immutable version
 // ─────────────────────────────────────────────────────────────────
 
 export async function saveQuestionBankVersion(
   bankId:        string,
-  versionLabel:  string,
   justification: string,
   actorId:       string
 ): Promise<{ version: { id: string; versionNo: number; versionLabel: string }; diff: VersionDiffSummary }> {
   await assertQuestionBankEditAccess(bankId, actorId)
-
-  const label = versionLabel?.trim()
-  if (!label) throw new Error('Version name is required')
 
   const workingSet = await prisma.questionBankWorkingSet.findUnique({
     where:   { bankId },
@@ -257,9 +209,13 @@ export async function saveQuestionBankVersion(
     },
   })
   if (!workingSet) throw new Error('No staged changes to save')
-  if (workingSet.items.length === 0) throw new Error('A version must contain at least one question')
 
-  const baseQuestionsById = new Map(workingSet.base.questions.map((q) => [q.id, q]))
+  const activeCount = workingSet.items.filter((i) => i.isActive).length
+  if (activeCount < QUESTIONS_PER_ATTEMPT) {
+    throw new Error(`A version must contain at least ${QUESTIONS_PER_ATTEMPT} active questions (currently ${activeCount})`)
+  }
+
+  const baseQuestionsById = new Map((workingSet.base?.questions ?? []).map((q) => [q.id, q]))
   const diff: VersionDiffSummary = { added: 0, archived: 0, restored: 0, edited: 0 }
 
   for (const item of workingSet.items) {
@@ -283,6 +239,8 @@ export async function saveQuestionBankVersion(
     select:  { versionNo: true },
   })
   const versionNo = (lastVersion?.versionNo ?? 0) + 1
+  // Version numbers are fully automatic — no manual naming: 1.0, 2.0, 3.0...
+  const label = `${versionNo}.0`
 
   const newVersion = await prisma.$transaction(async (tx) => {
     const version = await tx.questionBankVersion.create({
@@ -353,138 +311,6 @@ export async function saveQuestionBankVersion(
     version: { id: newVersion.id, versionNo: newVersion.versionNo, versionLabel: newVersion.versionLabel },
     diff,
   }
-}
-
-// ─────────────────────────────────────────────────────────────────
-// APPLY DIRECTLY — commits the staged working set into the EXISTING
-// version's real Question rows, in place. Only ever allowed when that
-// version has never been used by an assignment/attempt — nothing depends
-// on its exact content yet, so this doesn't rewrite anyone's history.
-// ─────────────────────────────────────────────────────────────────
-
-export async function applyChangesToCurrentVersion(
-  bankId:        string,
-  justification: string,
-  actorId:       string
-): Promise<{ versionId: string; diff: VersionDiffSummary }> {
-  await assertQuestionBankEditAccess(bankId, actorId)
-
-  const bank = await prisma.questionBank.findUnique({
-    where:  { id: bankId },
-    select: { currentVersionId: true },
-  })
-  if (!bank?.currentVersionId) throw new Error('Question bank has no version yet')
-
-  const workingSet = await prisma.questionBankWorkingSet.findUnique({
-    where:   { bankId },
-    include: {
-      items: true,
-      base:  { select: { id: true, questions: { select: CLONE_SELECT } } },
-    },
-  })
-  if (!workingSet) throw new Error('No staged changes to apply')
-  if (workingSet.items.length === 0) throw new Error('A version must contain at least one question')
-
-  // Only the LIVE current version can be edited this way — if the working
-  // set has been rebased onto an older reference version, that's not "the"
-  // version anymore and must go through Save as new version instead.
-  if (workingSet.baseVersionId !== bank.currentVersionId) {
-    throw new Error('The working set is not based on the current version — switch back to it, or save as a new version instead')
-  }
-  if (await isVersionUsed(bank.currentVersionId)) throw new Error(LOCKED_MESSAGE)
-
-  const baseQuestionsById = new Map(workingSet.base.questions.map((q) => [q.id, q]))
-  const diff: VersionDiffSummary = { added: 0, archived: 0, restored: 0, edited: 0 }
-
-  for (const item of workingSet.items) {
-    const original = item.sourceQuestionId ? baseQuestionsById.get(item.sourceQuestionId) : undefined
-    if (!original) { diff.added++; continue }
-    if (original.isActive && !item.isActive)      { diff.archived++;  continue }
-    if (!original.isActive && item.isActive)      { diff.restored++;  continue }
-    if (
-      original.questionText  !== item.questionText  ||
-      original.optionA       !== item.optionA       ||
-      original.optionB       !== item.optionB       ||
-      original.optionC       !== item.optionC       ||
-      original.optionD       !== item.optionD       ||
-      original.correctAnswer !== item.correctAnswer
-    ) diff.edited++
-  }
-
-  const versionId = bank.currentVersionId
-
-  await prisma.$transaction(async (tx) => {
-    for (const item of workingSet.items) {
-      if (item.sourceQuestionId) {
-        await tx.question.update({
-          where: { id: item.sourceQuestionId },
-          data:  {
-            questionText:  item.questionText,
-            optionA:       item.optionA,
-            optionB:       item.optionB,
-            optionC:       item.optionC,
-            optionD:       item.optionD,
-            correctAnswer: item.correctAnswer,
-            isActive:      item.isActive,
-          },
-        })
-      } else {
-        await tx.question.create({
-          data: {
-            bankVersionId: versionId,
-            questionText:  item.questionText,
-            optionA:       item.optionA,
-            optionB:       item.optionB,
-            optionC:       item.optionC,
-            optionD:       item.optionD,
-            correctAnswer: item.correctAnswer,
-            isActive:      item.isActive,
-          },
-        })
-      }
-    }
-
-    // Re-sync the working set from the now-updated real rows so newly
-    // added questions get a sourceQuestionId and everything reads as
-    // "no pending changes" again.
-    const refreshed = await tx.question.findMany({
-      where:   { bankVersionId: versionId },
-      select:  CLONE_SELECT,
-      orderBy: { createdAt: 'asc' },
-    })
-    await tx.questionBankWorkingSetItem.deleteMany({ where: { workingSetId: workingSet.id } })
-    await tx.questionBankWorkingSet.update({
-      where: { id: workingSet.id },
-      data:  {
-        updatedById: actorId,
-        items: {
-          create: refreshed.map((q) => ({
-            sourceQuestionId: q.id,
-            questionText:     q.questionText,
-            optionA:          q.optionA,
-            optionB:          q.optionB,
-            optionC:          q.optionC,
-            optionD:          q.optionD,
-            correctAnswer:    q.correctAnswer,
-            isActive:         q.isActive,
-          })),
-        },
-      },
-    })
-  })
-
-  await logAuditEvent({
-    userId:        actorId,
-    action:        'UPDATE',
-    module:        'ASSESSMENT',
-    recordId:      versionId,
-    recordType:    'QuestionBankVersion',
-    beforeValue:   null,
-    afterValue:    { appliedDirectly: true, ...diff },
-    justification,
-  })
-
-  return { versionId, diff }
 }
 
 // ─────────────────────────────────────────────────────────────────

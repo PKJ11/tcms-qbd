@@ -41,7 +41,6 @@ export function ContentList({
   const [statusFilter,  setStatusFilter]  = useState('')
   const [expanded,      setExpanded]      = useState<string | null>(null)
   const [retireTarget,  setRetireTarget]  = useState<Material | null>(null)
-  const [approveTarget, setApproveTarget] = useState<Version  | null>(null)
   const [modalLoading,  setModalLoading]  = useState(false)
   const [viewTarget,    setViewTarget]    = useState<{ materialId: string; versionId: string; title: string } | null>(null)
 
@@ -72,30 +71,6 @@ export function ContentList({
 
     setModalLoading(false)
     setRetireTarget(null)
-    fetchMaterials()
-  }
-
-  async function handleApprove(justification: string) {
-    if (!approveTarget) return
-    setModalLoading(true)
-
-    // Find the material for this version
-    const material = materials.find((m) =>
-      m.versions.some((v) => v.id === approveTarget.id)
-    )
-    if (!material) return
-
-    await fetch(
-      `/api/content/${material.id}/versions/${approveTarget.id}/approve`,
-      {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ justification }),
-      }
-    )
-
-    setModalLoading(false)
-    setApproveTarget(null)
     fetchMaterials()
   }
 
@@ -316,15 +291,6 @@ export function ContentList({
                                   >
                                     View
                                   </button>
-                                  {canUpload && version.status === 'DRAFT' && (
-                                    <button
-                                      onClick={() => setApproveTarget(version)}
-                                      className="px-2 py-1 rounded border text-xs"
-                                      style={{ borderColor: '#bbf7d0', color: '#166534' }}
-                                    >
-                                      Approve
-                                    </button>
-                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -347,16 +313,6 @@ export function ContentList({
         description="This material will be retired and no longer available for new assignments."
         onConfirm={handleRetire}
         onCancel={() => setRetireTarget(null)}
-        loading={modalLoading}
-      />
-
-      {/* Approve modal */}
-      <JustificationModal
-        isOpen={!!approveTarget}
-        title={`Approve version v${approveTarget?.versionLabel ?? ''}`}
-        description="Approving this version makes it available for training."
-        onConfirm={handleApprove}
-        onCancel={() => setApproveTarget(null)}
         loading={modalLoading}
       />
 

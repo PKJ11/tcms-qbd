@@ -21,10 +21,9 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
   const hasInitialTopic = !!initialTopicId && topics.some((t) => t.id === initialTopicId)
 
   const [form, setForm] = useState({
-    title:         '',
-    topicId:       hasInitialTopic ? initialTopicId! : '',
-    changeSummary: '',
-    fileType:      'PPT',
+    title:    '',
+    topicId:  hasInitialTopic ? initialTopicId! : '',
+    fileType: 'PPT',
   })
 
   const [file,       setFile]       = useState<File | null>(null)
@@ -59,7 +58,7 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
     e.preventDefault()
     setError(null)
 
-    if (!form.title || !form.topicId || !form.changeSummary || !file) {
+    if (!form.title || !form.topicId || !file) {
       setError('Please fill in all fields and select a file.')
       return
     }
@@ -77,7 +76,7 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
     formData.append('file',          file!)
     formData.append('title',         form.title)
     formData.append('topicId',       form.topicId)
-    formData.append('changeSummary', form.changeSummary)
+    formData.append('changeSummary', justification)
     formData.append('fileType',      form.fileType)
     formData.append('justification', justification)
 
@@ -99,7 +98,7 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
       return
     }
 
-    router.push('/content')
+    router.push(`/topics/${form.topicId}`)
     router.refresh()
   }
 
@@ -140,8 +139,9 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
               name="topicId"
               value={form.topicId}
               onChange={handleChange}
+              disabled={hasInitialTopic}
               className={inputClass}
-              style={inputStyle}
+              style={hasInitialTopic ? { ...inputStyle, background: '#f3f4f6', color: '#6b7280', cursor: 'not-allowed' } : inputStyle}
               onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
               onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
             >
@@ -170,24 +170,6 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
                 <option key={ft.value} value={ft.value}>{ft.label}</option>
               ))}
             </select>
-          </div>
-
-          {/* Change summary */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Change summary <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              name="changeSummary"
-              value={form.changeSummary}
-              onChange={handleChange}
-              placeholder="Describe what changed in this version..."
-              rows={3}
-              className="w-full px-4 py-2.5 rounded-lg border text-sm outline-none transition-all resize-none"
-              style={inputStyle}
-              onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
-              onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
-            />
           </div>
 
           {/* File upload */}
@@ -302,7 +284,7 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-2">
             <a
-              href="/content"
+              href={hasInitialTopic ? `/topics/${initialTopicId}` : '/content'}
               className="px-4 py-2 rounded-lg text-sm border font-medium"
               style={{ borderColor: '#e5e7eb', color: '#374151' }}
             >

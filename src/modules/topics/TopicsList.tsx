@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { formatDate } from '@/lib/utils'
 import { JustificationModal } from '@/components/JustificationModal'
+import { getTopicContentStatus, TOPIC_STATUS_STYLE } from './status'
 
 interface TopicScope {
   department: { id: string; name: string }
@@ -20,29 +21,56 @@ interface Topic {
   createdBy:    { id: string; name: string }
   topicScopes:  TopicScope[]
   _count:       { assignments: number; materials: number }
+  questionBank: { currentVersion: { _count: { questions: number } } | null } | null
 }
+
+type StatusFilter = 'ALL' | 'ACTIVE' | 'PENDING' | 'INACTIVE'
+type SortOrder     = 'newest' | 'oldest'
 
 export function TopicsList({ canCreate }: { canCreate: boolean }) {
   const [topics,           setTopics]           = useState<Topic[]>([])
   const [loading,          setLoading]          = useState(true)
   const [search,           setSearch]           = useState('')
-  const [showInactive,     setShowInactive]     = useState(false)
+  const [statusFilter,     setStatusFilter]     = useState<StatusFilter>('ALL')
+  const [sortOrder,        setSortOrder]        = useState<SortOrder>('newest')
   const [deactivateTarget, setDeactivateTarget] = useState<Topic | null>(null)
   const [modalLoading,     setModalLoading]     = useState(false)
 
+  // Inactive topics live behind a different flag server-side, so that's the
+  // only piece of the status filter that needs a re-fetch. Active vs Pending
+  // is derived from content readiness we already have on each topic, so it's
+  // filtered client-side instead.
   const fetchTopics = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams({
-      isActive: showInactive ? 'false' : 'true',
+      isActive: statusFilter === 'INACTIVE' ? 'false' : 'true',
       ...(search ? { search } : {}),
     })
     const res  = await fetch(`/api/topics?${params}`)
     const data = await res.json()
     setTopics(data.topics ?? [])
     setLoading(false)
-  }, [search, showInactive])
+  }, [search, statusFilter])
 
   useEffect(() => { fetchTopics() }, [fetchTopics])
+
+  const visibleTopics = useMemo(() => {
+    const filtered = topics.filter((topic) => {
+      if (statusFilter === 'ALL' || statusFilter === 'INACTIVE') return true
+      const status = getTopicContentStatus({
+        isActive:      topic.isActive,
+        trainingType:  topic.trainingType,
+        materialCount: topic._count.materials,
+        questionCount: topic.questionBank?.currentVersion?._count.questions ?? 0,
+      })
+      return status === statusFilter
+    })
+
+    return filtered.slice().sort((a, b) => {
+      const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      return sortOrder === 'newest' ? -diff : diff
+    })
+  }, [topics, statusFilter, sortOrder])
 
   async function handleDeactivate(justification: string) {
     if (!deactivateTarget) return
@@ -86,18 +114,30 @@ export function TopicsList({ canCreate }: { canCreate: boolean }) {
           />
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
-            className="w-4 h-4 accent-green-700"
-          />
-          Show inactive
-        </label>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+          className="px-3 py-2 rounded-lg border text-sm outline-none"
+          style={{ borderColor: '#e5e7eb' }}
+        >
+          <option value="ALL">All statuses</option>
+          <option value="ACTIVE">Active</option>
+          <option value="PENDING">Pending</option>
+          <option value="INACTIVE">Inactive</option>
+        </select>
+
+        <select
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+          className="px-3 py-2 rounded-lg border text-sm outline-none"
+          style={{ borderColor: '#e5e7eb' }}
+        >
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
 
         <div className="ml-auto text-sm text-gray-400 self-center">
-          {topics.length} topic{topics.length !== 1 ? 's' : ''}
+          {visibleTopics.length} topic{visibleTopics.length !== 1 ? 's' : ''}
         </div>
       </div>
 
@@ -106,7 +146,7 @@ export function TopicsList({ canCreate }: { canCreate: boolean }) {
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
           Loading topics...
         </div>
-      ) : topics.length === 0 ? (
+      ) : visibleTopics.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
             <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
@@ -125,7 +165,7 @@ export function TopicsList({ canCreate }: { canCreate: boolean }) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {topics.map((topic) => (
+          {visibleTopics.map((topic) => (
             <div
               key={topic.id}
               className="bg-white rounded-xl border p-5 flex flex-col gap-3 hover:shadow-sm transition-shadow"
@@ -143,16 +183,24 @@ export function TopicsList({ canCreate }: { canCreate: boolean }) {
                     </p>
                   )}
                 </div>
-                <span
-                  className="px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0"
-                  style={
-                    topic.isActive
-                      ? { background: '#f0fdf4', color: '#166534' }
-                      : { background: '#fef2f2', color: '#dc2626' }
-                  }
-                >
-                  {topic.isActive ? 'Active' : 'Inactive'}
-                </span>
+                {(() => {
+                  const status = getTopicContentStatus({
+                    isActive:      topic.isActive,
+                    trainingType:  topic.trainingType,
+                    materialCount: topic._count.materials,
+                    questionCount: topic.questionBank?.currentVersion?._count.questions ?? 0,
+                  })
+                  const style = TOPIC_STATUS_STYLE[status]
+                  return (
+                    <span
+                      className="px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0"
+                      style={{ background: style.bg, color: style.color }}
+                      title={status === 'PENDING' ? 'Setup incomplete — not yet assignable' : undefined}
+                    >
+                      {style.label}
+                    </span>
+                  )
+                })()}
               </div>
 
               {/* Training type */}

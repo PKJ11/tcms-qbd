@@ -27,8 +27,8 @@ export interface QuestionItem {
   questionText:  string
   optionA:       string
   optionB:       string
-  optionC:       string
-  optionD:       string
+  optionC:       string | null
+  optionD:       string | null
   correctAnswer: string
   isActive:      boolean
 }
@@ -38,22 +38,22 @@ export interface QuestionItemSafe {
   questionText: string
   optionA:      string
   optionB:      string
-  optionC:      string
-  optionD:      string
+  optionC:      string | null
+  optionD:      string | null
   // correctAnswer deliberately omitted — never sent to client during attempt
 }
 
 export interface CreateQuestionBankInput {
-  topicId:      string
-  versionLabel: string
+  topicId:   string
+  questions: StageQuestionInput[]
 }
 
 export interface StageQuestionInput {
   questionText:  string
   optionA:       string
   optionB:       string
-  optionC:       string
-  optionD:       string
+  optionC?:      string | null
+  optionD?:      string | null
   correctAnswer: 'A' | 'B' | 'C' | 'D'
 }
 
@@ -63,8 +63,8 @@ export interface WorkingSetItem {
   questionText:     string
   optionA:          string
   optionB:          string
-  optionC:          string
-  optionD:          string
+  optionC:          string | null
+  optionD:          string | null
   correctAnswer:    string
   isActive:         boolean
 }

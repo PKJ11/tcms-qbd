@@ -311,8 +311,8 @@ model Person {
   validationRunsExecuted      ValidationRun[]       @relation("valRunExecutor")
   validationRunsApproved      ValidationRun[]       @relation("valRunApprover")
   testResultsExecuted         TestResult[]          @relation("testResultExecutor")
-  questionBankAccessGranted   QuestionBankCollaborator[] @relation("questionBankCollaboratorPerson")
-  questionBankAccessAddedBy   QuestionBankCollaborator[] @relation("questionBankCollaboratorAddedBy")
+  topicAccessGranted          TopicCollaborator[]   @relation("topicCollaboratorPerson")
+  topicAccessAddedBy          TopicCollaborator[]   @relation("topicCollaboratorAddedBy")
 
   @@map("persons")
 }
@@ -337,8 +337,28 @@ model TrainingTopic {
   questionBank QuestionBank?
   assignments  TrainingAssignment[]
   refreshers   RefresherTrigger[]
+  collaborators TopicCollaborator[]
 
   @@map("training_topics")
+}
+
+// Grants a Trainer/Guest Trainer who did NOT create the topic permission to
+// upload/manage its training material and create/manage its assessment
+// questions. Only the topic's creator can manage this list — see
+// assertTopicOwner() in modules/topics/access.ts.
+model TopicCollaborator {
+  id        String   @id @default(cuid())
+  topicId   String
+  personId  String
+  addedById String
+  createdAt DateTime @default(now())
+
+  topic   TrainingTopic @relation(fields: [topicId], references: [id])
+  person  Person        @relation("topicCollaboratorPerson", fields: [personId], references: [id])
+  addedBy Person        @relation("topicCollaboratorAddedBy", fields: [addedById], references: [id])
+
+  @@unique([topicId, personId])
+  @@map("topic_collaborators")
 }
 
 // Topic → Department/Unit/Section scope (compulsory-training targeting +
@@ -506,27 +526,8 @@ model QuestionBank {
   versions       QuestionBankVersion[]      @relation("bankVersions")
   workingSet     QuestionBankWorkingSet?
   attempts       AssessmentAttempt[]
-  collaborators  QuestionBankCollaborator[]
 
   @@map("question_banks")
-}
-
-// Grants a Trainer/Guest Trainer who did NOT create the topic permission to
-// edit its question bank (add/edit/archive questions, save versions). Only
-// the topic's creator can manage this list — see assertQuestionBankOwner().
-model QuestionBankCollaborator {
-  id        String   @id @default(cuid())
-  bankId    String
-  personId  String
-  addedById String
-  createdAt DateTime @default(now())
-
-  bank    QuestionBank @relation(fields: [bankId], references: [id])
-  person  Person       @relation("questionBankCollaboratorPerson", fields: [personId], references: [id])
-  addedBy Person       @relation("questionBankCollaboratorAddedBy", fields: [addedById], references: [id])
-
-  @@unique([bankId, personId])
-  @@map("question_bank_collaborators")
 }
 
 // Immutable snapshot of a question bank's question set. Created only when a
@@ -562,12 +563,12 @@ model QuestionBankVersion {
 model QuestionBankWorkingSet {
   id            String   @id @default(cuid())
   bankId        String   @unique
-  baseVersionId String
+  baseVersionId String?
   updatedById   String
   updatedAt     DateTime @updatedAt
 
   bank  QuestionBank                 @relation(fields: [bankId], references: [id])
-  base  QuestionBankVersion          @relation(fields: [baseVersionId], references: [id])
+  base  QuestionBankVersion?         @relation(fields: [baseVersionId], references: [id])
   items QuestionBankWorkingSetItem[]
 
   @@map("question_bank_working_sets")
@@ -580,8 +581,8 @@ model QuestionBankWorkingSetItem {
   questionText     String
   optionA          String
   optionB          String
-  optionC          String
-  optionD          String
+  optionC          String? // 2-4 options per question — C/D optional
+  optionD          String?
   correctAnswer    String
   isActive         Boolean @default(true) // staged archive/restore toggle
 
@@ -596,8 +597,8 @@ model Question {
   questionText  String
   optionA       String
   optionB       String
-  optionC       String
-  optionD       String
+  optionC       String? // 2-4 options per question — C/D optional
+  optionD       String?
   correctAnswer String
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())

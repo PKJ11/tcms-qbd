@@ -15,6 +15,7 @@ interface Props {
   topicId:   string
   materials: Material[]
   canEdit:   boolean
+  canUpload: boolean
 }
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
@@ -23,7 +24,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   DRAFT:    { bg: '#fefce8', color: '#854d0e' },
 }
 
-export function TopicMaterialsList({ topicId, materials, canEdit }: Props) {
+export function TopicMaterialsList({ topicId, materials, canEdit, canUpload }: Props) {
   const router = useRouter()
   const [archiveTarget, setArchiveTarget] = useState<Material | null>(null)
   const [loading,       setLoading]       = useState(false)
@@ -51,7 +52,7 @@ export function TopicMaterialsList({ topicId, materials, canEdit }: Props) {
           <polyline points="14 2 14 8 20 8"/>
         </svg>
         <p className="text-sm text-gray-400">No materials uploaded yet</p>
-        {canEdit && (
+        {canUpload && (
           <a
             href={`/content/upload?topicId=${topicId}`}
             className="text-xs font-medium mt-1"

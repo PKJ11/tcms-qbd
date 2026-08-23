@@ -16,13 +16,13 @@ interface Bank {
   } | null
 }
 
-export function AssessmentsView() {
-  return <BankManagementView />
+export function AssessmentsView({ topicId }: { topicId?: string }) {
+  return <BankManagementView topicId={topicId} />
 }
 
 // ── ADMIN VIEW — manage question banks ─────────────────────────────
 
-function BankManagementView() {
+function BankManagementView({ topicId }: { topicId?: string }) {
   const [banks,   setBanks]   = useState<Bank[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -37,26 +37,34 @@ function BankManagementView() {
     fetchBanks()
   }, [])
 
+  const visibleBanks = topicId ? banks.filter((b) => b.topic.id === topicId) : banks
+
   return (
     <div>
       {loading ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
-          Loading question banks...
+          Loading questions...
         </div>
-      ) : banks.length === 0 ? (
+      ) : visibleBanks.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
             <polyline points="9 11 12 14 22 4"/>
             <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
           </svg>
-          <p className="text-sm text-gray-400">No question banks created yet</p>
-          <a href="/assessments/banks/new" className="text-sm font-medium" style={{ color: '#2d6a4f' }}>
-            Create the first question bank →
+          <p className="text-sm text-gray-400">
+            {topicId ? 'No questions created yet for this topic' : 'No questions created yet'}
+          </p>
+          <a
+            href={topicId ? `/assessments/banks/new?topicId=${topicId}` : '/assessments/banks/new'}
+            className="text-sm font-medium"
+            style={{ color: '#2d6a4f' }}
+          >
+            Add the first questions →
           </a>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {banks.map((bank) => (
+          {visibleBanks.map((bank) => (
             <a
               key={bank.id}
               href={`/assessments/banks/${bank.id}`}

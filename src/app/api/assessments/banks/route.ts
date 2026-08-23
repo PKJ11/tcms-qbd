@@ -6,6 +6,7 @@ import {
   getTopicsWithoutBank,
 } from '@/modules/assessment'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+import { ForbiddenError } from '@/lib/errors'
 
 export async function GET() {
   const session = await getSession()
@@ -42,7 +43,10 @@ export async function POST(req: NextRequest) {
     const bank = await createQuestionBank(input, justification, session.user.id)
     return NextResponse.json({ bank }, { status: 201 })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to create question bank'
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ message: error.message }, { status: 403 })
+    }
+    const message = error instanceof Error ? error.message : 'Failed to create questions'
     return NextResponse.json({ message }, { status: 400 })
   }
 }

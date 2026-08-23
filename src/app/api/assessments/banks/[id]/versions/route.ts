@@ -30,13 +30,13 @@ export async function POST(
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  const { versionLabel, justification } = await req.json()
+  const { justification } = await req.json()
   if (!justification) {
     return NextResponse.json({ message: 'Justification is required' }, { status: 400 })
   }
 
   try {
-    const result = await saveQuestionBankVersion(params.id, versionLabel, justification, session.user.id)
+    const result = await saveQuestionBankVersion(params.id, justification, session.user.id)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ForbiddenError) {

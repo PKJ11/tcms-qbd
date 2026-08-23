@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession }    from '@/lib/auth'
 import { getMaterials, uploadMaterial } from '@/modules/content'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+import { ForbiddenError } from '@/lib/errors'
 import type { CreateMaterialInput, FileType } from '@/modules/content'
 
 export async function GET(req: NextRequest) {
@@ -75,6 +76,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ result }, { status: 201 })
 
   } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ message: error.message }, { status: 403 })
+    }
     const message = error instanceof Error
       ? error.message
       : 'Upload failed'

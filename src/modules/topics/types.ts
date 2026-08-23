@@ -26,6 +26,11 @@ export interface TopicListItem {
     assignments: number
     materials:   number
   }
+  questionBank: {
+    currentVersion: {
+      _count: { questions: number }
+    } | null
+  } | null
 }
 
 export interface TopicDetail extends TopicListItem {

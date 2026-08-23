@@ -10,7 +10,6 @@ import {
   ROLE_COLORS,
 } from '@/lib/navigation'
 import type { AppRole } from '@/lib/types'
-import { useAutoLogoutAudit } from '@/hooks/useAutoLogoutAudit'
 
 interface Props {
   user: {
@@ -22,7 +21,6 @@ interface Props {
 }
 
 export function Sidebar({ user }: Props) {
-  useAutoLogoutAudit()
   const pathname          = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)

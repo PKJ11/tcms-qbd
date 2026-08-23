@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (format === 'csv') {
-    const headers = ['Topic', 'Employee ID', 'Trainee', 'Status', 'Assigned', 'Due', 'Completed', 'Assigned by', 'Bank version', 'Material version(s)']
+    const headers = ['Topic', 'Employee ID', 'Trainee', 'Status', 'Assigned', 'Due', 'Completed', 'Assigned by', 'Questions version', 'Material version(s)']
     const rows = report.trainees.map((t) => [
       report.topicName,
       t.employeeId,

@@ -12,7 +12,7 @@ const COLUMNS: PdfTableColumn[] = [
   { key: 'due',       header: 'Due',               width: '10%' },
   { key: 'completed', header: 'Completed',         width: '10%' },
   { key: 'assignedBy',header: 'Assigned by',       width: '12%' },
-  { key: 'bankVer',   header: 'Bank version',      width: '13%' },
+  { key: 'bankVer',   header: 'Questions version', width: '13%' },
   { key: 'matVer',    header: 'Material version(s)', width: '17%' },
 ]
 

@@ -1,10 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { SaveChangesModal, type VersionSummary } from './SaveChangesModal'
+import { SaveChangesModal } from './SaveChangesModal'
 import { VersionHistory } from './VersionHistory'
-import { QuestionBankAccessPanel, type AccessSummary } from './QuestionBankAccessPanel'
-import { findDuplicateOption } from '@/modules/assessment/schema'
+import { validateOptionSet, filledOptions, OPTION_LETTERS } from '@/modules/assessment/schema'
+import { QUESTIONS_PER_ATTEMPT } from '@/modules/assessment/constants'
+
+interface AccessSummary {
+  canEdit:   boolean
+  ownerName: string
+}
 
 function LockIcon() {
   return (
@@ -21,8 +26,8 @@ interface WorkingSetItem {
   questionText:     string
   optionA:          string
   optionB:          string
-  optionC:          string
-  optionD:          string
+  optionC:          string | null
+  optionD:          string | null
   correctAnswer:    string
   isActive:         boolean
 }
@@ -49,18 +54,29 @@ function computeDiff(original: WorkingSetItem[], current: WorkingSetItem[]) {
   return { added, archived, restored, edited }
 }
 
-export function QuestionBankDetail({ bankId }: { bankId: string }) {
+export function QuestionBankDetail({ bankId, topicId }: { bankId: string; topicId: string }) {
   const [items,   setItems]   = useState<WorkingSetItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const originalSnapshot = useRef<WorkingSetItem[]>([])
 
-  // Unknown until the access panel resolves it — editing controls stay
-  // hidden until then so a non-owner never briefly sees a button that
-  // would just be rejected by the server.
+  // Access is granted per topic (see TopicAccessPanel at the top of the
+  // topic page) and covers both material upload and question management —
+  // this just reads that same grant. Unknown until it resolves — editing
+  // controls stay hidden until then so a non-owner never briefly sees a
+  // button that would just be rejected by the server.
   const [access, setAccess] = useState<AccessSummary | null>(null)
   const accessKnown = access !== null
   const canEdit      = access?.canEdit ?? false
+
+  useEffect(() => {
+    async function loadAccess() {
+      const res  = await fetch(`/api/topics/${topicId}/collaborators`)
+      const data = await res.json()
+      if (res.ok) setAccess({ canEdit: data.canEdit, ownerName: data.owner.name })
+    }
+    loadAccess()
+  }, [topicId])
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
@@ -74,11 +90,9 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
   const [toggleLoadingId, setToggleLoadingId] = useState<string | null>(null)
 
   const [saveModalOpen, setSaveModalOpen] = useState(false)
-  const [versions, setVersions] = useState<VersionSummary[]>([])
   const [saveLoading, setSaveLoading] = useState(false)
   const [saveError,   setSaveError]   = useState<string | null>(null)
   const [historyKey,  setHistoryKey]  = useState(0) // bump to refresh VersionHistory after a save
-  const [isBaseVersionUsed, setIsBaseVersionUsed] = useState(false)
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm,  setEditForm]  = useState({
@@ -100,7 +114,6 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
     }
     setItems(data.workingSet.items)
     originalSnapshot.current = data.workingSet.items
-    setIsBaseVersionUsed(data.workingSet.isBaseVersionUsed)
   }
 
   useEffect(() => {
@@ -111,12 +124,13 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
   function handleAddClick(e: React.FormEvent) {
     e.preventDefault()
     setAddError(null)
-    if (!form.questionText || !form.optionA || !form.optionB || !form.optionC || !form.optionD) {
-      setAddError('All fields are required.')
+    if (!form.questionText) {
+      setAddError('Question text is required.')
       return
     }
-    if (findDuplicateOption(form)) {
-      setAddError('Options must all be different.')
+    const optionError = validateOptionSet(form)
+    if (optionError) {
+      setAddError(optionError)
       return
     }
     submitAdd()
@@ -169,22 +183,19 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
     setItems((prev) => prev.filter((i) => i.id !== item.id))
   }
 
-  async function openSaveModal() {
+  function openSaveModal() {
     setSaveError(null)
     setSaveModalOpen(true)
-    const res = await fetch(`/api/assessments/banks/${bankId}/versions`)
-    const data = await res.json()
-    if (res.ok) setVersions(data.versions)
   }
 
-  async function handleSave(versionLabel: string, justification: string) {
+  async function handleSave(justification: string) {
     setSaveLoading(true)
     setSaveError(null)
 
     const res  = await fetch(`/api/assessments/banks/${bankId}/versions`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ versionLabel, justification }),
+      body:    JSON.stringify({ justification }),
     })
     const data = await res.json()
     setSaveLoading(false)
@@ -199,55 +210,11 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
     await loadWorkingSet()
   }
 
-  async function handleApplyDirectly(justification: string) {
-    setSaveLoading(true)
-    setSaveError(null)
-
-    const res  = await fetch(`/api/assessments/banks/${bankId}/apply-changes`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ justification }),
-    })
-    const data = await res.json()
-    setSaveLoading(false)
-
-    if (!res.ok) {
-      setSaveError(data.message ?? 'Failed to apply changes')
-      return
-    }
-
-    setSaveModalOpen(false)
-    await loadWorkingSet()
-  }
-
-  async function handleUsePreviousVersion(versionId: string) {
-    setSaveLoading(true)
-    setSaveError(null)
-
-    const res  = await fetch(`/api/assessments/banks/${bankId}/working-set/rebase`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ baseVersionId: versionId }),
-    })
-    const data = await res.json()
-    setSaveLoading(false)
-
-    if (!res.ok) {
-      setSaveError(data.message ?? 'Failed to switch version')
-      return
-    }
-
-    setSaveModalOpen(false)
-    setItems(data.workingSet.items)
-    originalSnapshot.current = data.workingSet.items
-    setIsBaseVersionUsed(data.workingSet.isBaseVersionUsed)
-  }
-
   function startEdit(item: WorkingSetItem) {
     setEditingId(item.id)
     setEditForm({
       questionText: item.questionText, optionA: item.optionA, optionB: item.optionB,
-      optionC: item.optionC, optionD: item.optionD, correctAnswer: item.correctAnswer as 'A' | 'B' | 'C' | 'D',
+      optionC: item.optionC ?? '', optionD: item.optionD ?? '', correctAnswer: item.correctAnswer as 'A' | 'B' | 'C' | 'D',
     })
     setEditError(null)
   }
@@ -255,12 +222,13 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
   async function submitEdit() {
     if (!editingId) return
     setEditError(null)
-    if (!editForm.questionText || !editForm.optionA || !editForm.optionB || !editForm.optionC || !editForm.optionD) {
-      setEditError('All fields are required.')
+    if (!editForm.questionText) {
+      setEditError('Question text is required.')
       return
     }
-    if (findDuplicateOption(editForm)) {
-      setEditError('Options must all be different.')
+    const optionError = validateOptionSet(editForm)
+    if (optionError) {
+      setEditError(optionError)
       return
     }
     setEditLoading(true)
@@ -287,6 +255,8 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
   const visibleItems  = items.filter((q) => q.isActive !== showArchived)
   const diff = computeDiff(originalSnapshot.current, items)
   const hasStagedChanges = diff.added + diff.archived + diff.restored + diff.edited > 0
+  const hasEnoughActive  = activeCount >= QUESTIONS_PER_ATTEMPT
+  const canSaveChanges   = hasStagedChanges && hasEnoughActive
 
   const inputClass = "w-full px-3 py-2 rounded-lg border text-sm outline-none"
   const inputStyle = { borderColor: '#d1d5db' }
@@ -300,12 +270,10 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <QuestionBankAccessPanel bankId={bankId} onAccessChange={setAccess} />
-
       {accessKnown && !canEdit && (
         <div className="px-4 py-3 rounded-2xl text-sm flex items-center gap-2" style={{ background: '#fffbeb', color: '#92400e' }}>
           <LockIcon />
-          {access?.ownerName} has not granted you access to add or edit questions in this question bank.
+          {access?.ownerName} has not granted you access to this topic — see the Access panel on the topic page.
         </div>
       )}
 
@@ -339,8 +307,16 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
                 </button>
                 <button
                   onClick={openSaveModal}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40"
-                  style={{ background: '#1d4ed8' }}
+                  disabled={!canSaveChanges}
+                  title={
+                    !hasStagedChanges
+                      ? 'No staged changes to save'
+                      : !hasEnoughActive
+                      ? `At least ${QUESTIONS_PER_ATTEMPT} active questions are required to save (currently ${activeCount})`
+                      : undefined
+                  }
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: canSaveChanges ? '#1d4ed8' : '#9ca3af' }}
                 >
                   Save changes
                 </button>
@@ -359,7 +335,7 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
                 </button>
                 <button
                   disabled
-                  title={`${access?.ownerName} has not granted you access to edit this question bank`}
+                  title={`${access?.ownerName} has not granted you access to edit these questions`}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 cursor-not-allowed"
                   style={{ background: '#f3f4f6', color: '#9ca3af' }}
                 >
@@ -370,6 +346,12 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
             )}
           </div>
         </div>
+
+        {canEdit && hasStagedChanges && !hasEnoughActive && (
+          <p className="text-xs mb-4" style={{ color: '#a16207' }}>
+            At least {QUESTIONS_PER_ATTEMPT} active questions are required to save — currently {activeCount}.
+          </p>
+        )}
 
         {/* Add question form — staged only, nothing written until Save Changes */}
         {showForm && (
@@ -383,26 +365,34 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
               style={inputStyle}
             />
             <div className="grid grid-cols-2 gap-3">
-              {(['A', 'B', 'C', 'D'] as const).map((opt) => (
-                <div key={opt} className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="correct"
-                    checked={form.correctAnswer === opt}
-                    onChange={() => setForm({ ...form, correctAnswer: opt })}
-                    className="accent-green-700"
-                  />
-                  <input
-                    placeholder={`Option ${opt}`}
-                    value={form[`option${opt}` as 'optionA']}
-                    onChange={(e) => setForm({ ...form, [`option${opt}`]: e.target.value })}
-                    className={inputClass}
-                    style={inputStyle}
-                  />
-                </div>
-              ))}
+              {OPTION_LETTERS.map((opt) => {
+                const optional = opt === 'C' || opt === 'D'
+                const filled   = !!form[`option${opt}` as 'optionA'].trim()
+                return (
+                  <div key={opt} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="correct"
+                      checked={form.correctAnswer === opt}
+                      disabled={optional && !filled}
+                      onChange={() => setForm({ ...form, correctAnswer: opt })}
+                      className="accent-green-700"
+                    />
+                    <input
+                      placeholder={optional ? `Option ${opt} (optional)` : `Option ${opt}`}
+                      value={form[`option${opt}` as 'optionA']}
+                      onChange={(e) => setForm({ ...form, [`option${opt}`]: e.target.value })}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                )
+              })}
             </div>
-            <p className="text-xs text-gray-400">Select the radio button next to the correct answer</p>
+            <p className="text-xs text-gray-400">
+              Select the radio button next to the correct answer. Option A and B are required —
+              leave C and/or D blank for a 2 or 3-option question.
+            </p>
 
             {addError && (
               <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#fef2f2', color: '#dc2626' }}>
@@ -444,23 +434,29 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
                       style={inputStyle}
                     />
                     <div className="grid grid-cols-2 gap-3">
-                      {(['A', 'B', 'C', 'D'] as const).map((opt) => (
-                        <div key={opt} className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name={`edit-correct-${q.id}`}
-                            checked={editForm.correctAnswer === opt}
-                            onChange={() => setEditForm({ ...editForm, correctAnswer: opt })}
-                            className="accent-green-700"
-                          />
-                          <input
-                            value={editForm[`option${opt}` as 'optionA']}
-                            onChange={(e) => setEditForm({ ...editForm, [`option${opt}`]: e.target.value })}
-                            className={inputClass}
-                            style={inputStyle}
-                          />
-                        </div>
-                      ))}
+                      {OPTION_LETTERS.map((opt) => {
+                        const optional = opt === 'C' || opt === 'D'
+                        const filled   = !!editForm[`option${opt}` as 'optionA'].trim()
+                        return (
+                          <div key={opt} className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name={`edit-correct-${q.id}`}
+                              checked={editForm.correctAnswer === opt}
+                              disabled={optional && !filled}
+                              onChange={() => setEditForm({ ...editForm, correctAnswer: opt })}
+                              className="accent-green-700"
+                            />
+                            <input
+                              placeholder={optional ? `Option ${opt} (optional)` : `Option ${opt}`}
+                              value={editForm[`option${opt}` as 'optionA']}
+                              onChange={(e) => setEditForm({ ...editForm, [`option${opt}`]: e.target.value })}
+                              className={inputClass}
+                              style={inputStyle}
+                            />
+                          </div>
+                        )
+                      })}
                     </div>
                     {editError && (
                       <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#fef2f2', color: '#dc2626' }}>
@@ -495,14 +491,14 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-1 text-xs text-gray-500">
-                        {(['A', 'B', 'C', 'D'] as const).map((opt) => (
+                        {filledOptions(q).map(({ letter, text }) => (
                           <div
-                            key={opt}
-                            className={q.correctAnswer === opt ? 'font-semibold' : ''}
-                            style={{ color: q.correctAnswer === opt ? '#166534' : undefined }}
+                            key={letter}
+                            className={q.correctAnswer === letter ? 'font-semibold' : ''}
+                            style={{ color: q.correctAnswer === letter ? '#166534' : undefined }}
                           >
-                            {opt}. {q[`option${opt}` as 'optionA']}
-                            {q.correctAnswer === opt && ' ✓'}
+                            {letter}. {text}
+                            {q.correctAnswer === letter && ' ✓'}
                           </div>
                         ))}
                       </div>
@@ -553,11 +549,7 @@ export function QuestionBankDetail({ bankId }: { bankId: string }) {
       <SaveChangesModal
         isOpen={saveModalOpen}
         diff={diff}
-        versions={versions}
-        isBaseVersionUsed={isBaseVersionUsed}
         onSave={handleSave}
-        onApplyDirectly={handleApplyDirectly}
-        onUsePreviousVersion={handleUsePreviousVersion}
         onCancel={() => setSaveModalOpen(false)}
         loading={saveLoading}
         error={saveError}

@@ -31,14 +31,14 @@ export default async function ContentPage({
           <div>
             {filteredTopic && (
               <a
-                href="/content"
+                href={`/topics/${filteredTopic.id}`}
                 className="text-xs flex items-center gap-1 mb-2"
                 style={{ color: '#2d6a4f' }}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M19 12H5M12 19l-7-7 7-7"/>
                 </svg>
-                Clear filter — show all materials
+                Back to topic
               </a>
             )}
             <h1 className="text-2xl font-bold text-gray-900">

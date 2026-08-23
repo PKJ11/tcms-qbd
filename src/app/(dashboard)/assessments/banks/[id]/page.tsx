@@ -27,22 +27,31 @@ export default async function BankDetailPage({
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>
       <div className="max-w-3xl mx-auto">
-        <a href="/assessments" className="text-sm flex items-center gap-1 mb-4" style={{ color: '#2d6a4f' }}>
+        <a href={`/topics/${bankRef.topicId}`} className="text-sm flex items-center gap-1 mb-4" style={{ color: '#2d6a4f' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
-          Back to assessments
+          Back to topic
         </a>
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{bank.topic.name}</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {bank.passingPercentage}% pass mark · {bank.questionsPerAttempt} questions per attempt · {bank.maxAttempts} max attempts
-            {bank.currentVersion && <> · Current version <strong>v{bank.currentVersion.versionNo}</strong> ({bank.currentVersion.versionLabel})</>}
-          </p>
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{bank.topic.name}</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {bank.passingPercentage}% pass mark · {bank.questionsPerAttempt} questions per attempt · {bank.maxAttempts} max attempts
+              {bank.currentVersion && <> · Current version <strong>v{bank.currentVersion.versionNo}</strong> ({bank.currentVersion.versionLabel})</>}
+            </p>
+          </div>
+          <a
+            href={`/topics/${bankRef.topicId}`}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white flex-shrink-0"
+            style={{ background: '#2d6a4f' }}
+          >
+            Done — back to topic
+          </a>
         </div>
 
-        <QuestionBankDetail bankId={bank.id} />
+        <QuestionBankDetail bankId={bank.id} topicId={bankRef.topicId} />
       </div>
     </div>
   )

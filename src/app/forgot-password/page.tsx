@@ -44,9 +44,7 @@ export default function ForgotPasswordPage() {
           >
             <div className="font-semibold mb-1">Request noted</div>
             <div>
-              Please contact your Training Coordinator directly and provide
-              your Employee ID: <strong>{employeeId}</strong>.
-              They will reset your password from the Admin panel.
+              Please contact ADMIN
             </div>
           </div>
         ) : (

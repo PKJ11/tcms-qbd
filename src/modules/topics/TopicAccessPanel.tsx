@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { JustificationModal } from '@/components/JustificationModal'
 
 interface Collaborator {
   id:        string
@@ -23,32 +24,38 @@ interface AccessData {
   availableTrainers: TrainerOption[]
 }
 
-export interface AccessSummary {
+export interface TopicAccessSummary {
   canEdit:   boolean
   ownerName: string
 }
 
-// Shows who owns a topic's question bank and who else can edit it. The
-// owner (the trainer who created the topic) can grant/revoke access here —
+// Shows who owns this topic and who else can upload its training material
+// and create/manage its assessment questions — one grant covers both. The
+// owner (the trainer who created the topic) can grant/revoke access here;
 // everyone else sees a read-only view of who currently has access.
-export function QuestionBankAccessPanel({
-  bankId,
+export function TopicAccessPanel({
+  topicId,
   onAccessChange,
 }: {
-  bankId: string
-  onAccessChange?: (summary: AccessSummary) => void
+  topicId: string
+  onAccessChange?: (summary: TopicAccessSummary) => void
 }) {
   const [access,  setAccess]  = useState<AccessData | null>(null)
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(false)
 
   const [selectedTrainerId, setSelectedTrainerId] = useState('')
-  const [grantLoading, setGrantLoading] = useState(false)
-  const [grantError,   setGrantError]   = useState<string | null>(null)
-  const [revokeLoadingId, setRevokeLoadingId] = useState<string | null>(null)
+
+  // Both grant and revoke are audit-trailed actions — each needs a
+  // justification, captured via the same modal used everywhere else.
+  const [pendingAction, setPendingAction] = useState<
+    { type: 'grant' } | { type: 'revoke'; personId: string; personName: string } | null
+  >(null)
+  const [modalLoading, setModalLoading] = useState(false)
+  const [modalError,   setModalError]   = useState<string | null>(null)
 
   async function load() {
-    const res  = await fetch(`/api/assessments/banks/${bankId}/collaborators`)
+    const res  = await fetch(`/api/topics/${topicId}/collaborators`)
     const data = await res.json()
     setLoading(false)
     if (res.ok) {
@@ -60,45 +67,58 @@ export function QuestionBankAccessPanel({
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bankId])
+  }, [topicId])
 
-  async function handleGrant(e: React.FormEvent) {
-    e.preventDefault()
+  function startGrant() {
     if (!selectedTrainerId) return
-    setGrantLoading(true)
-    setGrantError(null)
-
-    const res  = await fetch(`/api/assessments/banks/${bankId}/collaborators`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ personId: selectedTrainerId }),
-    })
-    const data = await res.json()
-    setGrantLoading(false)
-
-    if (!res.ok) {
-      setGrantError(data.message ?? 'Failed to grant access')
-      return
-    }
-    setSelectedTrainerId('')
-    await load()
+    setModalError(null)
+    setPendingAction({ type: 'grant' })
   }
 
-  async function handleRevoke(personId: string) {
-    setRevokeLoadingId(personId)
-    const res = await fetch(`/api/assessments/banks/${bankId}/collaborators/${personId}`, { method: 'DELETE' })
-    setRevokeLoadingId(null)
-    if (res.ok) await load()
+  function startRevoke(personId: string, personName: string) {
+    setModalError(null)
+    setPendingAction({ type: 'revoke', personId, personName })
+  }
+
+  async function handleConfirm(justification: string) {
+    if (!pendingAction) return
+    setModalLoading(true)
+    setModalError(null)
+
+    const res = pendingAction.type === 'grant'
+      ? await fetch(`/api/topics/${topicId}/collaborators`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ personId: selectedTrainerId, justification }),
+        })
+      : await fetch(`/api/topics/${topicId}/collaborators/${pendingAction.personId}`, {
+          method:  'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ justification }),
+        })
+
+    const data = await res.json()
+    setModalLoading(false)
+
+    if (!res.ok) {
+      setModalError(data.message ?? 'Action failed')
+      return
+    }
+
+    setPendingAction(null)
+    if (pendingAction.type === 'grant') setSelectedTrainerId('')
+    await load()
   }
 
   if (loading || !access) return null
 
   return (
-    <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
+    <div className="bg-white rounded-2xl border p-6 mb-4" style={{ borderColor: '#e5e7eb' }}>
       <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between text-left">
         <div>
-          <h2 className="text-sm font-semibold text-gray-700">Question bank access</h2>
+          <h2 className="text-sm font-semibold text-gray-700">Access to this topic</h2>
           <p className="text-xs text-gray-400 mt-0.5">
+            Controls who can upload material and create/manage assessment questions.
             Owned by <span className="font-medium text-gray-600">{access.owner.name}</span>
             {access.collaborators.length > 0 && (
               <> · {access.collaborators.length} trainer{access.collaborators.length > 1 ? 's' : ''} granted access</>
@@ -117,7 +137,7 @@ export function QuestionBankAccessPanel({
         <div className="mt-4 flex flex-col gap-3">
           {!access.isOwner && (
             <p className="text-xs text-gray-400">
-              Only {access.owner.name} can grant or revoke access to this question bank.
+              Only {access.owner.name} can grant or revoke access to this topic.
             </p>
           )}
 
@@ -137,12 +157,11 @@ export function QuestionBankAccessPanel({
                   </div>
                   {access.isOwner && (
                     <button
-                      onClick={() => handleRevoke(c.person.id)}
-                      disabled={revokeLoadingId === c.person.id}
+                      onClick={() => startRevoke(c.person.id, c.person.name)}
                       className="px-2.5 py-1 rounded-lg border text-xs font-medium"
                       style={{ borderColor: '#fecaca', color: '#dc2626' }}
                     >
-                      {revokeLoadingId === c.person.id ? 'Removing...' : 'Remove'}
+                      Remove
                     </button>
                   )}
                 </div>
@@ -151,7 +170,7 @@ export function QuestionBankAccessPanel({
           )}
 
           {access.isOwner && (
-            <form onSubmit={handleGrant} className="flex items-center gap-2 pt-3 border-t" style={{ borderColor: '#f3f4f6' }}>
+            <div className="flex items-center gap-2 pt-3 border-t" style={{ borderColor: '#f3f4f6' }}>
               <select
                 value={selectedTrainerId}
                 onChange={(e) => setSelectedTrainerId(e.target.value)}
@@ -166,23 +185,36 @@ export function QuestionBankAccessPanel({
                 ))}
               </select>
               <button
-                type="submit"
-                disabled={!selectedTrainerId || grantLoading}
+                type="button"
+                onClick={startGrant}
+                disabled={!selectedTrainerId}
                 className="px-3 py-2 rounded-lg text-xs font-medium text-white disabled:opacity-40"
                 style={{ background: '#2d6a4f' }}
               >
-                {grantLoading ? 'Granting...' : 'Grant access'}
+                Grant access
               </button>
-            </form>
-          )}
-
-          {grantError && (
-            <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#fef2f2', color: '#dc2626' }}>
-              {grantError}
             </div>
           )}
         </div>
       )}
+
+      <JustificationModal
+        isOpen={!!pendingAction}
+        title={
+          pendingAction?.type === 'revoke'
+            ? `Revoke ${pendingAction.personName}'s access`
+            : 'Grant access to this topic'
+        }
+        description={
+          pendingAction?.type === 'revoke'
+            ? `${pendingAction.personName} will no longer be able to upload material or manage questions for this topic.`
+            : 'This trainer will be able to upload material and create/manage assessment questions for this topic.'
+        }
+        onConfirm={handleConfirm}
+        onCancel={() => setPendingAction(null)}
+        loading={modalLoading}
+        error={modalError}
+      />
     </div>
   )
 }

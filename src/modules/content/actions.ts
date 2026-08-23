@@ -11,6 +11,7 @@ import {
 } from '@/lib/storage'
 import { createMaterialSchema } from './schema'
 import { CreateMaterialInput } from './types'
+import { assertTopicContentAccess } from '@/modules/topics'
 
 // ── Allowed file types per category ──────────────────────────────
 
@@ -125,6 +126,8 @@ export async function uploadMaterial(
   justification: string,
   actorId:       string
 ) {
+  await assertTopicContentAccess(input.topicId, actorId)
+
   // Validate input
   const parsed = createMaterialSchema.safeParse(input)
   if (!parsed.success) {
@@ -186,7 +189,7 @@ export async function uploadMaterial(
           title:          input.title,
           topicId:        input.topicId,
           currentVersion: versionNo,
-          status:         'DRAFT',
+          status:         'APPROVED',
         },
       })
       materialId = material.id
@@ -203,12 +206,14 @@ export async function uploadMaterial(
         where: { id: materialId },
         data:  {
           currentVersion: versionNo,
-          status:         'DRAFT',
+          status:         'APPROVED',
         },
       })
     }
 
-    // Create version record
+    // Create version record — immediately available, no separate approval
+    // step. Uploading is already gated by topic-level access (see
+    // modules/topics/access.ts), so a second sign-off would be redundant.
     const version = await tx.materialVersion.create({
       data: {
         materialId,
@@ -218,8 +223,10 @@ export async function uploadMaterial(
         fileName,
         fileType:      input.fileType,
         changeSummary: input.changeSummary,
-        status:        'DRAFT',
+        status:        'APPROVED',
         uploadedById:  actorId,
+        approvedById:  actorId,
+        approvedAt:    new Date(),
       },
     })
 

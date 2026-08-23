@@ -39,6 +39,10 @@ const TRAINING_TYPES: { value: string; label: string }[] = [
 
 type ActionType = 'deactivate' | 'edit-scopes' | null
 
+// Not part of the current business requirement — button (and its modal)
+// stay in place, just hidden, so this can be switched back on later.
+const SHOW_EDIT_SCOPES = false
+
 export function TopicDetailView({ topic, departments }: Props) {
   const router = useRouter()
 
@@ -139,13 +143,15 @@ export function TopicDetailView({ topic, departments }: Props) {
         <h2 className="text-sm font-semibold text-gray-700 mb-4">Actions</h2>
 
         <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => setAction('edit-scopes')}
-            className="px-4 py-2 rounded-lg border text-sm font-medium transition-colors"
-            style={{ borderColor: '#e5e7eb', color: '#374151' }}
-          >
-            Edit scope &amp; training type
-          </button>
+          {SHOW_EDIT_SCOPES && (
+            <button
+              onClick={() => setAction('edit-scopes')}
+              className="px-4 py-2 rounded-lg border text-sm font-medium transition-colors"
+              style={{ borderColor: '#e5e7eb', color: '#374151' }}
+            >
+              Edit scope &amp; training type
+            </button>
+          )}
 
           {topic.isActive && (
             <button

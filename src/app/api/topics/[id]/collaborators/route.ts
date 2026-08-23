@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getQuestionBankAccess, addQuestionBankCollaborator, ForbiddenError } from '@/modules/assessment'
+import { getTopicAccess, addTopicCollaborator } from '@/modules/topics'
+import { ForbiddenError } from '@/lib/errors'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
-// GET — who owns this bank, who's been granted access, and (owner only)
+// GET — who owns this topic, who's been granted access, and (owner only)
 // who else could be granted access. Readable by any Trainer/Guest Trainer.
 export async function GET(
   _req: NextRequest,
@@ -18,7 +19,7 @@ export async function GET(
   }
 
   try {
-    const access = await getQuestionBankAccess(params.id, session.user.id)
+    const access = await getTopicAccess(params.id, session.user.id)
     return NextResponse.json(access)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load access list'
@@ -26,7 +27,7 @@ export async function GET(
   }
 }
 
-// POST — grant a trainer edit access. Owner only.
+// POST — grant a trainer access to upload material / manage questions. Owner only.
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -39,13 +40,16 @@ export async function POST(
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  const { personId } = await req.json()
+  const { personId, justification } = await req.json()
   if (!personId) {
     return NextResponse.json({ message: 'personId is required' }, { status: 400 })
   }
+  if (!justification) {
+    return NextResponse.json({ message: 'Justification is required' }, { status: 400 })
+  }
 
   try {
-    const collaborator = await addQuestionBankCollaborator(params.id, personId, session.user.id)
+    const collaborator = await addTopicCollaborator(params.id, personId, session.user.id, justification)
     return NextResponse.json({ collaborator }, { status: 201 })
   } catch (error) {
     if (error instanceof ForbiddenError) {

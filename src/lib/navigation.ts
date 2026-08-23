@@ -36,22 +36,10 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['TRAINER', 'GUEST_TRAINER'],
   },
   {
-    label: 'Materials',
-    href:  '/content',
-    icon:  'file-text',
-    roles: ['TRAINER', 'GUEST_TRAINER'],
-  },
-  {
     label: 'Assignments',
     href:  '/assignments',
     icon:  'clipboard',
     roles: [],  // all roles — users see their own
-  },
-  {
-    label: 'Assessments',
-    href:  '/assessments',
-    icon:  'check-square',
-    roles: ['ADMINISTRATOR', 'VIEWER', 'TRAINER', 'GUEST_TRAINER'],
   },
   {
     label: 'Qualifications',

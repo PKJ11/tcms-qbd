@@ -29,6 +29,18 @@ export const createTopicSchema = z.object({
     .array(scopeSchema)
     .default([]),
 })
+  // Acknowledgement-only training has no material or assessment — the
+  // description IS the statement trainees read and confirm they understood,
+  // so it can't be left blank for this type.
+  .superRefine((data, ctx) => {
+    if (data.trainingType === 'ACKNOWLEDGEMENT_ONLY' && !data.description?.trim()) {
+      ctx.addIssue({
+        code:    z.ZodIssueCode.custom,
+        path:    ['description'],
+        message: 'Description is required for acknowledgement-only training — write the statement trainees must read and understand.',
+      })
+    }
+  })
 
 export const updateTopicSchema = z.object({
   name: z

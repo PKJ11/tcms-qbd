@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { filledOptions } from '@/modules/assessment/schema'
 
 interface Question {
   id:           string
   questionText: string
   optionA:      string
   optionB:      string
-  optionC:      string
-  optionD:      string
+  optionC:      string | null
+  optionD:      string | null
 }
 
 interface Props {
@@ -224,13 +225,12 @@ export function AssessmentPlayer({ assignmentId, bankId, topicName, onDone }: Pr
         </h3>
 
         <div className="flex flex-col gap-2.5">
-          {(['A', 'B', 'C', 'D'] as const).map((opt) => {
-            const optionText = q[`option${opt}` as 'optionA']
-            const selected   = answers[q.id] === opt
+          {filledOptions(q).map(({ letter, text }) => {
+            const selected = answers[q.id] === letter
             return (
               <button
-                key={opt}
-                onClick={() => selectAnswer(q.id, opt)}
+                key={letter}
+                onClick={() => selectAnswer(q.id, letter)}
                 className="flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all"
                 style={{
                   borderColor: selected ? '#2d6a4f' : '#e5e7eb',
@@ -244,9 +244,9 @@ export function AssessmentPlayer({ assignmentId, bankId, topicName, onDone }: Pr
                     color:      selected ? '#fff'    : '#6b7280',
                   }}
                 >
-                  {opt}
+                  {letter}
                 </div>
-                <span className="text-sm text-gray-800">{optionText}</span>
+                <span className="text-sm text-gray-800">{text}</span>
               </button>
             )
           })}

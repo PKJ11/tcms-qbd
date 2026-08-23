@@ -3,6 +3,7 @@ import { redirect }   from 'next/navigation'
 import { Sidebar }    from '@/components/layout/Sidebar'
 import { TopBar }     from '@/components/layout/TopBar'
 import { ActiveTrainingsModal } from '@/components/notifications/ActiveTrainingsModal'
+import { SessionTimeoutManager } from '@/components/layout/SessionTimeoutManager'
 
 export default async function DashboardLayout({
   children,
@@ -35,6 +36,7 @@ export default async function DashboardLayout({
         <TopBar user={session.user} />
 
         <ActiveTrainingsModal />
+        <SessionTimeoutManager />
 
         {showExpiryWarn && (
           <div
