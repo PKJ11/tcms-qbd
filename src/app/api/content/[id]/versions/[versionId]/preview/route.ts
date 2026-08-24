@@ -12,7 +12,7 @@ export async function GET(
   }
 
   try {
-    const preview = await getMaterialPreview(params.versionId, session.user.id)
+    const preview = await getMaterialPreview(params.id, params.versionId, session.user.id)
     return NextResponse.json(preview)
 
   } catch (error) {

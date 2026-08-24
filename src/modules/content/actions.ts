@@ -310,17 +310,24 @@ export async function approveMaterialVersion(
 
 // ── Get in-modal preview content for a file ──────────────────────
 // Never hands a raw download URL to the browser for docx/xlsx/csv —
-// those are converted to HTML server-side. PDF/video/PPT still use a
-// short-lived signed URL since browsers render those natively inline
-// (PDF/video) or the file is opened outside the modal (PPT).
+// those are converted to HTML server-side. PDF and video are streamed
+// byte-for-byte through our own /raw route rather than a signed
+// S3/MinIO URL, so no downloadable link is ever exposed client-side —
+// PDF is rendered page-by-page onto <canvas> instead of handing it to
+// the browser's native PDF plugin, which would carry its own
+// print/download UI we can't suppress. PPT still uses a short-lived
+// signed URL — it's opened outside the modal and no in-browser viewer
+// exists for it without a server-side conversion pipeline.
 
 export type PreviewResult =
-  | { kind: 'pdf' | 'video' | 'external'; url: string }
+  | { kind: 'pdf'; url: string }
+  | { kind: 'video' | 'external'; url: string }
   | { kind: 'html'; html: string }
 
 export async function getMaterialPreview(
-  versionId: string,
-  actorId:   string
+  materialId: string,
+  versionId:  string,
+  actorId:    string
 ): Promise<PreviewResult> {
   const version = await prisma.materialVersion.findUnique({
     where:  { id: versionId },
@@ -341,10 +348,10 @@ export async function getMaterialPreview(
   })
 
   if (version.fileType === 'PDF') {
-    return { kind: 'pdf', url: await getSignedFileUrl(version.fileUrl, 7200) }
+    return { kind: 'pdf', url: `/api/content/${materialId}/versions/${versionId}/raw` }
   }
   if (version.fileType === 'VIDEO') {
-    return { kind: 'video', url: await getSignedFileUrl(version.fileUrl, 7200) }
+    return { kind: 'video', url: `/api/content/${materialId}/versions/${versionId}/raw` }
   }
   if (version.fileType === 'PPT') {
     return { kind: 'external', url: await getSignedFileUrl(version.fileUrl, 7200) }

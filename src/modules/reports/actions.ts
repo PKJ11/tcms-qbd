@@ -30,7 +30,7 @@ export async function getTrainingMatrix(filters?: {
   const persons = await prisma.person.findMany({
     where: {
       isActive: true,
-      ...(filters?.subordinateIds && filters.subordinateIds.length > 0
+      ...(filters?.subordinateIds !== undefined
         ? { id: { in: filters.subordinateIds } }
         : {
             ...(filters?.departmentId && { departmentId: filters.departmentId }),
@@ -185,7 +185,7 @@ export async function getOverdueReport(filters?: {
       dueDate: { lt: now },
       person:  {
         isActive: true,
-        ...(filters?.subordinateIds && filters.subordinateIds.length > 0
+        ...(filters?.subordinateIds !== undefined
           ? { id: { in: filters.subordinateIds } }
           : {
               ...(filters?.departmentId && { departmentId: filters.departmentId }),
@@ -272,7 +272,7 @@ export async function getQualificationStatusBoard(filters?: {
       ...(statusFilter && { status: statusFilter }),
       person: {
         isActive: true,
-        ...(filters?.subordinateIds && filters.subordinateIds.length > 0
+        ...(filters?.subordinateIds !== undefined
           ? { id: { in: filters.subordinateIds } }
           : {
               ...(filters?.departmentId && { departmentId: filters.departmentId }),
@@ -502,7 +502,7 @@ export async function getTopicCompletionReport(
   }
 ): Promise<TopicCompletionReport | null> {
   const assignmentsWhere: Record<string, unknown> = {}
-  if (filters?.subordinateIds && filters.subordinateIds.length > 0) {
+  if (filters?.subordinateIds !== undefined) {
     assignmentsWhere.personId = { in: filters.subordinateIds }
   }
   if (filters?.assignedById) {

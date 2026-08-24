@@ -1,17 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { PdfCanvasViewer } from './PdfCanvasViewer'
 
 interface Props {
-  materialId: string
-  versionId:  string
+  materialId:  string
+  versionId:   string
+  fullscreen?: boolean
 }
 
 type Preview =
   | { kind: 'pdf' | 'video' | 'external'; url: string }
   | { kind: 'html'; html: string }
 
-export function MaterialPreview({ materialId, versionId }: Props) {
+export function MaterialPreview({ materialId, versionId, fullscreen = false }: Props) {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
@@ -53,18 +55,30 @@ export function MaterialPreview({ materialId, versionId }: Props) {
   }
 
   if (preview.kind === 'pdf') {
-    return <iframe src={preview.url} className="w-full h-full" style={{ minHeight: '480px', border: 'none' }} />
+    return <PdfCanvasViewer url={preview.url} fullscreen={fullscreen} />
   }
 
   if (preview.kind === 'video') {
-    return <video controls src={preview.url} className="w-full h-full" style={{ maxHeight: '480px' }} />
+    return (
+      <video
+        controls
+        controlsList="nodownload noremoteplayback"
+        disablePictureInPicture
+        onContextMenu={(e) => e.preventDefault()}
+        src={preview.url}
+        className="w-full h-full"
+        style={{ maxHeight: fullscreen ? 'none' : '480px' }}
+      />
+    )
   }
 
   if (preview.kind === 'html') {
     return (
       <div
-        className="overflow-auto text-sm text-gray-800 [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-gray-200 [&_th]:px-2 [&_th]:py-1 [&_th]:bg-gray-50 [&_p]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2"
-        style={{ maxHeight: '65vh' }}
+        className="overflow-auto select-none text-sm text-gray-800 [&_table]:border-collapse [&_td]:border [&_td]:border-gray-200 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-gray-200 [&_th]:px-2 [&_th]:py-1 [&_th]:bg-gray-50 [&_p]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2"
+        style={{ maxHeight: fullscreen ? '90vh' : '65vh', WebkitUserSelect: 'none' }}
+        onContextMenu={(e) => e.preventDefault()}
+        onCopy={(e) => e.preventDefault()}
         dangerouslySetInnerHTML={{ __html: preview.html }}
       />
     )

@@ -104,6 +104,39 @@ export async function getSignedFileUrl(
   )
 }
 
+// ─── Stream an object, honoring a byte Range (server-side proxying) ──
+// Unlike getSignedFileUrl, this never hands a URL to the browser — used
+// to pipe video bytes through our own authenticated route so a trainee
+// never has a directly-downloadable link. Streams straight from MinIO
+// rather than buffering the whole file in memory, and passes the Range
+// header through so <video> seeking (which relies on 206 Partial
+// Content) keeps working.
+
+export interface ObjectStreamResult {
+  body:          Readable
+  contentType?:  string
+  contentLength?: number
+  contentRange?: string
+  partial:       boolean
+}
+
+export async function getObjectStream(
+  key:    string,
+  range?: string
+): Promise<ObjectStreamResult> {
+  const response = await s3Client.send(
+    new GetObjectCommand({ Bucket: BUCKET, Key: key, Range: range })
+  )
+
+  return {
+    body:          response.Body as Readable,
+    contentType:   response.ContentType,
+    contentLength: response.ContentLength,
+    contentRange:  response.ContentRange,
+    partial:       response.$metadata.httpStatusCode === 206,
+  }
+}
+
 // ─── Fetch file bytes directly (server-side rendering/preview) ──
 // Unlike getSignedFileUrl, this never hands a URL to the browser —
 // used when we need to parse the file content on the server (e.g.

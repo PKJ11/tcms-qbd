@@ -48,12 +48,6 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['TRAINER', 'GUEST_TRAINER', 'VIEWER', 'TRAINEE'],
   },
   {
-    label: 'Refresher',
-    href:  '/refresher',
-    icon:  'refresh-cw',
-    roles: ['TRAINER', 'GUEST_TRAINER'],
-  },
-  {
     label: 'Reports',
     href:  '/reports',
     icon:  'bar-chart-2',
