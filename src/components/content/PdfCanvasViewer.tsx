@@ -27,10 +27,10 @@ export function PdfCanvasViewer({ url, fullscreen = false }: Props) {
       setError(null)
 
       const pdfjsLib = await import('pdfjs-dist')
-      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-        'pdfjs-dist/build/pdf.worker.min.mjs',
-        import.meta.url
-      ).toString()
+      // Served as a static asset from public/ (see scripts/copy-pdf-worker.js)
+      // rather than bundled via `new URL(..., import.meta.url)` — webpack/SWC
+      // fails to parse pdfjs-dist's worker .mjs (ESM-only since pdfjs-dist v4).
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
       pdfDoc = await pdfjsLib.getDocument(url).promise
       if (cancelled) return
