@@ -6,9 +6,10 @@ import { createPersonSchema, updatePersonSchema } from './schema'
 import type { CreatePersonInput, UpdatePersonInput } from './types'
 import type { AppRole } from '@/lib/types'
 import bcrypt from 'bcryptjs'
-import { autoAssignInductionTraining } from '@/modules/assignments'
+import { autoAssignInductionTraining, autoAssignTopicGroupInduction } from '@/modules/assignments'
 import { sendEmail } from '@/lib/email'
 import { verifyUserPassword } from '@/lib/auth'
+import { getPasswordPolicy } from '@/lib/password-policy'
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -29,6 +30,8 @@ const PERSON_SELECT = {
   isLocked: true,
   joiningDate: true,
   lastLoginAt: true,
+  createdAt: true,
+  createdBy: { select: { id: true, name: true } },
   department: { select: { id: true, name: true } },
   unit: { select: { id: true, name: true } },
   section: { select: { id: true, name: true } },
@@ -103,7 +106,6 @@ export async function getPersonById(id: string) {
     select: {
       ...PERSON_SELECT,
       mustChangePassword: true,
-      createdAt: true,
       updatedAt: true,
       subordinates: {
         select: { id: true, name: true, roles: { select: { role: true } } },
@@ -177,6 +179,7 @@ export async function createPerson(
     joiningDate:        data.joiningDate ? new Date(data.joiningDate) : null,
     passwordHash,
     mustChangePassword: true,
+    createdById:        actorId,
   }
 
   const personSelect = {
@@ -184,6 +187,7 @@ export async function createPerson(
     employeeId: true,
     name: true,
     email: true,
+    joiningDate: true,
     department: { select: { id: true, name: true } },
     unit:       { select: { id: true, name: true } },
     section:    { select: { id: true, name: true } },
@@ -194,6 +198,7 @@ export async function createPerson(
     employeeId: string
     name: string
     email: string | null
+    joiningDate: Date | null
     department: { id: string; name: string } | null
     unit:       { id: string; name: string } | null
     section:    { id: string; name: string } | null
@@ -269,8 +274,9 @@ export async function createPerson(
   })
 
   if (person.department && person.unit) {
+    let scopedTopicIds: string[] = []
     try {
-      await autoAssignInductionTraining(
+      scopedTopicIds = await autoAssignInductionTraining(
         person.id,
         person.department.id,
         person.unit.id,
@@ -279,6 +285,20 @@ export async function createPerson(
       )
     } catch (error) {
       console.error('[AUTO-ASSIGN ERROR]', error)
+    }
+
+    try {
+      await autoAssignTopicGroupInduction(
+        person.id,
+        person.department.id,
+        person.unit.id,
+        actorId,
+        person.joiningDate,
+        person.section?.id,
+        scopedTopicIds
+      )
+    } catch (error) {
+      console.error('[AUTO-ASSIGN TOPIC GROUP ERROR]', error)
     }
   }
 
@@ -447,6 +467,9 @@ export async function resetPersonPassword(
   const tempPassword = generateTempPassword()
   const passwordHash = await bcrypt.hash(tempPassword, 12)
 
+  const { passwordHistoryCount } = await getPasswordPolicy()
+  const historyDepth = Math.max(1, passwordHistoryCount)
+
   await prisma.passwordHistory.create({
     data: { personId: person.id, passwordHash: person.passwordHash },
   })
@@ -454,7 +477,7 @@ export async function resetPersonPassword(
   const staleHistory = await prisma.passwordHistory.findMany({
     where:   { personId: person.id },
     orderBy: { createdAt: 'desc' },
-    skip:    2,
+    skip:    historyDepth - 1,
     select:  { id: true },
   })
   if (staleHistory.length > 0) {

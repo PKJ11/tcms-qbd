@@ -363,7 +363,7 @@ export async function submitAttempt(
     where: {
       personId: actorId,
       topicId:  assignment.topicId,
-      trigger:  'RETRAINING',
+      trigger:  'SCHEDULE',
       status:   { in: ['FAILED', 'COMPLETED'] },
     },
   })
@@ -440,7 +440,7 @@ export async function submitAttempt(
       data: {
         personId:              actorId,
         topicId:               assignment.topicId,
-        trigger:               'RETRAINING',
+        trigger:               'SCHEDULE',
         status:                'NOT_STARTED',
         assignedById:          actorId,
         dueDate,
@@ -653,7 +653,7 @@ export async function submitOralAttempt(
         data: {
           personId:              assignment.personId,
           topicId:               assignment.topicId,
-          trigger:               'RETRAINING',
+          trigger:               'SCHEDULE',
           status:                'NOT_STARTED',
           assignedById:          actorId,
           dueDate,

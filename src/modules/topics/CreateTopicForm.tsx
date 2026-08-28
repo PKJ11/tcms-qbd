@@ -36,6 +36,7 @@ export function CreateTopicForm({ departments }: Props) {
 
   const [name,         setName]         = useState('')
   const [description,  setDescription]  = useState('')
+  const [sopReference, setSopReference] = useState('')
   const [trainingType, setTrainingType] = useState('MATERIAL_MCQ')
   const [scopes,       setScopes]       = useState<Scope[]>([])
 
@@ -112,6 +113,7 @@ export function CreateTopicForm({ departments }: Props) {
       body:    JSON.stringify({
         name:         name.trim(),
         description:  description.trim() || undefined,
+        sopReference: sopReference.trim() || undefined,
         trainingType,
         scopes,
         justification,
@@ -183,6 +185,26 @@ export function CreateTopicForm({ departments }: Props) {
               }
               rows={3}
               className="w-full px-4 py-2.5 rounded-lg border text-sm outline-none transition-all resize-none"
+              style={inputStyle}
+              onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
+              onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
+            />
+          </div>
+
+          {/* SOP reference */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              SOP number and version <span className="text-gray-400 font-normal ml-1">(optional)</span>
+            </label>
+            <p className="text-xs text-gray-400 mb-1.5">
+              The governing SOP this training covers — shown under the topic name on the Training Matrix report.
+            </p>
+            <input
+              type="text"
+              value={sopReference}
+              onChange={(e) => setSopReference(e.target.value)}
+              placeholder="e.g. QbD-QC-SOP-067, Ver.No. 04"
+              className="w-full px-4 py-2.5 rounded-lg border text-sm outline-none transition-all"
               style={inputStyle}
               onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
               onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}

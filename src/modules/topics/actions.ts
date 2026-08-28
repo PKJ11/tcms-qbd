@@ -12,6 +12,7 @@ const TOPIC_SELECT = {
   id:           true,
   name:         true,
   description:  true,
+  sopReference: true,
   trainingType: true,
   isActive:     true,
   createdAt:    true,
@@ -161,6 +162,7 @@ export async function createTopic(
       data: {
         name:         input.name,
         description:  input.description ?? null,
+        sopReference: input.sopReference ?? null,
         trainingType: input.trainingType ?? 'MATERIAL_MCQ',
         createdById:  actorId,
       },
@@ -190,6 +192,7 @@ export async function createTopic(
     afterValue:    {
       name:         input.name,
       description:  input.description,
+      sopReference: input.sopReference,
       trainingType: input.trainingType ?? 'MATERIAL_MCQ',
       scopes:       input.scopes,
     },
@@ -220,6 +223,7 @@ export async function updateTopic(
     select: {
       name:         true,
       description:  true,
+      sopReference: true,
       trainingType: true,
       isActive:     true,
       topicScopes: {
@@ -237,6 +241,7 @@ export async function updateTopic(
       data:  {
         ...(input.name         !== undefined && { name:         input.name         }),
         ...(input.description  !== undefined && { description:  input.description  }),
+        ...(input.sopReference !== undefined && { sopReference: input.sopReference }),
         ...(input.trainingType !== undefined && { trainingType: input.trainingType }),
         ...(input.isActive     !== undefined && { isActive:     input.isActive     }),
       },
@@ -269,6 +274,7 @@ export async function updateTopic(
     beforeValue:   {
       name:         before.name,
       description:  before.description,
+      sopReference: before.sopReference,
       trainingType: before.trainingType,
       isActive:     before.isActive,
       scopes:       before.topicScopes,
@@ -276,6 +282,7 @@ export async function updateTopic(
     afterValue:    {
       name:         input.name         ?? before.name,
       description:  input.description  ?? before.description,
+      sopReference: input.sopReference ?? before.sopReference,
       trainingType: input.trainingType ?? before.trainingType,
       isActive:     input.isActive     ?? before.isActive,
       scopes:       input.scopes       ?? before.topicScopes,

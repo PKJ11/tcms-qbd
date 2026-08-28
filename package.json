@@ -11,7 +11,8 @@
     "seed": "ts-node --project prisma/tsconfig.seed.json prisma/seed.ts",
     "seed:rtm": "ts-node --project prisma/tsconfig.seed.json prisma/seed-rtm.ts",
     "seed:transfer-demo": "ts-node --project prisma/tsconfig.seed.json prisma/seed-transfer-demo.ts",
-    "seed:demo": "ts-node --project prisma/tsconfig.seed.json prisma/seed-demo-data.ts"
+    "seed:demo": "ts-node --project prisma/tsconfig.seed.json prisma/seed-demo-data.ts",
+    "seed:topic-groups": "ts-node --project prisma/tsconfig.seed.json prisma/seed-topic-groups-demo.ts"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"

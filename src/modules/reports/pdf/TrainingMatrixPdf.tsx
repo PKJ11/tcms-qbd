@@ -1,47 +1,86 @@
-import { Document, Page } from '@react-pdf/renderer'
+import { Document, Page, View, Text } from '@react-pdf/renderer'
 import { letterheadStyles as s } from './styles'
-import { Letterhead } from './Letterhead'
+import { TrainingMatrixHeader } from './TrainingMatrixHeader'
 import { PdfTable, type PdfTableColumn } from './PdfTable'
 import type { TrainingMatrixRow } from '../types'
 
+const FORMAT_NO = 'QbD/QA/F/007-013'
+
+function formatShortDate(date: Date | string): string {
+  const d = new Date(date)
+  const day   = String(d.getDate()).padStart(2, '0')
+  const month = d.toLocaleDateString('en-US', { month: 'short' })
+  const year  = String(d.getFullYear()).slice(-2)
+  return `${day}-${month}-${year}`
+}
+
 export function TrainingMatrixPdf({
-  matrix, preparedByName, preparedDate,
+  matrix, preparedByName, preparedDate, periodLabel,
 }: {
-  matrix: TrainingMatrixRow[]
+  matrix:         TrainingMatrixRow[]
   preparedByName: string
   preparedDate:   string
+  periodLabel:    string
 }) {
-  const topicNames = matrix[0]?.topics.map((t) => t.topicName) ?? []
-  const fixedWidth = 12 // Employee ID + Name + Department
-  const topicWidth = topicNames.length > 0 ? (100 - fixedWidth * 3) / topicNames.length : 0
+  const topics = matrix[0]?.topics ?? []
+  const nameWidth  = 20
+  const topicWidth = topics.length > 0 ? (100 - nameWidth) / topics.length : 0
 
   const columns: PdfTableColumn[] = [
-    { key: 'employeeId', header: 'Employee ID', width: `${fixedWidth}%` },
-    { key: 'name',       header: 'Name',        width: `${fixedWidth}%` },
-    { key: 'department', header: 'Department',  width: `${fixedWidth}%` },
-    ...topicNames.map((name, i) => ({ key: `topic_${i}`, header: name, width: `${topicWidth}%` })),
+    { key: 'name', header: 'Name of Analyst', width: `${nameWidth}%` },
+    ...topics.map((t, i) => ({
+      key:       `topic_${i}`,
+      header:    t.topicName,
+      subHeader: t.sopReference ?? undefined,
+      width:     `${topicWidth}%`,
+    })),
   ]
 
   const tableRows = matrix.map((row) => {
-    const record: Record<string, string> = {
-      employeeId: row.person.employeeId,
-      name:       row.person.name,
-      department: row.person.department?.name ?? '—',
-    }
-    row.topics.forEach((t, i) => { record[`topic_${i}`] = t.status })
+    const record: Record<string, string> = { name: row.person.name }
+    row.topics.forEach((t, i) => {
+      record[`topic_${i}`] = t.status === 'COMPLETED' && t.completedAt
+        ? formatShortDate(t.completedAt)
+        : t.isTrainer
+        ? 'Trainer'
+        : 'N/A'
+    })
     return record
   })
 
   return (
     <Document>
       <Page size="A4" orientation="landscape" style={s.page}>
-        <Letterhead
-          title="TRAINING MATRIX REPORT"
-          formatNo="QbD/QA/F/007-13"
-          preparedByName={preparedByName}
-          preparedDate={preparedDate}
-        />
-        <PdfTable columns={columns} rows={tableRows} />
+        <TrainingMatrixHeader periodLabel={periodLabel} />
+
+        {tableRows.length === 0 ? (
+          <Text style={[s.value, { marginTop: 12 }]}>No scheduled trainings were assigned to this scope during this period.</Text>
+        ) : (
+          <PdfTable columns={columns} rows={tableRows} />
+        )}
+
+        {/* Footer — note, sign-off lines and format number, matching the
+            physical form */}
+        <View style={{ marginTop: 14 }}>
+          <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold' }}>
+            Note: Write actual Title of Document/Document No with version No. in the column, write
+            actual employee name under Name of the Employee column, write actual date of training
+            of employee. If trainee is absent in the column of date of training. If training is
+            not applicable to trainee, then write N/A.
+          </Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', marginTop: 16 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.label}>Prepared By (Sign/Date):</Text>
+            <Text style={[s.value, { marginTop: 4 }]}>{preparedByName} — {preparedDate}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.label}>Checked By (Sign/Date):</Text>
+          </View>
+        </View>
+
+        <Text style={[s.label, { marginTop: 16 }]}>Format No. {FORMAT_NO}</Text>
       </Page>
     </Document>
   )

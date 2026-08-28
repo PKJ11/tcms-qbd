@@ -24,9 +24,9 @@ export default async function NewPersonPage() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
-            Back to personnel
+            Back to manage users
           </a>
-          <h1 className="text-2xl font-bold text-gray-900">Add person</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Create user</h1>
           <p className="text-sm text-gray-500 mt-1">
             A temporary password will be generated and emailed to the person.
           </p>

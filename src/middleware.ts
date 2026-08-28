@@ -4,7 +4,10 @@ import { PERMISSIONS } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types'
 
 const ROUTE_ROLES: Record<string, readonly AppRole[]> = {
-  '/admin':       PERMISSIONS.MANAGE_USERS,
+  '/admin':           PERMISSIONS.MANAGE_USERS,
+  '/roles':           PERMISSIONS.MANAGE_USERS,
+  '/password-policy': PERMISSIONS.MANAGE_USERS,
+  '/organization':    PERMISSIONS.VIEW_PERSONNEL,
   '/reports':     PERMISSIONS.VIEW_REPORTS,
   '/audit-trail': PERMISSIONS.VIEW_AUDIT_TRAIL,
   '/content':     PERMISSIONS.AUTHOR_CONTENT,

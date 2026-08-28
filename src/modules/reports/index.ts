@@ -10,8 +10,8 @@ export {
   getReviewerStats,
   getTopicsForReport,
   getTopicCompletionReport,
-  getSectionsForReport,
-  getAttendanceChartData,
+  getTrainingAttendanceRecord,
+  getTrainersList,
 } from './actions'
 
 // ← imported from utils, not actions
@@ -23,6 +23,8 @@ export type {
   OverdueReportRow,
   QualificationStatusRow,
   TopicCompletionReport,
-  AttendanceChartBucket,
+  TrainingAttendanceRecord,
+  TrainingAttendanceRow,
+  TrainerListItem,
   ReportType,
 } from './types'

@@ -10,6 +10,7 @@ export interface TopicListItem {
   id:           string
   name:         string
   description:  string | null
+  sopReference: string | null
   trainingType: TrainingType
   isActive:     boolean
   createdAt:    Date
@@ -59,6 +60,7 @@ export interface TopicDetail extends TopicListItem {
 export interface CreateTopicInput {
   name:          string
   description?:  string
+  sopReference?: string
   trainingType?: TrainingType
   scopes:        TopicScopeItem[]
 }
@@ -66,6 +68,7 @@ export interface CreateTopicInput {
 export interface UpdateTopicInput {
   name?:         string
   description?:  string
+  sopReference?: string
   trainingType?: TrainingType
   scopes?:       TopicScopeItem[]
   isActive?:     boolean

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
@@ -13,13 +13,21 @@ export default function ChangePasswordPage() {
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
   const [success,  setSuccess]  = useState(false)
+  const [minLength, setMinLength] = useState(8)
+
+  useEffect(() => {
+    fetch('/api/password-policy')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.policy?.minPasswordLength) setMinLength(d.policy.minPasswordLength) })
+      .catch(() => {})
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
 
-    if (newPass.length < 8) {
-      setError('Password must be at least 8 characters.')
+    if (newPass.length < minLength) {
+      setError(`Password must be at least ${minLength} characters.`)
       return
     }
     if (newPass !== confirm) {

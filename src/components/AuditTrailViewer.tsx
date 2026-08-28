@@ -66,9 +66,7 @@ export function AuditTrailViewer() {
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [loading,    setLoading]    = useState(true)
   const [page,       setPage]       = useState(1)
-  const [module,     setModule]     = useState('')
   const [action,     setAction]     = useState('')
-  const [expanded,   setExpanded]   = useState<string | null>(null)
 
   // ── Justification search ──────────────────────────────────────
   const [searchInput, setSearchInput] = useState('')
@@ -135,7 +133,6 @@ export function AuditTrailViewer() {
     const params = new URLSearchParams({
       page:  page.toString(),
       limit: '20',
-      ...(module ? { module } : {}),
       ...(action ? { action } : {}),
       ...(search.trim() ? { search: search.trim() } : {}),
       ...(selectedPerson ? { personId: selectedPerson.id } : {}),
@@ -148,12 +145,11 @@ export function AuditTrailViewer() {
     setLogs(data.logs ?? [])
     setPagination(data.pagination ?? null)
     setLoading(false)
-  }, [page, module, action, search, selectedPerson, dateFrom, dateTo])
+  }, [page, action, search, selectedPerson, dateFrom, dateTo])
 
   useEffect(() => { fetchLogs() }, [fetchLogs])
 
   function clearAllFilters() {
-    setModule('')
     setAction('')
     setSearchInput('')
     clearPerson()
@@ -163,7 +159,7 @@ export function AuditTrailViewer() {
   }
 
   const hasActiveFilters =
-    module || action || search || selectedPerson || dateFrom || dateTo
+    action || search || selectedPerson || dateFrom || dateTo
 
   return (
     <div>
@@ -237,25 +233,8 @@ export function AuditTrailViewer() {
           </div>
         </div>
 
-        {/* Row 2 — module / action / date range / clear */}
+        {/* Row 2 — action / date range / clear */}
         <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={module}
-            onChange={(e) => { setModule(e.target.value); setPage(1) }}
-            className="px-3 py-2 rounded-lg border text-sm outline-none"
-            style={{ borderColor: '#e5e7eb' }}
-          >
-            <option value="">All modules</option>
-            {[
-              'AUTH','PERSONNEL','TRAINING_TOPIC',
-              'TRAINING_ASSIGNMENT','CONTENT',
-              'ASSESSMENT','QUALIFICATION',
-              'REFRESHER','ADMIN','SYSTEM',
-            ].map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-
           <select
             value={action}
             onChange={(e) => { setAction(e.target.value); setPage(1) }}
@@ -329,7 +308,7 @@ export function AuditTrailViewer() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['When','Who','Module','Action','Record','Justification',''].map((h) => (
+                {['Timestamp','Performed By','Action','Justification'].map((h) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
@@ -344,124 +323,45 @@ export function AuditTrailViewer() {
                 const actionStyle = ACTION_COLORS[log.action] ?? {
                   bg: '#f9fafb', color: '#374151'
                 }
-                const isExpanded = expanded === log.id
 
                 return (
-                  <>
-                    <tr
-                      key={log.id}
-                      style={{ borderBottom: '1px solid #f3f4f6' }}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      {/* When */}
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
-                        {formatDateTime(log.createdAt)}
-                      </td>
+                  <tr
+                    key={log.id}
+                    style={{ borderBottom: '1px solid #f3f4f6' }}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    {/* When */}
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
+                      {formatDateTime(log.createdAt)}
+                    </td>
 
-                      {/* Who */}
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900 text-xs">
-                          {log.user.name}
-                        </div>
-                        <div className="text-gray-400 text-xs">
-                          {log.user.employeeId}
-                        </div>
-                      </td>
+                    {/* Who */}
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-900 text-xs">
+                        {log.user.name}
+                      </div>
+                      <div className="text-gray-400 text-xs">
+                        {log.user.employeeId}
+                      </div>
+                    </td>
 
-                      {/* Module */}
-                      <td className="px-4 py-3 text-gray-500 text-xs">
-                        {log.module}
-                      </td>
-
-                      {/* Action */}
-                      <td className="px-4 py-3">
-                        <span
-                          className="px-2 py-0.5 rounded-full text-xs font-semibold"
-                          style={actionStyle}
-                        >
-                          {log.action}
-                        </span>
-                      </td>
-
-                      {/* Record */}
-                      <td className="px-4 py-3 text-gray-500 text-xs">
-                        <div>{log.recordType}</div>
-                        <div className="text-gray-400 font-mono text-xs">
-                          {log.recordId.slice(0, 8)}...
-                        </div>
-                      </td>
-
-                      {/* Justification */}
-                      <td className="px-4 py-3 text-gray-600 text-xs max-w-xs">
-                        <div className="truncate" title={log.justification}>
-                          {log.justification}
-                        </div>
-                      </td>
-
-                      {/* Expand */}
-                      <td className="px-4 py-3">
-                        {(log.beforeValue || log.afterValue) && (
-                          <button
-                            onClick={() =>
-                              setExpanded(isExpanded ? null : log.id)
-                            }
-                            className="text-xs px-2 py-1 rounded border transition-colors"
-                            style={{
-                              borderColor: '#e5e7eb',
-                              color:       '#6b7280',
-                            }}
-                          >
-                            {isExpanded ? 'Hide' : 'Diff'}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-
-                    {/* Expanded diff row */}
-                    {isExpanded && (
-                      <tr
-                        key={`${log.id}-diff`}
-                        style={{ background: '#f9fafb', borderBottom: '1px solid #f3f4f6' }}
+                    {/* Action */}
+                    <td className="px-4 py-3">
+                      <span
+                        className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                        style={actionStyle}
                       >
-                        <td colSpan={7} className="px-4 py-3">
-                          <div className="grid grid-cols-2 gap-4">
-                            {log.beforeValue && (
-                              <div>
-                                <div className="text-xs font-semibold text-gray-500 mb-1">
-                                  Before
-                                </div>
-                                <pre
-                                  className="text-xs rounded-lg p-3 overflow-auto max-h-40"
-                                  style={{
-                                    background: '#fef2f2',
-                                    color:      '#991b1b',
-                                  }}
-                                >
-                                  {JSON.stringify(log.beforeValue, null, 2)}
-                                </pre>
-                              </div>
-                            )}
-                            {log.afterValue && (
-                              <div>
-                                <div className="text-xs font-semibold text-gray-500 mb-1">
-                                  After
-                                </div>
-                                <pre
-                                  className="text-xs rounded-lg p-3 overflow-auto max-h-40"
-                                  style={{
-                                    background: '#f0fdf4',
-                                    color:      '#166534',
-                                  }}
-                                >
-                                  {JSON.stringify(log.afterValue, null, 2)}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </>
+                        {log.action}
+                      </span>
+                    </td>
+
+                    {/* Justification */}
+                    <td className="px-4 py-3 text-gray-600 text-xs max-w-xs">
+                      <div className="truncate" title={log.justification}>
+                        {log.justification}
+                      </div>
+                    </td>
+                  </tr>
                 )
               })}
             </tbody>

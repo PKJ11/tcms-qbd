@@ -29,10 +29,9 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
 }
 
 const TRIGGER_LABELS: Record<string, string> = {
-  INDUCTION:  'Induction',
-  UPGRADE:    'Role upgrade',
-  RETRAINING: 'Retraining',
-  REFRESHER:  'Refresher',
+  INDUCTION: 'Induction',
+  SCHEDULE:  'Schedule',
+  REFRESHER: 'Refresher',
 }
 
 export function AllAssignmentsList({

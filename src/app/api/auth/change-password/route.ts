@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { logAuthEvent } from '@/modules/audit-trail'
+import { getPasswordPolicy } from '@/lib/password-policy'
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
@@ -23,9 +24,12 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  if (newPassword.length < 8) {
+  const policy = await getPasswordPolicy()
+  const historyDepth = Math.max(1, policy.passwordHistoryCount)
+
+  if (newPassword.length < policy.minPasswordLength) {
     return NextResponse.json(
-      { message: 'Password must be at least 8 characters' },
+      { message: `Password must be at least ${policy.minPasswordLength} characters` },
       { status: 400 }
     )
   }
@@ -49,18 +53,18 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Last 3 passwords (current + 2 most recent historical) cannot be reused
+  // Cannot reuse any of the last N passwords (current hash + N-1 history rows)
   const recentHistory = await prisma.passwordHistory.findMany({
     where:   { personId: person.id },
     orderBy: { createdAt: 'desc' },
-    take:    2,
+    take:    historyDepth - 1,
   })
 
   const previousHashes = [person.passwordHash, ...recentHistory.map((h) => h.passwordHash)]
   for (const hash of previousHashes) {
     if (await bcrypt.compare(newPassword, hash)) {
       return NextResponse.json(
-        { message: 'You cannot reuse any of your last 3 passwords' },
+        { message: `You cannot reuse any of your last ${historyDepth} passwords` },
         { status: 400 }
       )
     }
@@ -72,11 +76,11 @@ export async function POST(req: NextRequest) {
     data: { personId: person.id, passwordHash: person.passwordHash },
   })
 
-  // Keep only the 2 most recent history rows (current + 2 = last 3 tracked)
+  // Keep only the N-1 most recent history rows (current + N-1 = last N tracked)
   const staleHistory = await prisma.passwordHistory.findMany({
     where:   { personId: person.id },
     orderBy: { createdAt: 'desc' },
-    skip:    2,
+    skip:    historyDepth - 1,
     select:  { id: true },
   })
   if (staleHistory.length > 0) {

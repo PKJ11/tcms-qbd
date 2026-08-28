@@ -151,7 +151,7 @@ const TEST_CASES = [
       'Login as Person A',
       'Navigate to /assignments',
     ]),
-    expected:    'Person A has a new RETRAINING assignment for Topic X. Notification sent. Audit log shows APPROVE with MAJOR version type.',
+    expected:    'Person A has a new SCHEDULE assignment for Topic X. Notification sent. Audit log shows APPROVE with MAJOR version type.',
     priority:    'M',
   },
   {
@@ -278,7 +278,7 @@ const TEST_CASES = [
       'Attempt 2: answer all wrong → NEEDS_RETRAINING',
       'Verify attempt 3 is blocked',
     ]),
-    expected:    'Attempt 1: FAIL. Attempt 2: NEEDS_RETRAINING. Attempt 3: blocked with error message. New RETRAINING assignment auto-created.',
+    expected:    'Attempt 1: FAIL. Attempt 2: NEEDS_RETRAINING. Attempt 3: blocked with error message. New SCHEDULE assignment auto-created.',
     priority:    'M',
   },
   {

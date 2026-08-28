@@ -2,11 +2,8 @@ import { z } from 'zod'
 
 const TRIGGER_ENUM = z.enum([
   'INDUCTION',
-  'UPGRADE',
-  'RETRAINING',
+  'SCHEDULE',
   'REFRESHER',
-  'TECHNICAL',
-  'EXTERNAL',
 ])
 
 export const createAssignmentSchema = z.object({

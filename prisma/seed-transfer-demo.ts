@@ -99,7 +99,7 @@ async function main() {
       data: {
         personId:     trainee.id,
         topicId:      topicCompleted.id,
-        trigger:      'EXTERNAL',
+        trigger:      'SCHEDULE',
         status:       'COMPLETED',
         assignedById: admin.id,
         dueDate:      new Date('2025-02-01'),
@@ -123,7 +123,7 @@ async function main() {
       data: {
         personId:     trainee.id,
         topicId:      topicActive.id,
-        trigger:      'EXTERNAL',
+        trigger:      'SCHEDULE',
         status:       'NOT_STARTED',
         assignedById: admin.id,
         dueDate:      new Date('2026-09-01'),

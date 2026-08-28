@@ -7,7 +7,8 @@ import type {
   OverdueReportRow,
   QualificationStatusRow,
   TopicCompletionReport,
-  AttendanceChartBucket,
+  TrainingAttendanceRecord,
+  TrainerListItem,
 } from './types'
 import type { QualStatus } from '@prisma/client'
 // At top of src/modules/reports/actions.ts
@@ -20,22 +21,31 @@ export async function getSubordinateIds(managerId: string): Promise<string[]> {
 // TRAINING MATRIX — URS-RPT-001
 // ─────────────────────────────────────────────────────────────────
 
-export async function getTrainingMatrix(filters?: {
-  departmentId?: string
-  unitId?:       string
-  sectionId?:    string
-  topicId?:      string
+// The matrix is always scoped to a chosen time period ("when assigned") and
+// org scope (department/unit/section, or the caller's team). Columns are
+// derived from whichever topics were actually assigned to someone in that
+// scope during that period — not every topic that exists — and each row's
+// cells only count an assignment if it too falls inside the period, so the
+// matrix always reflects "who was assigned what, in this window". Only
+// SCHEDULE-triggered assignments are considered — induction and refresher
+// trainings are tracked elsewhere and are deliberately excluded here.
+export async function getTrainingMatrix(filters: {
+  departmentId?:   string
+  unitId?:         string
+  sectionId?:      string
   subordinateIds?: string[]
+  fromDate:        Date
+  toDate:          Date
 }): Promise<TrainingMatrixRow[]> {
   const persons = await prisma.person.findMany({
     where: {
       isActive: true,
-      ...(filters?.subordinateIds !== undefined
+      ...(filters.subordinateIds !== undefined
         ? { id: { in: filters.subordinateIds } }
         : {
-            ...(filters?.departmentId && { departmentId: filters.departmentId }),
-            ...(filters?.unitId       && { unitId:       filters.unitId       }),
-            ...(filters?.sectionId    && { sectionId:    filters.sectionId    }),
+            ...(filters.departmentId && { departmentId: filters.departmentId }),
+            ...(filters.unitId       && { unitId:       filters.unitId       }),
+            ...(filters.sectionId    && { sectionId:    filters.sectionId    }),
           }
       ),
     },
@@ -46,26 +56,6 @@ export async function getTrainingMatrix(filters?: {
       designation: true,
       department:  { select: { name: true } },
       section:     { select: { name: true } },
-      trainingAssignments: {
-        select: {
-          id:          true,
-          topicId:     true,
-          status:      true,
-          createdAt:   true,
-          dueDate:     true,
-          completedAt: true,
-          startedAt:   true,
-          topic:       { select: { id: true, name: true } },
-          assignedBy:  { select: { name: true } },
-          attempts: {
-            orderBy: { submittedAt: 'desc' },
-            take:    1,
-            select:  { score: true, outcome: true },
-          },
-        },
-        ...(filters?.topicId && { where: { topicId: filters.topicId } }),
-        orderBy: { createdAt: 'desc' },
-      },
     },
     orderBy: [
       { department: { name: 'asc' } },
@@ -73,18 +63,56 @@ export async function getTrainingMatrix(filters?: {
     ],
   })
 
-  // Training topics are intentionally NOT filtered by department/section —
-  // a TrainingTopic is only linked to departments/units/sections via TopicScope
-  // (used for induction auto-assign / compulsory targeting), it isn't owned by one.
-  const topicsWhere = filters?.topicId
-    ? { id: filters.topicId, isActive: true }
-    : { isActive: true }
+  const personIds = persons.map((p) => p.id)
+  if (personIds.length === 0) return []
 
-  const topics = await prisma.trainingTopic.findMany({
-    where:   topicsWhere,
-    select:  { id: true, name: true },
-    orderBy: { name: 'asc' },
+  // Every assignment created within the period, for people in scope — this
+  // is both the source of the dynamic column list and the per-cell data.
+  const assignments = await prisma.trainingAssignment.findMany({
+    where: {
+      personId:  { in: personIds },
+      trigger:   'SCHEDULE',
+      createdAt: { gte: filters.fromDate, lte: filters.toDate },
+    },
+    select: {
+      id:           true,
+      personId:     true,
+      topicId:      true,
+      status:       true,
+      createdAt:    true,
+      dueDate:      true,
+      completedAt:  true,
+      topic:        { select: { id: true, name: true, sopReference: true } },
+      assignedById: true,
+      assignedBy:   { select: { name: true } },
+      attempts: {
+        orderBy: { submittedAt: 'desc' },
+        take:    1,
+        select:  { score: true },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
   })
+
+  // Columns = distinct topics that were actually assigned to this scope
+  // during the period — sorted by name, not by whatever exists globally.
+  const topicsById = new Map<string, { name: string; sopReference: string | null }>()
+  for (const a of assignments) topicsById.set(a.topicId, { name: a.topic.name, sopReference: a.topic.sopReference })
+  const topics = Array.from(topicsById.entries())
+    .map(([id, t]) => ({ id, name: t.name, sopReference: t.sopReference }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  // Who assigned each topic to someone in this scope+period — if a person
+  // has no assignment of their own for a topic because THEY'RE the one who
+  // assigned it to everyone else, the cell should read "Trainer", not
+  // "not assigned" (which would look like an oversight rather than the
+  // reason).
+  const trainerIdsByTopic = new Map<string, Set<string>>()
+  for (const a of assignments) {
+    const set = trainerIdsByTopic.get(a.topicId) ?? new Set<string>()
+    set.add(a.assignedById)
+    trainerIdsByTopic.set(a.topicId, set)
+  }
 
   return persons.map((person) => ({
     person: {
@@ -96,25 +124,27 @@ export async function getTrainingMatrix(filters?: {
       section:     person.section,
     },
     topics: topics.map((topic) => {
-      const assignment = person.trainingAssignments
-        .filter((a) => a.topicId === topic.id)
-        .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())[0]
+      // orderBy createdAt desc above, so the first match is the latest —
+      // relevant only for the rare case of two assignments of the same
+      // topic to the same person inside one period.
+      const assignment = assignments.find((a) => a.personId === person.id && a.topicId === topic.id)
 
       if (!assignment) {
         return {
-          topicId:   topic.id,
-          topicName: topic.name,
-          status:    'NOT_ASSIGNED' as const,
+          topicId:      topic.id,
+          topicName:    topic.name,
+          sopReference: topic.sopReference,
+          status:       'NOT_ASSIGNED' as const,
+          isTrainer:    trainerIdsByTopic.get(topic.id)?.has(person.id) ?? false,
         }
       }
 
-      const latestAttempt = assignment.attempts[0]
-
       return {
-        topicId:     topic.id,
-        topicName:   topic.name,
+        topicId:      topic.id,
+        topicName:    topic.name,
+        sopReference: topic.sopReference,
         status:      assignment.status as TrainingMatrixRow['topics'][0]['status'],
-        score:       latestAttempt?.score    ?? undefined,
+        score:       assignment.attempts[0]?.score ?? undefined,
         assignedAt:  assignment.createdAt,
         completedAt: assignment.completedAt,
         dueDate:     assignment.dueDate,
@@ -141,7 +171,7 @@ export async function getTrainingIndex(
       startedAt:   true,
       completedAt: true,
       createdAt:   true,
-      topic:       { select: { name: true } },
+      topic:       { select: { name: true, description: true } },
       assignedBy:  { select: { name: true } },
       attempts: {
         orderBy: { submittedAt: 'desc' },
@@ -153,17 +183,18 @@ export async function getTrainingIndex(
   })
 
   return assignments.map((a) => ({
-    id:          a.id,
-    topicName:   a.topic.name,
-    trigger:     a.trigger,
-    status:      a.status,
-    assignedAt:  a.createdAt,
-    dueDate:     a.dueDate,
-    startedAt:   a.startedAt,
-    completedAt: a.completedAt,
-    score:       a.attempts[0]?.score   ?? null,
-    outcome:     a.attempts[0]?.outcome ?? null,
-    assignedBy:  a.assignedBy.name,
+    id:               a.id,
+    topicName:        a.topic.name,
+    topicDescription: a.topic.description,
+    trigger:          a.trigger,
+    status:           a.status,
+    assignedAt:       a.createdAt,
+    dueDate:          a.dueDate,
+    startedAt:        a.startedAt,
+    completedAt:      a.completedAt,
+    score:            a.attempts[0]?.score   ?? null,
+    outcome:          a.attempts[0]?.outcome ?? null,
+    assignedBy:       a.assignedBy.name,
   }))
 }
 
@@ -568,53 +599,104 @@ export async function getTopicCompletionReport(
 }
 
 // ─────────────────────────────────────────────────────────────────
-// ATTENDANCE CHART — month-wise + section-wise, attended vs not
+// TRAINING ATTENDANCE RECORD — everyone who completed one topic on one day
 // ─────────────────────────────────────────────────────────────────
 
-export async function getSectionsForReport() {
-  return prisma.section.findMany({
-    where:   { isActive: true },
-    select:  { id: true, name: true, unit: { select: { name: true, department: { select: { name: true } } } } },
-    orderBy: { name: 'asc' },
+export async function getTrainingAttendanceRecord(filters: {
+  topicId:         string
+  date:            string  // 'YYYY-MM-DD' — a calendar date, not an instant
+  subordinateIds?: string[]
+}): Promise<TrainingAttendanceRecord> {
+  const topic = await prisma.trainingTopic.findUnique({
+    where:  { id: filters.topicId },
+    select: { id: true, name: true, sopReference: true },
   })
-}
+  if (!topic) throw new Error('Topic not found')
 
-export async function getAttendanceChartData(filters?: {
-  sectionId?: string
-  months?:    number
-}): Promise<AttendanceChartBucket[]> {
-  const monthCount = filters?.months ?? 6
-
-  // Build the last N calendar-month windows, oldest first
-  const windows: { start: Date; end: Date; key: string; label: string }[] = []
-  const now = new Date()
-  for (let i = monthCount - 1; i >= 0; i--) {
-    const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const end   = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-    windows.push({
-      start,
-      end,
-      key:   `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
-      label: start.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
-    })
-  }
+  // Parsed as UTC (per the ES spec for bare "YYYY-MM-DD" strings) so the
+  // day boundary is the same regardless of the server's local timezone —
+  // appending a local offset via setHours() here would silently shift the
+  // window on a server not running in UTC.
+  const dayStart = new Date(`${filters.date}T00:00:00.000Z`)
+  const dayEnd   = new Date(`${filters.date}T23:59:59.999Z`)
 
   const assignments = await prisma.trainingAssignment.findMany({
     where: {
-      dueDate: { gte: windows[0].start, lt: windows[windows.length - 1].end },
-      status:  { not: 'CANCELLED' },
-      ...(filters?.sectionId && { person: { sectionId: filters.sectionId } }),
+      topicId:     filters.topicId,
+      status:      'COMPLETED',
+      completedAt: { gte: dayStart, lte: dayEnd },
+      ...(filters.subordinateIds !== undefined && { personId: { in: filters.subordinateIds } }),
     },
-    select: { dueDate: true, status: true },
+    select: {
+      completedAt: true,
+      assignedBy:  { select: { name: true } },
+      person: {
+        select: {
+          id: true, name: true, employeeId: true,
+          department: { select: { name: true } },
+        },
+      },
+    },
+    // One row per person even if they somehow have more than one completed
+    // assignment of the same topic on the same day (e.g. a retraining
+    // cycle) — a sign-in sheet lists each attendee once.
+    distinct: ['personId'],
+    orderBy: { person: { name: 'asc' } },
   })
 
-  return windows.map((w) => {
-    const inWindow = assignments.filter((a) => a.dueDate >= w.start && a.dueDate < w.end)
-    return {
-      month:       w.key,
-      monthLabel:  w.label,
-      attended:    inWindow.filter((a) => a.status === 'COMPLETED').length,
-      notAttended: inWindow.filter((a) => a.status !== 'COMPLETED').length,
-    }
+  // Most common assigner among the day's attendees — the "trainer" line
+  // on the printed record. Falls back to null if there's no clear one.
+  const trainerCounts = new Map<string, number>()
+  for (const a of assignments) trainerCounts.set(a.assignedBy.name, (trainerCounts.get(a.assignedBy.name) ?? 0) + 1)
+  const trainerName = Array.from(trainerCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+
+  return {
+    topicId:      topic.id,
+    topicName:    topic.name,
+    sopReference: topic.sopReference,
+    date:         filters.date,
+    trainerName,
+    attendees: assignments.map((a) => ({
+      personId:    a.person.id,
+      name:        a.person.name,
+      employeeId:  a.person.employeeId,
+      department:  a.person.department?.name ?? null,
+      completedAt: a.completedAt!,
+    })),
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// LIST OF TRAINERS — every active Trainer/Guest Trainer, org-wide
+// ─────────────────────────────────────────────────────────────────
+
+export async function getTrainersList(): Promise<TrainerListItem[]> {
+  const trainers = await prisma.person.findMany({
+    where: {
+      isActive: true,
+      roles:    { some: { role: { in: ['TRAINER', 'GUEST_TRAINER'] } } },
+    },
+    select: {
+      id: true, name: true, employeeId: true, designation: true,
+      roles:      { select: { role: true } },
+      department: { select: { name: true } },
+      unit:       { select: { name: true } },
+      section:    { select: { name: true } },
+    },
+    orderBy: [
+      { department: { name: 'asc' } },
+      { name:       'asc'          },
+    ],
   })
+
+  return trainers.map((t) => ({
+    id:          t.id,
+    name:        t.name,
+    employeeId:  t.employeeId,
+    designation: t.designation,
+    roles:       t.roles.map((r) => r.role),
+    department:  t.department?.name ?? null,
+    unit:        t.unit?.name       ?? null,
+    section:     t.section?.name    ?? null,
+  }))
 }

@@ -4,6 +4,7 @@ export {
   getAssignmentById,
   createAssignments,
   autoAssignInductionTraining,
+  autoAssignTopicGroupInduction,
   getScopedTopics,
   getScopedTrainingsForTransfer,
   assignScopedTrainingsOnTransfer,

@@ -22,13 +22,32 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const format           = searchParams.get('format')
   const subordinateIds   = await resolveScopeFilter(session.user, searchParams.get('scope'))
+  const isOrgWide        = subordinateIds === undefined
+  const departmentId     = searchParams.get('departmentId') ?? undefined
+  const fromParam        = searchParams.get('from')
+  const toParam          = searchParams.get('to')
+
+  // The matrix always needs a time period — and, for org-wide viewers who
+  // aren't already scoped to a fixed team, a department too.
+  const missingFilters = !fromParam || !toParam || (isOrgWide && !departmentId)
+
+  if (missingFilters) {
+    if (format === 'csv' || format === 'pdf') {
+      return NextResponse.json(
+        { message: 'Select a time period (and department, for org-wide data) before exporting' },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json({ matrix: [], needsFilters: true })
+  }
 
   const matrix = await getTrainingMatrix({
-    departmentId: searchParams.get('departmentId') ?? undefined,
-    unitId:       searchParams.get('unitId')    ?? undefined,
-    sectionId:    searchParams.get('sectionId') ?? undefined,
-    topicId:      searchParams.get('topicId') ?? undefined,
+    departmentId,
+    unitId:    searchParams.get('unitId')    ?? undefined,
+    sectionId: searchParams.get('sectionId') ?? undefined,
     subordinateIds,
+    fromDate: new Date(fromParam!),
+    toDate:   new Date(`${toParam}T23:59:59.999`),
   })
 
   if (format === 'csv') {
@@ -40,7 +59,7 @@ export async function GET(req: NextRequest) {
       row.person.employeeId,
       row.person.name,
       row.person.department?.name ?? '',
-      
+
       ...row.topics.map((t) => t.status),
     ])
 
@@ -54,11 +73,20 @@ export async function GET(req: NextRequest) {
   }
 
   if (format === 'pdf') {
+    // "Jul-26" style label — matching the physical form's per-month title.
+    // Falls back to a "Jul-26 to Aug-26" range if the chosen period spans
+    // more than one calendar month.
+    const monthYear = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', '-')
+    const fromLabel = monthYear(new Date(fromParam!))
+    const toLabel   = monthYear(new Date(toParam!))
+    const periodLabel = fromLabel === toLabel ? fromLabel : `${fromLabel} to ${toLabel}`
+
     const buffer = await renderReportPdf(
       TrainingMatrixPdf({
         matrix,
         preparedByName: session.user.name,
         preparedDate:   formatDate(new Date()),
+        periodLabel,
       })
     )
     return new NextResponse(buffer, {

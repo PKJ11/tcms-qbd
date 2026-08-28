@@ -26,13 +26,19 @@ export async function GET(req: NextRequest) {
     ? await getSubordinateIds(session.user.id)
     : undefined
 
+  const isActiveParam = searchParams.get('isActive')
+  const isActive =
+    isActiveParam === 'all'   ? undefined
+    : isActiveParam === 'false' ? false
+    : true
+
   const persons = await getPersons({
     subordinateIds,
     departmentId: searchParams.get('departmentId') ?? undefined,
     unitId:       searchParams.get('unitId')        ?? undefined,
     sectionId:    searchParams.get('sectionId')     ?? undefined,
     role:         searchParams.get('role')          ?? undefined,
-    isActive:     searchParams.get('isActive') === 'false' ? false : true,
+    isActive,
     search:       searchParams.get('search')        ?? undefined,
   })
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { createUnit } from '@/modules/organization'
+import { createUnit, deleteUnit } from '@/modules/organization'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function POST(req: NextRequest) {
@@ -34,6 +34,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ unit }, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create unit'
+    return NextResponse.json({ message }, { status: 400 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await getSession()
+
+  if (!session) {
+    return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
+  }
+  if (!hasAnyRole(session.user, PERMISSIONS.MANAGE_ORG)) {
+    return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
+  }
+
+  const body = await req.json()
+  const { id, justification, password } = body
+
+  if (!id) {
+    return NextResponse.json({ message: 'Unit id is required' }, { status: 400 })
+  }
+  if (!justification) {
+    return NextResponse.json({ message: 'Justification is required' }, { status: 400 })
+  }
+  if (!password) {
+    return NextResponse.json({ message: 'Password is required' }, { status: 400 })
+  }
+
+  try {
+    const result = await deleteUnit(id, justification, session.user.id, password)
+    return NextResponse.json(result)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete unit'
     return NextResponse.json({ message }, { status: 400 })
   }
 }

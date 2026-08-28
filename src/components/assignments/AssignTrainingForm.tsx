@@ -38,12 +38,9 @@ interface Props {
 }
 
 const TRIGGERS = [
-  { value: 'INDUCTION',  label: 'Induction',        description: 'New joiner training — auto-assigned on joining' },
-  { value: 'UPGRADE',    label: 'Role upgrade',      description: "Person's responsibilities have changed" },
-  { value: 'RETRAINING', label: 'Retraining',        description: 'Performance or deviation-driven retraining' },
-  { value: 'REFRESHER',  label: 'Refresher',         description: 'Scheduled periodic refresh' },
-  { value: 'TECHNICAL',  label: 'Technical',         description: 'Skill upgrade or SOP revision-driven training' },
-  { value: 'EXTERNAL',   label: 'External training', description: 'Director-approved external programme' },
+  { value: 'INDUCTION', label: 'Induction', description: 'New joiner training — auto-assigned on joining' },
+  { value: 'SCHEDULE',  label: 'Schedule',  description: 'Planned or scheduled training' },
+  { value: 'REFRESHER', label: 'Refresher', description: 'Scheduled periodic refresh' },
 ]
 
 export function AssignTrainingForm({ topics, initialTopicId }: Props) {

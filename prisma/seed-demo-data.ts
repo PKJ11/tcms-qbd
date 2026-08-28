@@ -395,7 +395,7 @@ async function main() {
 
   await upsertAssignment({
     id: 'seeded-assign-lcms-trainee3-inprogress',
-    personId: trainee3.id, topicId: hplcTopic.topic.id, trigger: TrainingTrigger.UPGRADE,
+    personId: trainee3.id, topicId: hplcTopic.topic.id, trigger: TrainingTrigger.SCHEDULE,
     status: AssignmentStatus.IN_PROGRESS, assignedById: trainerQC.id,
     dueDate: daysFromNow(7), startedAt: daysFromNow(-1),
     questionBankVersionId: hplcTopic.version.id,
@@ -410,7 +410,7 @@ async function main() {
 
   await upsertAssignment({
     id: 'seeded-assign-gc-contractual-overdue',
-    personId: contractual.id, topicId: gcTopic.topic.id, trigger: TrainingTrigger.EXTERNAL,
+    personId: contractual.id, topicId: gcTopic.topic.id, trigger: TrainingTrigger.SCHEDULE,
     status: AssignmentStatus.OVERDUE, assignedById: trainerQC.id,
     dueDate: daysFromNow(-3),
     questionBankVersionId: gcTopic.version.id,

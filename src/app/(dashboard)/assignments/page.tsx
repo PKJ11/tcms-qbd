@@ -9,7 +9,8 @@ export default async function AssignmentsPage() {
   if (!session) redirect('/login')
 
   const canAssign = hasAnyRole(session.user, PERMISSIONS.ASSIGN_TRAINING)
-  const isOrgWide = hasAnyRole(session.user, ['TRAINER', 'GUEST_TRAINER', 'VIEWER', 'ADMINISTRATOR'])
+  // Administrators no longer get org-wide "All Assignments" visibility here.
+  const isOrgWide = hasAnyRole(session.user, ['TRAINER', 'GUEST_TRAINER', 'VIEWER'])
 
   // Any Trainer/Guest Trainer or Administrator can revert a mistaken assignment,
   // regardless of who originally assigned it.

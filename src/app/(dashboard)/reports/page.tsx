@@ -2,7 +2,7 @@ import { getSession }      from '@/lib/auth'
 import { redirect }        from 'next/navigation'
 import { ReportsHub }      from '@/components/reports/ReportsHub'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
-import { getSubordinateIds, getTeamIds, REPORT_OVERSIGHT_ROLES } from '@/lib/subordinates'
+import { getTeamIds, REPORT_OVERSIGHT_ROLES } from '@/lib/subordinates'
 
 export default async function ReportsPage() {
   const session = await getSession()
@@ -11,11 +11,7 @@ export default async function ReportsPage() {
   if (!hasAnyRole(session.user, PERMISSIONS.VIEW_REPORTS)) redirect('/unauthorised')
 
   const canViewAll = hasAnyRole(session.user, REPORT_OVERSIGHT_ROLES)
-
-  const [directReportIds, teamIds] = await Promise.all([
-    getSubordinateIds(session.user.id),
-    getTeamIds(session.user.id),
-  ])
+  const teamIds     = await getTeamIds(session.user.id)
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>
@@ -30,8 +26,8 @@ export default async function ReportsPage() {
         <ReportsHub
           roles={session.user.roles}
           userId={session.user.id}
+          userName={session.user.name}
           canViewAll={canViewAll}
-          directReportIds={directReportIds}
           teamIds={teamIds}
         />
       </div>

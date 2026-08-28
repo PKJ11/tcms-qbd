@@ -3,10 +3,7 @@ import CredentialsProvider                from 'next-auth/providers/credentials'
 import { prisma }                         from '@/lib/prisma'
 import bcrypt                             from 'bcryptjs'
 import type { TCMSUser }                  from '@/lib/types'
-
-// ── Security policy constants ───────────────────────────────────────
-const MAX_FAILED_LOGIN_ATTEMPTS = 3
-const PASSWORD_EXPIRY_DAYS      = 45
+import { getPasswordPolicy }              from '@/lib/password-policy'
 
 function daysSince(date: Date): number {
   return Math.floor((Date.now() - date.getTime()) / (24 * 60 * 60 * 1000))
@@ -60,6 +57,12 @@ export const authOptions: NextAuthOptions = {
         if (!person.isActive)  return null
         if (!person.passwordHash) return null
 
+        // Admin-configurable password policy (falls back to defaults if unset)
+        const policy = await getPasswordPolicy()
+        const MAX_FAILED_LOGIN_ATTEMPTS = policy.failedAttemptLimit
+        const PASSWORD_EXPIRY_DAYS      = policy.passwordExpiryDays
+        const policyEnforced           = policy.authMode !== 'LDAP'
+
         // Account locked — only an Administrator can unlock it. Block the
         // attempt regardless of whether the password entered is correct.
         if (person.isLocked) {
@@ -85,12 +88,12 @@ export const authOptions: NextAuthOptions = {
                 module:        'AUTH',
                 recordId:      person.id,
                 recordType:    'Person',
-                justification: 'Account auto-locked after 3 consecutive failed login attempts',
+                justification: `Account auto-locked after ${MAX_FAILED_LOGIN_ATTEMPTS} consecutive failed login attempts`,
                 afterValue:    { isLocked: true, failedLoginAttempts: attempts },
               },
             }).catch(() => {})
             throw new Error(
-              'Your account has been locked after 3 failed login attempts. Please contact your Administrator to unlock it.'
+              `Your account has been locked after ${MAX_FAILED_LOGIN_ATTEMPTS} failed login attempts. Please contact your Administrator to unlock it.`
             )
           }
 
@@ -111,10 +114,11 @@ export const authOptions: NextAuthOptions = {
           })
         }
 
-        // Password expiry — force a change after 45 days, regardless of
-        // the mustChangePassword flag set at creation/reset time.
+        // Password expiry — force a change after the configured number of
+        // days, regardless of the mustChangePassword flag set at creation/
+        // reset time. Skipped entirely when Auth Mode is LDAP.
         const passwordAgeDays       = daysSince(person.passwordChangedAt)
-        const passwordExpired       = passwordAgeDays >= PASSWORD_EXPIRY_DAYS
+        const passwordExpired       = policyEnforced && passwordAgeDays >= PASSWORD_EXPIRY_DAYS
         const mustChangePassword    = person.mustChangePassword || passwordExpired
         const passwordDaysRemaining = PASSWORD_EXPIRY_DAYS - passwordAgeDays
 

@@ -368,7 +368,7 @@ export async function autoAssignInductionTraining(
 ) {
   const topics = await getScopedTopics(departmentId, unitId, sectionId)
 
-  if (topics.length === 0) return
+  if (topics.length === 0) return []
 
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + 14) // 14 days for induction
@@ -435,6 +435,128 @@ export async function autoAssignInductionTraining(
     },
     justification: 'Auto-assigned induction training based on department on person creation',
   })
+
+  return topics.map((t) => t.id)
+}
+
+// ── Auto-assign trainer-curated Topic Group induction training ─────
+// Called from personnel/actions.ts alongside autoAssignInductionTraining.
+// A Topic Group is scoped to one unit ("a trainer's team"), optionally
+// narrowed to one section within it. Matching mirrors getScopedTopics:
+// unit-wide groups (sectionId null) apply to everyone in the unit, and a
+// section-scoped group additionally applies only to that section — so a
+// person in the group's section gets both the unit-wide and section-only
+// groups' topics, while everyone else in the unit gets only the unit-wide
+// ones. Due `joiningDate + 1 month` — distinct from the 14-day due date
+// used for TopicScope-driven induction above. excludeTopicIds skips topics
+// already assigned by that call, so a topic in both a TopicScope and a
+// TopicGroup doesn't create two induction assignments for the same person.
+
+export async function autoAssignTopicGroupInduction(
+  personId:         string,
+  departmentId:     string,
+  unitId:           string,
+  actorId:          string,
+  joiningDate?:     Date | null,
+  sectionId?:       string | null,
+  excludeTopicIds:  string[] = []
+) {
+  const sectionCond = sectionId
+    ? { OR: [{ sectionId: null }, { sectionId }] }
+    : { sectionId: null }
+
+  const groups = await prisma.topicGroup.findMany({
+    where: { departmentId, unitId, isActive: true, ...sectionCond },
+    select: {
+      createdById: true,
+      items: {
+        select: { topic: { select: { id: true, name: true, isActive: true } } },
+      },
+    },
+  })
+
+  // assignedById is the trainer who curated the group the topic came from —
+  // not whoever happened to be creating the new person's account — so
+  // "Assigned by" on the assignment correctly credits the trainer.
+  const seen   = new Set(excludeTopicIds)
+  const topics: { id: string; name: string; assignedById: string }[] = []
+  for (const group of groups) {
+    for (const item of group.items) {
+      if (!item.topic.isActive || seen.has(item.topic.id)) continue
+      seen.add(item.topic.id)
+      topics.push({ id: item.topic.id, name: item.topic.name, assignedById: group.createdById })
+    }
+  }
+
+  if (topics.length === 0) return []
+
+  const dueDate = joiningDate ? new Date(joiningDate) : new Date()
+  dueDate.setMonth(dueDate.getMonth() + 1) // joining date + 1 month
+
+  const batchStartedAt = new Date()
+
+  await prisma.$transaction(async (tx) => {
+    const topicPins = await Promise.all(
+      topics.map(async (t) => ({ topicId: t.id, pins: await resolveVersionPins(tx, t.id) }))
+    )
+
+    await tx.trainingAssignment.createMany({
+      data: topics.map((t) => ({
+        personId,
+        topicId:               t.id,
+        trigger:               'INDUCTION' as const,
+        status:                'NOT_STARTED' as const,
+        assignedById:          t.assignedById,
+        dueDate,
+        questionBankVersionId: topicPins.find((tp) => tp.topicId === t.id)!.pins.questionBankVersionId,
+      })),
+    })
+
+    const createdAssignments = await tx.trainingAssignment.findMany({
+      where: {
+        personId,
+        topicId:   { in: topics.map((t) => t.id) },
+        trigger:   'INDUCTION',
+        createdAt: { gte: batchStartedAt },
+      },
+      select: { id: true, topicId: true },
+    })
+
+    for (const a of createdAssignments) {
+      const tp = topicPins.find((x) => x.topicId === a.topicId)
+      if (tp && tp.pins.materialPins.length > 0) {
+        await pinAssignmentMaterialVersions(tx, [a.id], tp.pins.materialPins)
+      }
+    }
+  })
+
+  await prisma.notification.createMany({
+    data: topics.map((t) => ({
+      personId,
+      type:    'ASSIGNMENT' as const,
+      channel: 'IN_APP'      as const,
+      title:   'Induction training assigned',
+      message: `"${t.name}" has been assigned as part of your department's induction topic group. Due ${dueDate.toLocaleDateString('en-IN')}.`,
+    })),
+  })
+
+  await logAuditEvent({
+    userId:        actorId,
+    action:        'ASSIGN',
+    module:        'TRAINING_ASSIGNMENT',
+    recordId:      personId,
+    recordType:    'Person',
+    beforeValue:   null,
+    afterValue:    {
+      topics:  topics.map((t) => t.name),
+      trigger: 'INDUCTION',
+      source:  'TopicGroup',
+      dueDate,
+    },
+    justification: "Auto-assigned induction training from the department's topic group(s) on person creation",
+  })
+
+  return topics.map((t) => t.id)
 }
 
 // ── Preview fixed trainings for a department/unit/section transfer ─

@@ -60,18 +60,37 @@ export async function GET(
   }
 
   if (format === 'pdf') {
-    const person = await prisma.person.findUnique({
-      where:  { id: params.personId },
-      select: { name: true, employeeId: true },
-    })
+    const [person, preparer] = await Promise.all([
+      prisma.person.findUnique({
+        where:  { id: params.personId },
+        select: {
+          name: true, employeeId: true, designation: true,
+          department: { select: { name: true } },
+          manager:    { select: { name: true, designation: true } },
+        },
+      }),
+      prisma.person.findUnique({
+        where:  { id: session.user.id },
+        select: { designation: true },
+      }),
+    ])
+
+    const today = formatDate(new Date())
 
     const buffer = await renderReportPdf(
       TrainingIndexPdf({
         entries,
-        personName:       person?.name ?? '—',
-        personEmployeeId: person?.employeeId ?? '—',
-        preparedByName:   session.user.name,
-        preparedDate:     formatDate(new Date()),
+        personName:        person?.name ?? '—',
+        personEmployeeId:  person?.employeeId ?? '—',
+        personDesignation: person?.designation ?? '—',
+        personDepartment:  person?.department?.name ?? '—',
+        preparedByName:    session.user.name,
+        preparedByTitle:   preparer?.designation ?? '—',
+        preparedDate:      today,
+        // Reviewed By / Approved By are always the employee's manager —
+        // that reporting-line sign-off is what makes this a controlled record.
+        reviewedByName:    person?.manager?.name       ?? '—',
+        reviewedByTitle:   person?.manager?.designation ?? '—',
       })
     )
     return new NextResponse(buffer, {

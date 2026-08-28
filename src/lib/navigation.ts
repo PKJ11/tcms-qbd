@@ -24,15 +24,45 @@ export const NAV_ITEMS: NavItem[] = [
     roles: [],
   },
   {
-    label: 'Personnel',
+    label: 'Manage Users',
     href:  '/personnel',
     icon:  'users',
     roles: ['ADMINISTRATOR', 'VIEWER'],
   },
   {
+    label: 'Roles Details',
+    href:  '/roles',
+    icon:  'key',
+    roles: ['ADMINISTRATOR'],
+  },
+  {
+    label: 'Organization Structure',
+    href:  '/organization',
+    icon:  'sitemap',
+    roles: ['ADMINISTRATOR', 'VIEWER'],
+  },
+  {
+    label: 'Manage Structure',
+    href:  '/admin/organization',
+    icon:  'layers',
+    roles: ['ADMINISTRATOR'],
+  },
+  {
+    label: 'Password Policy',
+    href:  '/password-policy',
+    icon:  'lock',
+    roles: ['ADMINISTRATOR'],
+  },
+  {
     label: 'Training Topics',
     href:  '/topics',
     icon:  'book-open',
+    roles: ['TRAINER', 'GUEST_TRAINER'],
+  },
+  {
+    label: 'Topic Group',
+    href:  '/topic-group',
+    icon:  'layers',
     roles: ['TRAINER', 'GUEST_TRAINER'],
   },
   {
@@ -51,19 +81,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Reports',
     href:  '/reports',
     icon:  'bar-chart-2',
-    roles: ['ADMINISTRATOR', 'VIEWER', 'TRAINER'],
+    roles: ['VIEWER', 'TRAINER'],
   },
   {
     label: 'Audit Trail',
     href:  '/audit-trail',
     icon:  'shield',
     roles: ['ADMINISTRATOR', 'VIEWER'],
-  },
-  {
-    label: 'Admin',
-    href:  '/admin',
-    icon:  'settings',
-    roles: ['ADMINISTRATOR'],
   },
 ]
 

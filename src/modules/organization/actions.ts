@@ -33,6 +33,17 @@ async function generateSectionCode(unitId: string, name: string): Promise<string
   return code
 }
 
+async function generateDepartmentCode(name: string): Promise<string> {
+  const base = slugifyCode(name)
+  let code = base
+  let n = 2
+  while (await prisma.department.findUnique({ where: { code } })) {
+    code = `${base}${n}`
+    n++
+  }
+  return code
+}
+
 // ── Get full Department → Unit → Section tree ──────────────────────
 
 export async function getDepartmentTree() {
@@ -59,6 +70,93 @@ export async function getDepartmentTree() {
     },
     orderBy: { name: 'asc' },
   })
+}
+
+// ── Create a Department ───────────────────────────────────────────
+
+export async function createDepartment(
+  input: { name: string },
+  justification: string,
+  actorId: string,
+  password: string
+) {
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
+
+  const name = input.name.trim()
+  if (!name) throw new Error('Department name is required')
+
+  // A department name is globally unique. If a soft-deleted one exists with
+  // the same name, reactivate it rather than hitting the unique constraint.
+  const existing = await prisma.department.findFirst({
+    where:  { name: { equals: name, mode: 'insensitive' } },
+    select: { id: true, isActive: true },
+  })
+  if (existing?.isActive) throw new Error(`Department "${name}" already exists`)
+
+  const department = existing
+    ? await prisma.department.update({
+        where: { id: existing.id },
+        data:  { name, isActive: true },
+      })
+    : await prisma.department.create({
+        data: { name, code: await generateDepartmentCode(name) },
+      })
+
+  await logAuditEvent({
+    userId:        actorId,
+    action:        'CREATE',
+    module:        'ORGANIZATION',
+    recordId:      department.id,
+    recordType:    'Department',
+    beforeValue:   null,
+    afterValue:    { name: department.name, code: department.code },
+    justification,
+  })
+
+  return department
+}
+
+// ── Delete (deactivate) a Department ──────────────────────────────
+
+export async function deleteDepartment(
+  id: string,
+  justification: string,
+  actorId: string,
+  password: string
+) {
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
+
+  const department = await prisma.department.findUnique({
+    where:  { id },
+    select: { id: true, name: true, code: true },
+  })
+  if (!department) throw new Error('Department not found')
+
+  const activeUnits = await prisma.unit.count({ where: { departmentId: id, isActive: true } })
+  if (activeUnits > 0) {
+    throw new Error('Delete all units in this department first')
+  }
+  const activePersons = await prisma.person.count({ where: { departmentId: id, isActive: true } })
+  if (activePersons > 0) {
+    throw new Error('This department still has active members assigned')
+  }
+
+  await prisma.department.update({ where: { id }, data: { isActive: false } })
+
+  await logAuditEvent({
+    userId:        actorId,
+    action:        'DELETE',
+    module:        'ORGANIZATION',
+    recordId:      id,
+    recordType:    'Department',
+    beforeValue:   { name: department.name, code: department.code },
+    afterValue:    null,
+    justification,
+  })
+
+  return { id }
 }
 
 // ── Create a Unit within a Department ──────────────────────────────
@@ -102,6 +200,48 @@ export async function createUnit(
   return unit
 }
 
+// ── Delete (deactivate) a Unit ───────────────────────────────────
+
+export async function deleteUnit(
+  id: string,
+  justification: string,
+  actorId: string,
+  password: string
+) {
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
+
+  const unit = await prisma.unit.findUnique({
+    where:  { id },
+    select: { id: true, name: true, code: true, department: { select: { name: true } } },
+  })
+  if (!unit) throw new Error('Unit not found')
+
+  const activeSections = await prisma.section.count({ where: { unitId: id, isActive: true } })
+  if (activeSections > 0) {
+    throw new Error('Delete all sections in this unit first')
+  }
+  const activePersons = await prisma.person.count({ where: { unitId: id, isActive: true } })
+  if (activePersons > 0) {
+    throw new Error('This unit still has active members assigned')
+  }
+
+  await prisma.unit.update({ where: { id }, data: { isActive: false } })
+
+  await logAuditEvent({
+    userId:        actorId,
+    action:        'DELETE',
+    module:        'ORGANIZATION',
+    recordId:      id,
+    recordType:    'Unit',
+    beforeValue:   { name: unit.name, code: unit.code, department: unit.department.name },
+    afterValue:    null,
+    justification,
+  })
+
+  return { id }
+}
+
 // ── Create a Section within a Unit ─────────────────────────────────
 
 export async function createSection(
@@ -141,4 +281,42 @@ export async function createSection(
   })
 
   return section
+}
+
+// ── Delete (deactivate) a Section ─────────────────────────────────
+
+export async function deleteSection(
+  id: string,
+  justification: string,
+  actorId: string,
+  password: string
+) {
+  const passwordValid = await verifyUserPassword(actorId, password)
+  if (!passwordValid) throw new Error('Incorrect password')
+
+  const section = await prisma.section.findUnique({
+    where:  { id },
+    select: { id: true, name: true, code: true, unit: { select: { name: true } } },
+  })
+  if (!section) throw new Error('Section not found')
+
+  const activePersons = await prisma.person.count({ where: { sectionId: id, isActive: true } })
+  if (activePersons > 0) {
+    throw new Error('This section still has active members assigned')
+  }
+
+  await prisma.section.update({ where: { id }, data: { isActive: false } })
+
+  await logAuditEvent({
+    userId:        actorId,
+    action:        'DELETE',
+    module:        'ORGANIZATION',
+    recordId:      id,
+    recordType:    'Section',
+    beforeValue:   { name: section.name, code: section.code, unit: section.unit.name },
+    afterValue:    null,
+    justification,
+  })
+
+  return { id }
 }

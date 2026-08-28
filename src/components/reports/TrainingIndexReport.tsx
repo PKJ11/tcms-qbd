@@ -5,6 +5,7 @@ import { formatDate } from '@/lib/utils'
 import type { AppRole } from '@/lib/types'
 import type { ReportScope } from './ReportsHub'
 import { ReportFilterBar, EMPTY_REPORT_FILTERS, matchesReportFilters, type ReportFilters, type DateFilterConfig } from './ReportFilterBar'
+import { OrgFilterBar, EMPTY_ORG_FILTER, type OrgFilterValue } from '@/components/shared/OrgFilterBar'
 
 const STATUS_OPTIONS = [
   { value: 'COMPLETED',   label: 'Completed' },
@@ -35,9 +36,13 @@ interface IndexEntry {
 }
 
 interface Person {
-  id:   string
-  name: string
-  employeeId: string
+  id:          string
+  name:        string
+  employeeId:  string
+  designation?: string
+  department?: { id: string; name: string } | null
+  unit?:       { id: string; name: string } | null
+  section?:    { id: string; name: string } | null
 }
 
 const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
@@ -50,34 +55,39 @@ const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
 
 interface Props {
   userId:    string
+  userName:  string
   roles:     AppRole[]
   scope:     ReportScope
-  scopedIds: string[]  // team or direct-report IDs, depending on scope — unused when scope==='all'
+  scopedIds: string[]  // team IDs — unused when scope==='all'
 }
 
-export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) {
-  const [persons,   setPersons]   = useState<Person[]>([])
+export function TrainingIndexReport({ userId, userName, roles, scope, scopedIds }: Props) {
+  const [persons,    setPersons]    = useState<Person[]>([])
   const [selectedId, setSelectedId] = useState(userId)
-  const [entries,   setEntries]   = useState<IndexEntry[]>([])
-  const [loading,   setLoading]   = useState(true)
-  const [filters,   setFilters]   = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
-  const isOrgWide = scope === 'all'
+  const [entries,    setEntries]    = useState<IndexEntry[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [filters,    setFilters]    = useState<ReportFilters>(EMPTY_REPORT_FILTERS)
 
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [orgFilter,  setOrgFilter]  = useState<OrgFilterValue>(EMPTY_ORG_FILTER)
+  const [search,     setSearch]     = useState('')
+
+  const isOrgWide = scope === 'all'
   const canViewOthers = isOrgWide || scopedIds.length > 0
 
-  // Load persons for dropdown
+  // Load the candidate persons list once — used both to resolve the
+  // currently-selected person's display name and to search/filter from.
   useEffect(() => {
     if (!canViewOthers) return
 
     async function fetchPersons() {
       const res  = await fetch(`/api/personnel?isActive=true${isOrgWide ? '&scope=all' : ''}`)
       const data = await res.json()
-      const all  = data.persons ?? []
+      const all: Person[] = data.persons ?? []
 
-      // For team/reportees scope — filter to those IDs only
       const filtered = isOrgWide
         ? all
-        : all.filter((p: Person) => scopedIds.includes(p.id))
+        : all.filter((p) => scopedIds.includes(p.id))
 
       setPersons(filtered)
     }
@@ -109,7 +119,28 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
     window.open(`/api/reports/training-index/${selectedId}?scope=${scope}&format=${format}`, '_blank')
   }
 
-  const selectedPerson = persons.find((p:any) => p.id === selectedId)
+  function selectPerson(personId: string) {
+    setSelectedId(personId)
+    setPickerOpen(false)
+    setSearch('')
+    setOrgFilter(EMPTY_ORG_FILTER)
+  }
+
+  const selectedPerson = selectedId === userId
+    ? { id: userId, name: userName, employeeId: '' }
+    : persons.find((p) => p.id === selectedId)
+
+  const searchResults = useMemo(() => {
+    if (!pickerOpen) return []
+    const q = search.trim().toLowerCase()
+    return persons
+      .filter((p) => p.id !== userId || isOrgWide)
+      .filter((p) => !q || p.name.toLowerCase().includes(q) || p.employeeId.toLowerCase().includes(q))
+      .filter((p) => !orgFilter.departmentId || p.department?.id === orgFilter.departmentId)
+      .filter((p) => !orgFilter.unitId       || p.unit?.id       === orgFilter.unitId)
+      .filter((p) => !orgFilter.sectionId    || p.section?.id    === orgFilter.sectionId)
+      .slice(0, 8)
+  }, [pickerOpen, persons, search, orgFilter, userId, isOrgWide])
 
   const filteredEntries = useMemo(() => entries.filter((e: IndexEntry) => matchesReportFilters(filters, {
     name: e.topicName,
@@ -117,12 +148,12 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
     dateValues: { assigned: e.assignedAt, due: e.dueDate, completed: e.completedAt },
   })), [entries, filters])
 
-  const completed = filteredEntries.filter((e:any) => e.status === 'COMPLETED').length
-  const overdue   = filteredEntries.filter((e:any) => e.status === 'OVERDUE').length
+  const completed = filteredEntries.filter((e) => e.status === 'COMPLETED').length
+  const overdue   = filteredEntries.filter((e) => e.status === 'OVERDUE').length
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
         <div>
           <h2 className="text-sm font-semibold text-gray-700">Training Index</h2>
           <p className="text-xs text-gray-400 mt-0.5">
@@ -132,32 +163,12 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
                 className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold"
                 style={{ background: '#eff6ff', color: '#1d4ed8' }}
               >
-                {scope === 'team' ? 'My team' : 'My reportees'}
+                My team
               </span>
             )}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {canViewOthers && persons.length > 0 && (
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className="px-3 py-2 rounded-lg border text-sm outline-none"
-              style={{ borderColor: '#e5e7eb' }}
-            >
-              {/* Only show self + subordinates for MANAGER/TRAINER */}
-              {!isOrgWide && (
-                <option value={userId}>My own training index</option>
-              )}
-              {persons
-                .filter((p) => p.id !== userId || isOrgWide)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — {p.employeeId}
-                  </option>
-                ))}
-            </select>
-          )}
           <button
             onClick={() => handleExport('csv')}
             className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2"
@@ -183,6 +194,86 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
             Export PDF
           </button>
         </div>
+      </div>
+
+      {/* Person picker — search by name/employee ID, department, unit, section */}
+      <div className="bg-white rounded-xl border p-4 mb-4" style={{ borderColor: '#e5e7eb' }}>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-sm">
+            <span className="text-gray-400">Viewing: </span>
+            <span className="font-semibold text-gray-900">
+              {selectedPerson?.name ?? '—'}
+              {selectedPerson?.employeeId ? ` · ${selectedPerson.employeeId}` : ''}
+            </span>
+            {selectedId === userId && (
+              <span className="ml-2 text-xs text-gray-400">(your own training index)</span>
+            )}
+          </div>
+          {canViewOthers && (
+            <button
+              onClick={() => setPickerOpen((v) => !v)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border"
+              style={{ borderColor: '#e5e7eb', color: '#2d6a4f' }}
+            >
+              {pickerOpen ? 'Cancel' : 'Search another person'}
+            </button>
+          )}
+        </div>
+
+        {pickerOpen && (
+          <div className="mt-3">
+            {selectedId !== userId && (
+              <button
+                onClick={() => selectPerson(userId)}
+                className="mb-3 px-3 py-1.5 rounded-lg text-xs font-medium border"
+                style={{ borderColor: '#e5e7eb', color: '#2d6a4f' }}
+              >
+                View my own training index ({userName})
+              </button>
+            )}
+
+            <OrgFilterBar value={orgFilter} onChange={setOrgFilter} />
+
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or employee ID..."
+              autoFocus
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none mb-2"
+              style={{ borderColor: '#e5e7eb' }}
+            />
+
+            <div className="border rounded-lg overflow-hidden" style={{ borderColor: '#e5e7eb' }}>
+              {searchResults.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-gray-400">
+                  {search.trim() || orgFilter.departmentId ? 'No matching people found.' : 'Type a name, or pick a department/unit/section, to search.'}
+                </div>
+              ) : (
+                searchResults.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => selectPerson(p.id)}
+                    className="w-full text-left px-4 py-2.5 flex items-center justify-between gap-2 hover:bg-gray-50 transition-colors"
+                    style={{ borderBottom: '1px solid #f3f4f6' }}
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{p.name}</div>
+                      <div className="text-xs text-gray-400">
+                        {p.employeeId} · {p.designation ?? '—'} · {p.department?.name ?? '—'}
+                        {p.unit?.name ? ` → ${p.unit.name}` : ''}
+                        {p.section?.name ? ` → ${p.section.name}` : ''}
+                      </div>
+                    </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
+                      <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Stats */}
@@ -243,7 +334,7 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
             </div>
             {selectedPerson && (
               <div className="text-sm font-semibold text-gray-900 mt-1">
-                {selectedPerson.name} · {selectedPerson.employeeId}
+                {selectedPerson.name}{selectedPerson.employeeId ? ` · ${selectedPerson.employeeId}` : ''}
               </div>
             )}
           </div>
@@ -263,7 +354,7 @@ export function TrainingIndexReport({ userId, roles, scope, scopedIds }: Props) 
               </tr>
             </thead>
             <tbody>
-              {filteredEntries.map((entry:any, idx:number) => {
+              {filteredEntries.map((entry, idx) => {
                 const statusStyle = STATUS_STYLES[entry.status] ?? STATUS_STYLES.NOT_STARTED
                 return (
                   <tr

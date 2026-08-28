@@ -21,6 +21,13 @@ export const createTopicSchema = z.object({
     .max(500, 'Description too long')
     .optional(),
 
+  // e.g. "QbD-QC-SOP-067, Ver.No. 04" — shown under the topic name on the
+  // Training Matrix report. Optional since not every topic maps to one SOP.
+  sopReference: z
+    .string()
+    .max(150, 'SOP reference too long')
+    .optional(),
+
   trainingType: trainingTypeSchema.default('MATERIAL_MCQ'),
 
   // Optional — a topic doesn't have to be compulsory for anyone. When scopes
@@ -52,6 +59,11 @@ export const updateTopicSchema = z.object({
   description: z
     .string()
     .max(500)
+    .optional(),
+
+  sopReference: z
+    .string()
+    .max(150)
     .optional(),
 
   trainingType: trainingTypeSchema.optional(),

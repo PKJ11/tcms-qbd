@@ -28,11 +28,8 @@ enum TrainingType {
 
 enum TrainingTrigger {
   INDUCTION
-  UPGRADE
-  RETRAINING
+  SCHEDULE
   REFRESHER
-  TECHNICAL
-  EXTERNAL
 }
 
 enum AssignmentStatus {
@@ -180,6 +177,7 @@ model Department {
   persons     Person[]
   techniques  Technique[]
   topicScopes TopicScope[]
+  topicGroups TopicGroup[]
 
   @@map("departments")
 }
@@ -198,6 +196,7 @@ model Unit {
   sections    Section[]
   persons     Person[]
   topicScopes TopicScope[]
+  topicGroups TopicGroup[]
 
   @@unique([departmentId, code])
   @@map("units")
@@ -216,6 +215,7 @@ model Section {
   unit        Unit         @relation(fields: [unitId], references: [id])
   persons     Person[]
   topicScopes TopicScope[]
+  topicGroups TopicGroup[]
 
   @@unique([unitId, code])
   @@map("sections")
@@ -246,6 +246,25 @@ model PasswordHistory {
   @@map("password_history")
 }
 
+// Single-row, admin-configurable password policy. All password rules
+// (expiry, lockout threshold, min length, reuse history) are read from
+// here at runtime instead of hard-coded constants.
+model PasswordPolicy {
+  id                   String   @id @default(cuid())
+  key                  String   @unique @default("default")
+  policyName           String   @default("Password Policy")
+  authMode             String   @default("DB")
+  passwordExpiryDays   Int      @default(45)
+  failedAttemptLimit   Int      @default(3)
+  minPasswordLength    Int      @default(8)
+  passwordHistoryCount Int      @default(3)
+  updatedById          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("password_policies")
+}
+
 model Person {
   id                        String    @id @default(cuid())
   employeeId                String    @unique
@@ -274,10 +293,13 @@ model Person {
   resolvedById              String?
   resolutionAction          String?
   resolutionNotes           String?
+  createdById               String?
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
   // Relations
+  createdBy                   Person?               @relation("personCreator", fields: [createdById], references: [id])
+  personsCreated              Person[]              @relation("personCreator")
   roles                       PersonRole[]
   passwordHistory             PasswordHistory[]
   department                  Department            @relation(fields: [departmentId], references: [id])
@@ -313,6 +335,7 @@ model Person {
   testResultsExecuted         TestResult[]          @relation("testResultExecutor")
   topicAccessGranted          TopicCollaborator[]   @relation("topicCollaboratorPerson")
   topicAccessAddedBy          TopicCollaborator[]   @relation("topicCollaboratorAddedBy")
+  topicGroupsCreated          TopicGroup[]          @relation("topicGroupCreator")
 
   @@map("persons")
 }
@@ -325,6 +348,10 @@ model TrainingTopic {
   id           String       @id @default(cuid())
   name         String
   description  String?
+  // e.g. "QbD-QC-SOP-067, Ver.No. 04" — the governing SOP number + version
+  // this training covers. Shown under the topic name on printed reports
+  // (Training Matrix); optional since not every topic maps to one SOP.
+  sopReference String?
   trainingType TrainingType @default(MATERIAL_MCQ)
   isActive     Boolean      @default(true)
   createdById  String
@@ -338,6 +365,7 @@ model TrainingTopic {
   assignments  TrainingAssignment[]
   refreshers   RefresherTrigger[]
   collaborators TopicCollaborator[]
+  groupItems   TopicGroupItem[]
 
   @@map("training_topics")
 }
@@ -378,6 +406,50 @@ model TopicScope {
   section    Section?      @relation(fields: [sectionId], references: [id])
 
   @@map("topic_scopes")
+}
+
+// Trainer-curated bundle of topics for their own unit ("their team") —
+// built via the drag-and-drop "Topic Group" builder. A trainer may only
+// create groups scoped to their own department+unit; sectionId is optional
+// and narrows a group to a single section for extra/section-specific
+// training on top of the unit-wide groups (sectionId null = whole unit).
+// Every active person who joins matches every group where sectionId is
+// null OR equals their own section — so unit-wide + their section's extra
+// groups both apply. Auto-assigned as INDUCTION training, due
+// `joiningDate + 1 month`. See autoAssignTopicGroupInduction() in
+// modules/assignments/actions.ts.
+model TopicGroup {
+  id           String   @id @default(cuid())
+  name         String
+  departmentId String
+  unitId       String
+  sectionId    String?
+  createdById  String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  department Department       @relation(fields: [departmentId], references: [id])
+  unit       Unit             @relation(fields: [unitId], references: [id])
+  section    Section?         @relation(fields: [sectionId], references: [id])
+  createdBy  Person           @relation("topicGroupCreator", fields: [createdById], references: [id])
+  items      TopicGroupItem[]
+
+  @@map("topic_groups")
+}
+
+model TopicGroupItem {
+  id        String   @id @default(cuid())
+  groupId   String
+  topicId   String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  group TopicGroup    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  topic TrainingTopic @relation(fields: [topicId], references: [id])
+
+  @@unique([groupId, topicId])
+  @@map("topic_group_items")
 }
 
 model TrainingMaterial {

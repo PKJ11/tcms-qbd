@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '@/lib/utils'
-import { JustificationModal } from '@/components/JustificationModal'
-import { ROLE_COLORS, ROLE_LABELS } from '@/lib/permissions'
+import { ROLE_LABELS } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types'
 
 interface Person {
@@ -16,6 +15,8 @@ interface Person {
   isActive:    boolean
   joiningDate: string | null
   lastLoginAt: string | null
+  createdAt:   string | null
+  createdBy:   { id: string; name: string } | null
   department:  { id: string; name: string } | null
   unit:        { id: string; name: string } | null
   section:     { id: string; name: string } | null
@@ -37,16 +38,12 @@ export function PersonnelList({
   const [loading,  setLoading]  = useState(true)
   const [search,   setSearch]   = useState('')
   const [roleFilter, setRoleFilter] = useState('')
-  const [showInactive, setShowInactive] = useState(false)
-
-  // Deactivate modal state
-  const [deactivateTarget, setDeactivateTarget] = useState<Person | null>(null)
-  const [modalLoading,     setModalLoading]     = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'true' | 'false'>('all')
 
   const fetchPersons = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams({
-      isActive: showInactive ? 'false' : 'true',
+      isActive: statusFilter,
       ...(search     ? { search }     : {}),
       ...(roleFilter ? { role: roleFilter } : {}),
       ...(sectionId  ? { sectionId }  : {}),
@@ -55,29 +52,9 @@ export function PersonnelList({
     const data = await res.json()
     setPersons(data.persons ?? [])
     setLoading(false)
-  }, [search, roleFilter, showInactive, sectionId])
+  }, [search, roleFilter, statusFilter, sectionId])
 
   useEffect(() => { fetchPersons() }, [fetchPersons])
-
-  async function handleDeactivate(justification: string, password?: string) {
-    if (!deactivateTarget) return
-    setModalLoading(true)
-
-    const res = await fetch(`/api/personnel/${deactivateTarget.id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        action: 'deactivate',
-        justification,
-        password,
-      }),
-    })
-
-    setModalLoading(false)
-    setDeactivateTarget(null)
-
-    if (res.ok) fetchPersons()
-  }
 
   return (
     <>
@@ -118,19 +95,20 @@ export function PersonnelList({
           {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
         </select>
 
-        {/* Active toggle */}
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
-            className="w-4 h-4 accent-green-700"
-          />
-          Show inactive
-        </label>
+        {/* Status filter */}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as 'all' | 'true' | 'false')}
+          className="px-3 py-2 rounded-lg border text-sm outline-none"
+          style={{ borderColor: '#e5e7eb' }}
+        >
+          <option value="all">All statuses</option>
+          <option value="true">Active</option>
+          <option value="false">Disabled</option>
+        </select>
 
         <div className="ml-auto text-sm text-gray-400 self-center">
-          {persons.length} {showInactive ? 'inactive' : 'active'} person{persons.length !== 1 ? 's' : ''}
+          {persons.length} user{persons.length !== 1 ? 's' : ''}
         </div>
       </div>
 
@@ -157,18 +135,19 @@ export function PersonnelList({
                 className="text-sm font-medium"
                 style={{ color: '#2d6a4f' }}
               >
-                Add the first person →
+                Create the first user →
               </a>
             )}
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['Employee','Email','Role(s)','Department / Unit / Section','Joined','Last login',''].map((h) => (
+                {['', 'SN.', 'EMP ID', 'Full Name', 'Dept', 'Unit', 'Status', 'Created By', 'Created On'].map((h, i) => (
                   <th
-                    key={h}
-                    className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                    key={i}
+                    className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
                   >
                     {h}
                   </th>
@@ -176,110 +155,75 @@ export function PersonnelList({
               </tr>
             </thead>
             <tbody>
-              {persons.map((p) => {
-                return (
-                  <tr
-                    key={p.id}
-                    style={{ borderBottom: '1px solid #f3f4f6' }}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
-                    {/* Employee */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
-                          style={{ background: '#f0fdf4', color: '#2d6a4f' }}
-                        >
-                          {p.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {p.name}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {p.employeeId}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
+              {persons.map((p, idx) => (
+                <tr
+                  key={p.id}
+                  style={{ borderBottom: '1px solid #f3f4f6' }}
+                  className="hover:bg-gray-50 transition-colors"
+                >
+                  {/* Edit — opens the person page where every field is editable */}
+                  <td className="px-4 py-3">
+                    <a
+                      href={`/personnel/${p.id}`}
+                      title="Edit details"
+                      aria-label={`Edit ${p.name}`}
+                      className="inline-flex items-center justify-center w-7 h-7 rounded text-white"
+                      style={{ background: '#2d6a4f' }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </a>
+                  </td>
 
-                    {/* Email */}
-                    <td className="px-4 py-3 text-gray-500 text-xs">
-                      {p.email}
-                    </td>
+                  {/* SN. */}
+                  <td className="px-4 py-3 text-gray-500">{idx + 1}</td>
 
-                    {/* Role(s) */}
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {p.roles.map((role) => (
-                          <span
-                            key={role}
-                            className="px-2 py-0.5 rounded-full text-xs font-semibold"
-                            style={ROLE_COLORS[role]}
-                          >
-                            {ROLE_LABELS[role]}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
+                  {/* EMP ID */}
+                  <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{p.employeeId}</td>
 
-                    {/* Department / Unit / Section */}
-                    <td className="px-4 py-3 text-xs text-gray-500">
-                      <div>{p.department?.name ?? '—'}</div>
-                      <div className="text-gray-400">
-                        {p.unit?.name ?? '—'}{p.section?.name ? ` / ${p.section.name}` : ''}
-                      </div>
-                    </td>
+                  {/* Full Name */}
+                  <td className="px-4 py-3 text-gray-900 whitespace-nowrap">{p.name}</td>
 
-                    {/* Joined */}
-                    <td className="px-4 py-3 text-xs text-gray-500">
-                      {formatDate(p.joiningDate)}
-                    </td>
+                  {/* Dept */}
+                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{p.department?.name ?? '—'}</td>
 
-                    {/* Last login */}
-                    <td className="px-4 py-3 text-xs text-gray-500">
-                      {p.lastLoginAt ? formatDate(p.lastLoginAt) : '—'}
-                    </td>
+                  {/* Unit */}
+                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                    {p.unit?.name ?? '—'}{p.section?.name ? ` / ${p.section.name}` : ''}
+                  </td>
 
-                    {/* Actions */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={`/personnel/${p.id}`}
-                          className="text-xs px-2 py-1 rounded border transition-colors"
-                          style={{ borderColor: '#e5e7eb', color: '#374151' }}
-                        >
-                          View
-                        </a>
-                        {canCreate && p.isActive && (
-                          <button
-                            onClick={() => setDeactivateTarget(p)}
-                            className="text-xs px-2 py-1 rounded border transition-colors"
-                            style={{ borderColor: '#fecaca', color: '#dc2626' }}
-                          >
-                            Deactivate
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                  {/* Status */}
+                  <td className="px-4 py-3">
+                    <span
+                      className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                      style={
+                        p.isActive
+                          ? { background: '#f0fdf4', color: '#166534' }
+                          : { background: '#fef2f2', color: '#dc2626' }
+                      }
+                    >
+                      {p.isActive ? 'Active' : 'Disabled'}
+                    </span>
+                  </td>
+
+                  {/* Created By */}
+                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                    {p.createdBy?.name ?? '—'}
+                  </td>
+
+                  {/* Created On */}
+                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                    {p.createdAt ? formatDate(p.createdAt) : '—'}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
-
-      {/* Deactivate confirmation modal */}
-      <JustificationModal
-        isOpen={!!deactivateTarget}
-        title={`Deactivate ${deactivateTarget?.name ?? ''}`}
-        description="This person will lose access to TCMS. Their records are retained. Enter a reason."
-        onConfirm={handleDeactivate}
-        onCancel={() => setDeactivateTarget(null)}
-        loading={modalLoading}
-        requirePassword
-      />
     </>
   )
 }

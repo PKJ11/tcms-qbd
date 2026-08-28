@@ -91,7 +91,7 @@ export async function POST(
           data: {
             personId:     params.id,
             topicId:      person.flagTopicId,
-            trigger:      'RETRAINING',
+            trigger:      'SCHEDULE',
             status:       'NOT_STARTED',
             assignedById: session.user.id,
             dueDate,

@@ -10,6 +10,11 @@ export interface PersonListItem {
   isActive:     boolean
   joiningDate:  Date | null
   lastLoginAt:  Date | null
+  createdAt:    Date
+  createdBy: {
+    id:   string
+    name: string
+  } | null
   department: {
     id:   string
     name: string
@@ -30,7 +35,6 @@ export interface PersonListItem {
 
 export interface PersonDetail extends PersonListItem {
   mustChangePassword: boolean
-  createdAt:          Date
   updatedAt:          Date
   subordinates: {
     id:    string

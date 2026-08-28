@@ -17,7 +17,7 @@ export default async function PersonnelPage() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Personnel
+              Manage Users
             </h1>
             <p className="text-sm text-gray-500 mt-1">
               All staff in the organisation. URS-PER-001.
@@ -33,7 +33,7 @@ export default async function PersonnelPage() {
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              Add person
+              Create user
             </a>
           )}
         </div>

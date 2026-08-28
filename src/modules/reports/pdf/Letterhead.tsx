@@ -3,14 +3,34 @@ import { letterheadStyles as s } from './styles'
 import { getLogoDataUri } from './logo'
 
 export interface LetterheadProps {
-  title:          string
-  formatNo:       string
-  preparedByName: string
-  preparedDate:   string
-  contextLine?:   string
+  title:           string
+  formatNo:        string
+  preparedByName:  string
+  preparedDate:    string
+  preparedByTitle?: string
+  // Controlled-document metadata — defaults to '—' so every existing caller
+  // keeps rendering exactly as before unless it opts in to real values.
+  versionNo?:      string
+  replaces?:       string
+  effectiveOn?:    string
+  reviewOn?:       string
+  copyNo?:         string
+  reviewedByName?:  string
+  reviewedByDate?:  string
+  reviewedByTitle?: string
+  approvedByName?:  string
+  approvedByDate?:  string
+  approvedByTitle?: string
+  contextLine?:    string
 }
 
-export function Letterhead({ title, formatNo, preparedByName, preparedDate, contextLine }: LetterheadProps) {
+export function Letterhead({
+  title, formatNo, preparedByName, preparedDate, preparedByTitle,
+  versionNo, replaces, effectiveOn, reviewOn, copyNo,
+  reviewedByName, reviewedByDate, reviewedByTitle,
+  approvedByName, approvedByDate, approvedByTitle,
+  contextLine,
+}: LetterheadProps) {
   return (
     <View fixed>
       <View style={s.headerBox}>
@@ -47,10 +67,10 @@ export function Letterhead({ title, formatNo, preparedByName, preparedDate, cont
         </View>
 
         <View style={s.row}>
-          <View style={[s.cell, { flex: 1 }]}><Text style={s.label}>Ver. No.: —</Text></View>
-          <View style={[s.cell, { flex: 1 }]}><Text style={s.label}>Replaces: —</Text></View>
-          <View style={[s.cell, { flex: 1 }]}><Text style={s.label}>Effective On: —</Text></View>
-          <View style={[s.cellLast, { flex: 1 }]}><Text style={s.label}>Review On: —</Text></View>
+          <View style={[s.cell, { flex: 1 }]}><Text style={s.label}>Ver. No.: {versionNo ?? '—'}</Text></View>
+          <View style={[s.cell, { flex: 1 }]}><Text style={s.label}>Replaces: {replaces ?? '—'}</Text></View>
+          <View style={[s.cell, { flex: 1 }]}><Text style={s.label}>Effective On: {effectiveOn ?? '—'}</Text></View>
+          <View style={[s.cellLast, { flex: 1 }]}><Text style={s.label}>Review On: {reviewOn ?? '—'}</Text></View>
         </View>
 
         <View style={s.row}>
@@ -58,25 +78,25 @@ export function Letterhead({ title, formatNo, preparedByName, preparedDate, cont
             <Text style={s.label}>Prepared By:</Text>
             <Text style={s.value}>Date: {preparedDate}</Text>
             <Text style={s.value}>Name: {preparedByName}</Text>
-            <Text style={s.value}>Title:</Text>
+            <Text style={s.value}>Title: {preparedByTitle ?? '—'}</Text>
           </View>
           <View style={[s.cell, { flex: 1 }, s.signBlock]}>
             <Text style={s.label}>Reviewed By:</Text>
-            <Text style={s.value}>Date:</Text>
-            <Text style={s.value}>Name:</Text>
-            <Text style={s.value}>Title:</Text>
+            <Text style={s.value}>Date: {reviewedByDate ?? '—'}</Text>
+            <Text style={s.value}>Name: {reviewedByName ?? '—'}</Text>
+            <Text style={s.value}>Title: {reviewedByTitle ?? '—'}</Text>
           </View>
           <View style={[s.cellLast, { flex: 1 }, s.signBlock]}>
             <Text style={s.label}>Approved By:</Text>
-            <Text style={s.value}>Date:</Text>
-            <Text style={s.value}>Name:</Text>
-            <Text style={s.value}>Title:</Text>
+            <Text style={s.value}>Date: {approvedByDate ?? '—'}</Text>
+            <Text style={s.value}>Name: {approvedByName ?? '—'}</Text>
+            <Text style={s.value}>Title: {approvedByTitle ?? '—'}</Text>
           </View>
         </View>
 
         <View style={s.rowLast}>
           <View style={[s.cellLast, { flex: 1 }]}>
-            <Text style={s.label}>Copy No.: —</Text>
+            <Text style={s.label}>Copy No.: {copyNo ?? '—'}</Text>
           </View>
         </View>
       </View>
