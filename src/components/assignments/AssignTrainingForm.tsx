@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter }           from 'next/navigation'
 import { JustificationModal }  from '@/components/JustificationModal'
+import { WorkDraftBanner }     from '@/components/WorkDraftBanner'
+import { useWorkDraft }        from '@/hooks/useWorkDraft'
+import { ASSIGNMENT_NEW_DRAFT_KEY, ASSIGNMENT_NEW_DRAFT_SCHEMA } from '@/lib/work-drafts'
 import { AssignmentTree }      from './AssignmentTree/AssignmentTree'
 import { useAssignmentTree }   from './AssignmentTree/useAssignmentTree'
 import type { DepartmentNode } from './AssignmentTree/useAssignmentTree'
@@ -70,6 +73,36 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState<string | null>(null)
   const [success,   setSuccess]   = useState<string | null>(null)
+
+  // Autosave in-progress input across an idle/manual logout. The bulk-mode
+  // department tree selection is not stashed (it has no simple serialization
+  // and is quick to re-pick); everything else is.
+  interface AssignmentDraft {
+    mode:            'bulk' | 'individual'
+    form:            { topicId: string; trigger: string; dueDate: string }
+    selectedPersons: string[]
+    personSearch:    string
+  }
+
+  const draft = useWorkDraft<AssignmentDraft>(ASSIGNMENT_NEW_DRAFT_KEY, {
+    routePath:     '/assignments/new',
+    schemaVersion: ASSIGNMENT_NEW_DRAFT_SCHEMA,
+    watch:         [mode, form, selectedPersons, personSearch],
+    snapshot:      () => ({ mode, form, selectedPersons, personSearch }),
+    isEmpty: (s) =>
+      !s.form?.dueDate && (s.selectedPersons?.length ?? 0) === 0 &&
+      (!!preselectedTopic || !s.form?.topicId),
+    onRestore: (s) => {
+      setMode(s.mode ?? 'bulk')
+      setForm({
+        topicId: preselectedTopic ? (initialTopicId ?? '') : (s.form?.topicId ?? ''),
+        trigger: s.form?.trigger ?? 'INDUCTION',
+        dueDate: s.form?.dueDate ?? '',
+      })
+      setSelectedPersons(s.selectedPersons ?? [])
+      setPersonSearch(s.personSearch ?? '')
+    },
+  })
 
   // Load departments -> units -> sections, with active-person counts at each level
   useEffect(() => {
@@ -164,6 +197,7 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
       return
     }
 
+    draft.clear()
     const result = data.result
     setSuccess(
       `Assigned to ${result.created} person${result.created !== 1 ? 's' : ''}.` +
@@ -181,6 +215,15 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
 
   return (
     <>
+      {draft.pendingDraft && (
+        <WorkDraftBanner
+          summary="an in-progress training assignment"
+          updatedAt={draft.pendingDraft.updatedAt}
+          onRestore={draft.restore}
+          onDiscard={draft.discard}
+        />
+      )}
+
       <div
         className="bg-white rounded-2xl border p-6"
         style={{ borderColor: '#e5e7eb' }}

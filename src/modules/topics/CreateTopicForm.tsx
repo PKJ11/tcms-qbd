@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
+import { WorkDraftBanner } from '@/components/WorkDraftBanner'
+import { useWorkDraft } from '@/hooks/useWorkDraft'
+import { TOPIC_NEW_DRAFT_KEY, TOPIC_NEW_DRAFT_SCHEMA } from '@/lib/work-drafts'
 import { TOPIC_TYPE_INFO } from './status'
 
 interface Section    { id: string; name: string; code: string }
@@ -47,6 +50,41 @@ export function CreateTopicForm({ departments }: Props) {
   const [modalOpen, setModalOpen] = useState(false)
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState<string | null>(null)
+
+  interface TopicDraft {
+    name:            string
+    description:     string
+    sopReference:    string
+    trainingType:    string
+    scopes:          Scope[]
+    builderDeptId:   string
+    builderUnitId:   string
+    builderSectionId: string
+  }
+
+  const draft = useWorkDraft<TopicDraft>(TOPIC_NEW_DRAFT_KEY, {
+    routePath:     '/topics/new',
+    schemaVersion: TOPIC_NEW_DRAFT_SCHEMA,
+    watch:         [name, description, sopReference, trainingType, scopes,
+                    builderDeptId, builderUnitId, builderSectionId],
+    snapshot: () => ({
+      name, description, sopReference, trainingType, scopes,
+      builderDeptId, builderUnitId, builderSectionId,
+    }),
+    isEmpty: (s) =>
+      !s.name?.trim() && !s.description?.trim() && !s.sopReference?.trim() &&
+      (s.scopes?.length ?? 0) === 0,
+    onRestore: (s) => {
+      setName(s.name ?? '')
+      setDescription(s.description ?? '')
+      setSopReference(s.sopReference ?? '')
+      setTrainingType(s.trainingType ?? 'MATERIAL_MCQ')
+      setScopes(s.scopes ?? [])
+      setBuilderDeptId(s.builderDeptId ?? '')
+      setBuilderUnitId(s.builderUnitId ?? '')
+      setBuilderSectionId(s.builderSectionId ?? '')
+    },
+  })
 
   const builderDept  = departments.find((d) => d.id === builderDeptId)
   const builderUnits = builderDept?.units ?? []
@@ -128,6 +166,7 @@ export function CreateTopicForm({ departments }: Props) {
       return
     }
 
+    draft.clear()
     router.push(`/topics/${data.topic.id}`)
     router.refresh()
   }
@@ -137,6 +176,15 @@ export function CreateTopicForm({ departments }: Props) {
 
   return (
     <>
+      {draft.pendingDraft && (
+        <WorkDraftBanner
+          summary={`a draft topic${draft.pendingDraft.payload.name ? ` — "${draft.pendingDraft.payload.name}"` : ''}`}
+          updatedAt={draft.pendingDraft.updatedAt}
+          onRestore={draft.restore}
+          onDiscard={draft.discard}
+        />
+      )}
+
       <div
         className="bg-white rounded-2xl border p-6"
         style={{ borderColor: '#e5e7eb' }}

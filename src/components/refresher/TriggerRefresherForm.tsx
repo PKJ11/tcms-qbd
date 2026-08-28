@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
+import { WorkDraftBanner } from '@/components/WorkDraftBanner'
+import { useWorkDraft } from '@/hooks/useWorkDraft'
+import { REFRESHER_NEW_DRAFT_KEY, REFRESHER_NEW_DRAFT_SCHEMA } from '@/lib/work-drafts'
 
 interface Topic  { id: string; name: string }
 interface Person {
@@ -36,11 +39,10 @@ const TRIGGER_TYPES = [
 export function TriggerRefresherForm({ topics, persons }: Props) {
   const router = useRouter()
 
-  const [form, setForm] = useState({
-    topicId:     '',
-    triggerType: 'PLANNED',
-    dueDate:     '',
-  })
+  const EMPTY_FORM = { topicId: '', triggerType: 'PLANNED', dueDate: '' }
+  type RefresherForm = typeof EMPTY_FORM
+
+  const [form, setForm] = useState<RefresherForm>(EMPTY_FORM)
 
   const [selectedPersons, setSelectedPersons] = useState<string[]>([])
   const [search,           setSearch]         = useState('')
@@ -48,6 +50,26 @@ export function TriggerRefresherForm({ topics, persons }: Props) {
   const [loading,          setLoading]        = useState(false)
   const [error,            setError]          = useState<string | null>(null)
   const [success,          setSuccess]        = useState<string | null>(null)
+
+  interface RefresherDraft {
+    form:            RefresherForm
+    selectedPersons: string[]
+    search:          string
+  }
+
+  const draft = useWorkDraft<RefresherDraft>(REFRESHER_NEW_DRAFT_KEY, {
+    routePath:     '/refresher/new',
+    schemaVersion: REFRESHER_NEW_DRAFT_SCHEMA,
+    watch:         [form, selectedPersons, search],
+    snapshot:      () => ({ form, selectedPersons, search }),
+    isEmpty: (s) =>
+      !s.form?.topicId && !s.form?.dueDate && (s.selectedPersons?.length ?? 0) === 0,
+    onRestore: (s) => {
+      setForm({ ...EMPTY_FORM, ...s.form })
+      setSelectedPersons(s.selectedPersons ?? [])
+      setSearch(s.search ?? '')
+    },
+  })
 
   const filteredPersons = persons.filter((p) =>
     search === '' ||
@@ -102,6 +124,7 @@ export function TriggerRefresherForm({ topics, persons }: Props) {
       return
     }
 
+    draft.clear()
     const result = data.result
     setSuccess(
       `Refresher training triggered for ${result.created} person(s).` +
@@ -118,6 +141,15 @@ export function TriggerRefresherForm({ topics, persons }: Props) {
 
   return (
     <>
+      {draft.pendingDraft && (
+        <WorkDraftBanner
+          summary={`a refresher for ${draft.pendingDraft.payload.selectedPersons?.length ?? 0} person(s)`}
+          updatedAt={draft.pendingDraft.updatedAt}
+          onRestore={draft.restore}
+          onDiscard={draft.discard}
+        />
+      )}
+
       <div
         className="bg-white rounded-2xl border p-6"
         style={{ borderColor: '#e5e7eb' }}

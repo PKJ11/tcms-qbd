@@ -3,6 +3,9 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
+import { WorkDraftBanner } from '@/components/WorkDraftBanner'
+import { useWorkDraft } from '@/hooks/useWorkDraft'
+import { BANK_NEW_DRAFT_KEY, BANK_NEW_DRAFT_SCHEMA } from '@/lib/work-drafts'
 import { validateOptionSet, filledOptions, OPTION_LETTERS } from '@/modules/assessment/schema'
 import { QUESTIONS_PER_ATTEMPT } from '@/modules/assessment/constants'
 
@@ -26,6 +29,23 @@ interface StagedQuestion {
 const emptyQuestionForm = {
   questionText: '', optionA: '', optionB: '', optionC: '', optionD: '',
   correctAnswer: 'A' as 'A' | 'B' | 'C' | 'D',
+}
+
+type QuestionForm = typeof emptyQuestionForm
+
+function questionFormIsEmpty(f: QuestionForm): boolean {
+  return !f.questionText.trim() && !f.optionA.trim() && !f.optionB.trim()
+      && !f.optionC.trim() && !f.optionD.trim()
+}
+
+interface BankNewDraft {
+  topicId:    string
+  questions:  StagedQuestion[]
+  showForm:   boolean
+  form:       QuestionForm
+  editingId:  string | null
+  editForm:   QuestionForm
+  scrollY:    number
 }
 
 // A question bank is never created empty — the trainer builds the question
@@ -52,6 +72,35 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
   const [modalOpen, setModalOpen] = useState(false)
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState<string | null>(null)
+
+  // Autosave in-progress staging so an idle/manual logout doesn't discard it.
+  // Nothing here is a record — restoring only re-fills the form; the trainer
+  // still goes through Save + justification.
+  const draft = useWorkDraft<BankNewDraft>(BANK_NEW_DRAFT_KEY, {
+    routePath:     '/assessments/banks/new',
+    schemaVersion: BANK_NEW_DRAFT_SCHEMA,
+    watch:         [topicId, questions, showForm, form, editingId, editForm],
+    snapshot: () => ({
+      topicId, questions, showForm, form, editingId, editForm,
+      scrollY: typeof window !== 'undefined' ? window.scrollY : 0,
+    }),
+    isEmpty: (s) => s.questions.length === 0 && questionFormIsEmpty(s.form),
+    onRestore: (s) => {
+      if (!hasInitialTopic && typeof s.topicId === 'string') setTopicId(s.topicId)
+      setQuestions(s.questions ?? [])
+      setShowForm(s.showForm ?? false)
+      setForm(s.form ?? emptyQuestionForm)
+      setEditingId(s.editingId ?? null)
+      setEditForm(s.editForm ?? emptyQuestionForm)
+      const maxLocalId = (s.questions ?? []).reduce(
+        (m, q) => Math.max(m, Number(q.localId) || 0), 0,
+      )
+      nextLocalId.current = maxLocalId + 1
+      if (typeof s.scrollY === 'number') {
+        requestAnimationFrame(() => window.scrollTo(0, s.scrollY))
+      }
+    },
+  })
 
   function handleAddQuestion(e: React.FormEvent) {
     e.preventDefault()
@@ -141,6 +190,7 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
       return
     }
 
+    draft.clear()
     router.push(`/assessments/banks/${data.bank.id}`)
   }
 
@@ -150,6 +200,17 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
 
   return (
     <>
+      {draft.pendingDraft && (
+        <WorkDraftBanner
+          summary={`${draft.pendingDraft.payload.questions?.length ?? 0} question${
+            (draft.pendingDraft.payload.questions?.length ?? 0) === 1 ? '' : 's'
+          } staged`}
+          updatedAt={draft.pendingDraft.updatedAt}
+          onRestore={draft.restore}
+          onDiscard={draft.discard}
+        />
+      )}
+
       <div className="bg-white rounded-2xl border p-6 mb-4" style={{ borderColor: '#e5e7eb' }}>
         <div className="flex flex-col gap-5">
 

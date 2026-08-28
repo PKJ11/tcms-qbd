@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
+import { WorkDraftBanner } from '@/components/WorkDraftBanner'
+import { useWorkDraft } from '@/hooks/useWorkDraft'
+import { QUALIFICATION_NEW_DRAFT_KEY, QUALIFICATION_NEW_DRAFT_SCHEMA } from '@/lib/work-drafts'
 
 interface Person    { id: string; name: string; employeeId: string; designation: string }
 interface Technique { id: string; name: string; code: string; type: string }
@@ -12,19 +15,33 @@ interface Props {
   techniques: Technique[]
 }
 
+const EMPTY_FORM = {
+  personId:     '',
+  techniqueId:  '',
+  performedOn:  '',
+  supervisorId: '',
+}
+
+type QualForm = typeof EMPTY_FORM
+
 export function CreateQualificationForm({ persons, techniques }: Props) {
   const router = useRouter()
 
-  const [form, setForm] = useState({
-    personId:     '',
-    techniqueId:  '',
-    performedOn:  '',
-    supervisorId: '',
-  })
+  const [form, setForm] = useState<QualForm>(EMPTY_FORM)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState<string | null>(null)
+
+  // Autosave in-progress input so an idle/manual logout doesn't discard it.
+  const draft = useWorkDraft<{ form: QualForm }>(QUALIFICATION_NEW_DRAFT_KEY, {
+    routePath:     '/qualifications/new',
+    schemaVersion: QUALIFICATION_NEW_DRAFT_SCHEMA,
+    watch:         [form],
+    snapshot:      () => ({ form }),
+    isEmpty:       (s) => Object.values(s.form ?? {}).every((v) => !v),
+    onRestore:     (s) => setForm({ ...EMPTY_FORM, ...s.form }),
+  })
 
   // Supervisors = people who can act as trainer/supervisor
   const supervisors = persons.filter((p) => p.id !== form.personId)
@@ -63,6 +80,7 @@ export function CreateQualificationForm({ persons, techniques }: Props) {
       return
     }
 
+    draft.clear()
     router.push('/qualifications')
     router.refresh()
   }
@@ -76,6 +94,15 @@ export function CreateQualificationForm({ persons, techniques }: Props) {
 
   return (
     <>
+      {draft.pendingDraft && (
+        <WorkDraftBanner
+          summary="a partly-filled qualification record"
+          updatedAt={draft.pendingDraft.updatedAt}
+          onRestore={draft.restore}
+          onDiscard={draft.discard}
+        />
+      )}
+
       <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
         <form onSubmit={handleSubmitClick} className="flex flex-col gap-5">
 

@@ -3,6 +3,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
+import { WorkDraftBanner } from '@/components/WorkDraftBanner'
+import { useWorkDraft } from '@/hooks/useWorkDraft'
+import { PERSONNEL_NEW_DRAFT_KEY, PERSONNEL_NEW_DRAFT_SCHEMA } from '@/lib/work-drafts'
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types'
 
@@ -27,22 +30,26 @@ const QBD_ROLES: AppRole[]          = ['ADMINISTRATOR', 'VIEWER', 'TRAINER', 'TR
 // Contractual employees may only ever be Trainees — no Trainer access.
 const CONTRACTUAL_ROLES: AppRole[]  = ['TRAINEE']
 
+const EMPTY_PERSON_FORM = {
+  employeeId:   '',
+  name:         '',
+  email:        '',
+  designation:  '',
+  joiningDate:  '',
+  departmentId: '',
+  unitId:       '',
+  sectionId:    '',
+  managerId:    '',
+}
+
+type PersonForm = typeof EMPTY_PERSON_FORM
+
 export function CreatePersonForm({ departments }: Props) {
   const router = useRouter()
 
   const [employeeType, setEmployeeType] = useState<EmployeeType>('QBD')
 
-  const [form, setForm] = useState({
-    employeeId:   '',
-    name:         '',
-    email:        '',
-    designation:  '',
-    joiningDate:  '',
-    departmentId: '',
-    unitId:       '',
-    sectionId:    '',
-    managerId:    '',
-  })
+  const [form, setForm] = useState<PersonForm>(EMPTY_PERSON_FORM)
 
   const [roles, setRoles] = useState<AppRole[]>([])
 
@@ -55,6 +62,32 @@ export function CreatePersonForm({ departments }: Props) {
   const [error,     setError]     = useState<string | null>(null)
   const [success,   setSuccess]   = useState<string | null>(null)
   const [tempPassword, setTempPassword] = useState<string | null>(null)
+
+  // Autosave in-progress input so an idle/manual logout doesn't discard it.
+  // Fetched option lists (units/sections/managers/previewId) are recomputed on
+  // restore from the departments prop + existing effects, not stashed.
+  const draft = useWorkDraft<{ employeeType: EmployeeType; form: PersonForm; roles: AppRole[] }>(
+    PERSONNEL_NEW_DRAFT_KEY,
+    {
+      routePath:     '/personnel/new',
+      schemaVersion: PERSONNEL_NEW_DRAFT_SCHEMA,
+      watch:         [employeeType, form, roles],
+      snapshot:      () => ({ employeeType, form, roles }),
+      isEmpty: (s) =>
+        !s.form?.name?.trim() && !s.form?.employeeId?.trim() &&
+        !s.form?.email?.trim() && !s.form?.designation?.trim() && !s.form?.departmentId,
+      onRestore: (s) => {
+        setEmployeeType(s.employeeType ?? 'QBD')
+        const nextForm = { ...EMPTY_PERSON_FORM, ...s.form }
+        setForm(nextForm)
+        setRoles(s.roles ?? [])
+        const dept = departments.find((d) => d.id === nextForm.departmentId)
+        setUnits(dept?.units ?? [])
+        const unit = dept?.units.find((u) => u.id === nextForm.unitId)
+        setSections(unit?.sections ?? [])
+      },
+    },
+  )
 
   // Fetch a live preview of the next auto-assigned ID for Guest/Contractual types
   useEffect(() => {
@@ -214,6 +247,7 @@ export function CreatePersonForm({ departments }: Props) {
       return
     }
 
+    draft.clear()
     setSuccess(
       `Person created successfully — Employee ID: ${data.person.employeeId}.` +
       (form.email ? ' A temporary password has also been emailed.' : '')
@@ -230,6 +264,15 @@ export function CreatePersonForm({ departments }: Props) {
 
   return (
     <>
+      {draft.pendingDraft && (
+        <WorkDraftBanner
+          summary={`a draft user${draft.pendingDraft.payload.form?.name ? ` — ${draft.pendingDraft.payload.form.name}` : ''}`}
+          updatedAt={draft.pendingDraft.updatedAt}
+          onRestore={draft.restore}
+          onDiscard={draft.discard}
+        />
+      )}
+
       <div
         className="bg-white rounded-2xl border p-6"
         style={{ borderColor: '#e5e7eb' }}

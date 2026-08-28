@@ -3,8 +3,38 @@
 import { useEffect, useRef, useState } from 'react'
 import { SaveChangesModal } from './SaveChangesModal'
 import { VersionHistory } from './VersionHistory'
+import { WorkDraftBanner } from '@/components/WorkDraftBanner'
+import { useWorkDraft } from '@/hooks/useWorkDraft'
+import { BANK_EDIT_DRAFT_SCHEMA, bankEditDraftKey } from '@/lib/work-drafts'
 import { validateOptionSet, filledOptions, OPTION_LETTERS } from '@/modules/assessment/schema'
 import { QUESTIONS_PER_ATTEMPT } from '@/modules/assessment/constants'
+
+type QuestionForm = {
+  questionText: string
+  optionA: string
+  optionB: string
+  optionC: string
+  optionD: string
+  correctAnswer: 'A' | 'B' | 'C' | 'D'
+}
+
+const EMPTY_QUESTION_FORM: QuestionForm = {
+  questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctAnswer: 'A',
+}
+
+function questionFormIsEmpty(f: QuestionForm): boolean {
+  return !f.questionText.trim() && !f.optionA.trim() && !f.optionB.trim()
+      && !f.optionC.trim() && !f.optionD.trim()
+}
+
+interface BankEditDraft {
+  showForm:     boolean
+  form:         QuestionForm
+  editingId:    string | null
+  editForm:     QuestionForm
+  showArchived: boolean
+  scrollY:      number
+}
 
 interface AccessSummary {
   canEdit:   boolean
@@ -101,6 +131,37 @@ export function QuestionBankDetail({ bankId, topicId }: { bankId: string; topicI
   })
   const [editLoading, setEditLoading] = useState(false)
   const [editError,   setEditError]   = useState<string | null>(null)
+
+  // Submitted questions already live in the server working set, so only the
+  // transient form state needs stashing across a logout.
+  const itemsRef = useRef<WorkingSetItem[]>([])
+  itemsRef.current = items
+
+  const draft = useWorkDraft<BankEditDraft>(bankEditDraftKey(bankId), {
+    routePath:     `/assessments/banks/${bankId}`,
+    schemaVersion: BANK_EDIT_DRAFT_SCHEMA,
+    enabled:       canEdit,
+    watch:         [showForm, form, editingId, editForm, showArchived],
+    snapshot: () => ({
+      showForm, form, editingId, editForm, showArchived,
+      scrollY: typeof window !== 'undefined' ? window.scrollY : 0,
+    }),
+    isEmpty: (s) =>
+      !s.showForm && !s.editingId &&
+      questionFormIsEmpty(s.form) && questionFormIsEmpty(s.editForm),
+    onRestore: (s) => {
+      setShowForm(s.showForm ?? false)
+      setForm(s.form ?? EMPTY_QUESTION_FORM)
+      setEditForm(s.editForm ?? EMPTY_QUESTION_FORM)
+      setShowArchived(s.showArchived ?? false)
+      setEditingId(
+        s.editingId && itemsRef.current.some((i) => i.id === s.editingId) ? s.editingId : null,
+      )
+      if (typeof s.scrollY === 'number') {
+        requestAnimationFrame(() => window.scrollTo(0, s.scrollY))
+      }
+    },
+  })
 
   async function loadWorkingSet() {
     setLoading(true)
@@ -207,6 +268,7 @@ export function QuestionBankDetail({ bankId, topicId }: { bankId: string; topicI
 
     setSaveModalOpen(false)
     setHistoryKey((k) => k + 1)
+    draft.clear()
     await loadWorkingSet()
   }
 
@@ -270,6 +332,15 @@ export function QuestionBankDetail({ bankId, topicId }: { bankId: string; topicI
 
   return (
     <div className="flex flex-col gap-4">
+      {draft.pendingDraft && (
+        <WorkDraftBanner
+          summary="an in-progress question form"
+          updatedAt={draft.pendingDraft.updatedAt}
+          onRestore={draft.restore}
+          onDiscard={draft.discard}
+        />
+      )}
+
       {accessKnown && !canEdit && (
         <div className="px-4 py-3 rounded-2xl text-sm flex items-center gap-2" style={{ background: '#fffbeb', color: '#92400e' }}>
           <LockIcon />

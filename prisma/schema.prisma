@@ -336,6 +336,7 @@ model Person {
   topicAccessGranted          TopicCollaborator[]   @relation("topicCollaboratorPerson")
   topicAccessAddedBy          TopicCollaborator[]   @relation("topicCollaboratorAddedBy")
   topicGroupsCreated          TopicGroup[]          @relation("topicGroupCreator")
+  workDrafts                  WorkDraft[]
 
   @@map("persons")
 }
@@ -936,4 +937,32 @@ model TestResult {
 
   @@unique([runId, testCaseId])
   @@map("test_results")
+}
+
+// ─────────────────────────────────────────────
+// WORK DRAFTS
+// ─────────────────────────────────────────────
+// Transient, per-user autosave of in-progress form / staging state so that an
+// automatic (or manual) logout does not throw away unsaved work. A draft is
+// scratch state only — never a GxP record. Restoring one merely re-populates a
+// form; the user still goes through the normal Save + justification step.
+// One row per (user, draftKey); purged on real save, explicit discard, or after
+// expiresAt (7 days).
+model WorkDraft {
+  id            String   @id @default(cuid())
+  userId        String
+  draftKey      String
+  routePath     String
+  schemaVersion Int      @default(1)
+  payload       Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  expiresAt     DateTime
+
+  user Person @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, draftKey])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("work_drafts")
 }

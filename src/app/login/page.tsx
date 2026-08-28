@@ -1,8 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import {
+  clearLastUserHint,
+  isSafeInternalPath,
+  readLastUserHint,
+} from '@/lib/work-drafts'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -13,6 +18,39 @@ export default function LoginPage() {
   })
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
+
+  // After an auto/manual logout we greet the user by name and ask only for the
+  // password; the Employee ID field is pre-filled and collapsed behind "Not you?".
+  const [welcomeBack, setWelcomeBack] = useState<{ name: string } | null>(null)
+  const [resumePath,  setResumePath]  = useState<string | null>(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const cb = params.get('callbackUrl')
+    // NextAuth may hand us an absolute same-origin URL — reduce it to a path.
+    let candidate: string | null = cb
+    if (cb && /^https?:\/\//i.test(cb)) {
+      try {
+        const u = new URL(cb)
+        candidate = u.origin === window.location.origin ? u.pathname + u.search : null
+      } catch {
+        candidate = null
+      }
+    }
+    if (isSafeInternalPath(candidate)) setResumePath(candidate)
+
+    const hint = readLastUserHint()
+    if (hint) {
+      setWelcomeBack({ name: hint.name })
+      setForm((f) => ({ ...f, employeeId: hint.employeeId }))
+    }
+  }, [])
+
+  function notYou() {
+    clearLastUserHint()
+    setWelcomeBack(null)
+    setForm({ employeeId: '', password: '' })
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -42,7 +80,8 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/dashboard')
+    clearLastUserHint()
+    router.push(resumePath ?? '/dashboard')
     router.refresh()
   }
 
@@ -145,10 +184,12 @@ export default function LoginPage() {
               Training &amp; Competency Management
             </p>
             <h2 className="text-3xl font-bold text-gray-900 mb-1">
-              Sign in to TCMS
+              {welcomeBack ? `Welcome back, ${welcomeBack.name.split(' ')[0]}` : 'Sign in to TCMS'}
             </h2>
             <p className="text-sm text-gray-500">
-              Use your Employee ID and password to continue.
+              {welcomeBack
+                ? 'Enter your password to resume where you left off.'
+                : 'Use your Employee ID and password to continue.'}
             </p>
           </div>
 
@@ -156,38 +197,55 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
             {/* Employee ID */}
-            <div>
-              <label
-                htmlFor="employeeId"
-                className="block text-sm font-medium text-gray-700 mb-1.5"
-              >
-                Employee ID
-              </label>
-              <input
-                id="employeeId"
-                type="text"
-                autoComplete="username"
-                autoFocus
-                required
-                value={form.employeeId}
-                onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
-                placeholder="e.g. EMP-001"
-                className="w-full px-4 py-3 rounded-lg border text-sm outline-none transition-all"
-                style={{
-                  borderColor: '#d1d5db',
-                  background:  '#fff',
-                  color:       '#111827',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#2d6a4f'
-                  e.target.style.boxShadow   = '0 0 0 3px rgba(45,106,79,0.12)'
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#d1d5db'
-                  e.target.style.boxShadow   = 'none'
-                }}
-              />
-            </div>
+            {welcomeBack ? (
+              <div className="flex items-center justify-between px-4 py-3 rounded-lg border text-sm"
+                   style={{ borderColor: '#d1d5db', background: '#f9fafb' }}>
+                <span className="text-gray-700">
+                  Signing in as <strong>{form.employeeId}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={notYou}
+                  className="text-xs font-medium hover:underline"
+                  style={{ color: '#2d6a4f' }}
+                >
+                  Not you?
+                </button>
+              </div>
+            ) : (
+              <div>
+                <label
+                  htmlFor="employeeId"
+                  className="block text-sm font-medium text-gray-700 mb-1.5"
+                >
+                  Employee ID
+                </label>
+                <input
+                  id="employeeId"
+                  type="text"
+                  autoComplete="username"
+                  autoFocus
+                  required
+                  value={form.employeeId}
+                  onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
+                  placeholder="e.g. EMP-001"
+                  className="w-full px-4 py-3 rounded-lg border text-sm outline-none transition-all"
+                  style={{
+                    borderColor: '#d1d5db',
+                    background:  '#fff',
+                    color:       '#111827',
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#2d6a4f'
+                    e.target.style.boxShadow   = '0 0 0 3px rgba(45,106,79,0.12)'
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#d1d5db'
+                    e.target.style.boxShadow   = 'none'
+                  }}
+                />
+              </div>
+            )}
 
             {/* Password */}
             <div>
@@ -201,6 +259,7 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 autoComplete="current-password"
+                autoFocus={!!welcomeBack}
                 required
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
