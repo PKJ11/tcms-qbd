@@ -126,6 +126,66 @@ export interface TrainerListItem {
   section:     string | null
 }
 
+// ── Training Calendar (physical form QbD/QA/F/007-03) ─────────────
+// A department's free-form list of training titles, each with a tick
+// against every month it is planned for in a given year.
+export interface TrainingCalendarRowDTO {
+  id:     string
+  title:  string
+  // True when the row mirrors a topic from the Topics list (auto-seeded for
+  // every Active/Pending topic scoped to the department) — such rows cannot
+  // be renamed or removed from the calendar. False for trainer-typed rows.
+  isTopic: boolean
+  // 12 booleans, index 0 = January … index 11 = December.
+  months: boolean[]
+}
+
+export interface TrainingCalendarData {
+  departmentId:   string
+  departmentName: string
+  year:           number
+  rows:           TrainingCalendarRowDTO[]
+}
+
+// ── Training Evaluation Sheet for Objective Questions (form QbD/QA/F/007-05) ──
+// A blank-answer evaluation sheet: the chosen topic's objective questions are
+// printed with their options, each preceded by a tick box for the trainee to
+// mark. Correct answers are deliberately NOT included — it is a test sheet.
+export interface EvalObjectiveQuestion {
+  questionText: string
+  optionA:      string
+  optionB:      string
+  optionC:      string | null
+  optionD:      string | null
+}
+
+export interface TrainingEvalObjectiveData {
+  topicId:      string
+  topicName:    string
+  sopReference: string | null
+  versionLabel: string | null
+  questions:    EvalObjectiveQuestion[]
+}
+
+// ── List of SOPs-Self Readout (physical form QbD/QA/F/007-12) ─────
+// One row per SOP_SELF_READOUT training assignment. The physical form's
+// "Sign/Date of Trainee" column is replaced here by the trainee's name plus
+// the completion date — or "N/A" while the readout is still pending.
+export interface SopSelfReadoutRow {
+  assignmentId: string
+  sopNo:        string        // parsed from the topic's SOP reference, else '—'
+  title:        string        // topic name
+  revisionNo:   string        // parsed from the topic's SOP reference, else '—'
+  readOn:       Date | null   // when the readout was completed, else null
+  empName:      string        // trainee's name
+  employeeId:   string
+  completedAt:  Date | null   // null while pending → rendered as "N/A"
+}
+
+export interface SopSelfReadoutData {
+  rows: SopSelfReadoutRow[]
+}
+
 export type ReportType =
   | 'training-matrix'
   | 'training-index'
@@ -135,3 +195,6 @@ export type ReportType =
   | 'topic-completion'
   | 'training-attendance'
   | 'trainers-list'
+  | 'training-calendar'
+  | 'training-eval-objective'
+  | 'sop-self-readout'

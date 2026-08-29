@@ -44,6 +44,7 @@ const TRIGGERS = [
   { value: 'INDUCTION', label: 'Induction', description: 'New joiner training — auto-assigned on joining' },
   { value: 'SCHEDULE',  label: 'Schedule',  description: 'Planned or scheduled training' },
   { value: 'REFRESHER', label: 'Refresher', description: 'Scheduled periodic refresh' },
+  { value: 'SOP_SELF_READOUT', label: 'SOP Self Readout', description: 'Trainee self-reads a new or revised SOP' },
 ]
 
 export function AssignTrainingForm({ topics, initialTopicId }: Props) {

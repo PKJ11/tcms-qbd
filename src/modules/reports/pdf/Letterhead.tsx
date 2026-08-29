@@ -8,6 +8,8 @@ export interface LetterheadProps {
   preparedByName:  string
   preparedDate:    string
   preparedByTitle?: string
+  // Defaults to 'Quality Assurance' so existing callers render unchanged.
+  department?:     string
   // Controlled-document metadata — defaults to '—' so every existing caller
   // keeps rendering exactly as before unless it opts in to real values.
   versionNo?:      string
@@ -26,6 +28,7 @@ export interface LetterheadProps {
 
 export function Letterhead({
   title, formatNo, preparedByName, preparedDate, preparedByTitle,
+  department = 'Quality Assurance',
   versionNo, replaces, effectiveOn, reviewOn, copyNo,
   reviewedByName, reviewedByDate, reviewedByTitle,
   approvedByName, approvedByDate, approvedByTitle,
@@ -59,7 +62,7 @@ export function Letterhead({
 
         <View style={s.row}>
           <View style={[s.cell, { flex: 3 }]}>
-            <Text style={s.label}>Department: Quality Assurance</Text>
+            <Text style={s.label}>Department: {department}</Text>
           </View>
           <View style={[s.cellLast, { flex: 1 }]}>
             <Text style={s.label}>Format No. {formatNo}</Text>

@@ -9,6 +9,9 @@ import type {
   TopicCompletionReport,
   TrainingAttendanceRecord,
   TrainerListItem,
+  TrainingCalendarData,
+  TrainingEvalObjectiveData,
+  SopSelfReadoutData,
 } from './types'
 import type { QualStatus } from '@prisma/client'
 // At top of src/modules/reports/actions.ts
@@ -599,6 +602,65 @@ export async function getTopicCompletionReport(
 }
 
 // ─────────────────────────────────────────────────────────────────
+// TRAINING EVALUATION SHEET FOR OBJECTIVE QUESTIONS — form QbD/QA/F/007-05
+// The chosen topic's active objective questions, taken from its question
+// bank's current version. Options are returned, correct answers are not —
+// the sheet is printed blank for a trainee to attempt.
+// ─────────────────────────────────────────────────────────────────
+
+export async function getTrainingEvalObjective(
+  topicId: string
+): Promise<TrainingEvalObjectiveData | null> {
+  const topic = await prisma.trainingTopic.findUnique({
+    where:  { id: topicId },
+    select: {
+      id:           true,
+      name:         true,
+      sopReference: true,
+      questionBank: {
+        select: {
+          currentVersion: {
+            select: {
+              versionNo:    true,
+              versionLabel: true,
+              questions: {
+                where:   { isActive: true },
+                orderBy: { createdAt: 'asc' },
+                select: {
+                  questionText: true,
+                  optionA:      true,
+                  optionB:      true,
+                  optionC:      true,
+                  optionD:      true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  if (!topic) return null
+
+  const version = topic.questionBank?.currentVersion
+
+  return {
+    topicId:      topic.id,
+    topicName:    topic.name,
+    sopReference: topic.sopReference,
+    versionLabel: version ? `v${version.versionNo} (${version.versionLabel})` : null,
+    questions: (version?.questions ?? []).map((q) => ({
+      questionText: q.questionText,
+      optionA:      q.optionA,
+      optionB:      q.optionB,
+      optionC:      q.optionC,
+      optionD:      q.optionD,
+    })),
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
 // TRAINING ATTENDANCE RECORD — everyone who completed one topic on one day
 // ─────────────────────────────────────────────────────────────────
 
@@ -699,4 +761,268 @@ export async function getTrainersList(): Promise<TrainerListItem[]> {
     unit:        t.unit?.name       ?? null,
     section:     t.section?.name    ?? null,
   }))
+}
+
+// ─────────────────────────────────────────────────────────────────
+// LIST OF SOPs-SELF READOUT — form QbD/QA/F/007-12
+// Every training assignment whose trigger reason is SOP_SELF_READOUT, one
+// row each. The physical form's trainee-signature column is replaced by the
+// trainee's name and the completion date (or "N/A" while still pending).
+// ─────────────────────────────────────────────────────────────────
+
+// The topic's SOP reference is a single free-text field, usually written as
+// "QbD-QC-SOP-067, Ver.No. 04". Split it into an SOP number and a revision
+// number for the two-column form layout; fall back to the whole string in
+// the SOP-number column when it doesn't follow that shape.
+function splitSopReference(ref: string | null): { sopNo: string; revisionNo: string } {
+  if (!ref?.trim()) return { sopNo: '—', revisionNo: '—' }
+  const [first, ...rest] = ref.split(',')
+  const tail = rest.join(',').trim()
+  if (!tail) return { sopNo: first.trim(), revisionNo: '—' }
+  const revisionNo = tail.replace(/^ver\.?\s*no\.?\s*/i, '').replace(/^v\.?\s*/i, '').trim()
+  return { sopNo: first.trim(), revisionNo: revisionNo || '—' }
+}
+
+export async function getSopSelfReadoutList(filters?: {
+  subordinateIds?: string[]
+}): Promise<SopSelfReadoutData> {
+  const assignments = await prisma.trainingAssignment.findMany({
+    where: {
+      trigger: 'SOP_SELF_READOUT',
+      ...(filters?.subordinateIds !== undefined
+        ? { personId: { in: filters.subordinateIds } }
+        : {}),
+    },
+    select: {
+      id:          true,
+      status:      true,
+      completedAt: true,
+      person: { select: { name: true, employeeId: true } },
+      topic:  { select: { name: true, sopReference: true } },
+    },
+    orderBy: [
+      { topic: { name: 'asc' } },
+      { person: { name: 'asc' } },
+    ],
+  })
+
+  return {
+    rows: assignments.map((a) => {
+      const { sopNo, revisionNo } = splitSopReference(a.topic.sopReference)
+      const done = a.status === 'COMPLETED'
+      return {
+        assignmentId: a.id,
+        sopNo,
+        title:       a.topic.name,
+        revisionNo,
+        readOn:      done ? a.completedAt : null,
+        empName:     a.person.name,
+        employeeId:  a.person.employeeId,
+        completedAt: done ? a.completedAt : null,
+      }
+    }),
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TRAINING CALENDAR — department-wise yearly plan (form QbD/QA/F/007-03)
+// ─────────────────────────────────────────────────────────────────
+
+export async function getCalendarDepartments(): Promise<{ id: string; name: string }[]> {
+  return prisma.department.findMany({
+    where:   { isActive: true },
+    select:  { id: true, name: true },
+    orderBy: { name: 'asc' },
+  })
+}
+
+// One department's calendar for one year. Rows are added explicitly by a
+// trainer — either picked from the Topics list (topicId set, title follows
+// the topic) or typed in free-form (topicId null). Each row carries a
+// 12-slot boolean array of which months are ticked for the requested year.
+export async function getTrainingCalendar(filters: {
+  departmentId: string
+  year:         number
+}): Promise<TrainingCalendarData> {
+  const department = await prisma.department.findUnique({
+    where:  { id: filters.departmentId },
+    select: { id: true, name: true },
+  })
+  if (!department) throw new Error('Department not found')
+
+  const rows = await prisma.trainingCalendarRow.findMany({
+    where:   { departmentId: filters.departmentId },
+    orderBy: [{ orderIndex: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id:      true,
+      title:   true,
+      topicId: true,
+      topic:   { select: { name: true, isActive: true } },
+      marks: {
+        where:  { year: filters.year },
+        select: { month: true },
+      },
+    },
+  })
+
+  // Keep topic-backed titles in step with a topic that was renamed.
+  const stale = rows.filter((r) => r.topic && r.topic.name !== r.title)
+  await Promise.all(
+    stale.map((r) =>
+      prisma.trainingCalendarRow.update({ where: { id: r.id }, data: { title: r.topic!.name } })
+    )
+  )
+
+  // Hide rows whose linked topic has since been deactivated (the row and its
+  // ticks stay in the table, so they return if the topic is reactivated).
+  const visible = rows.filter((r) => !r.topicId || (r.topic?.isActive ?? false))
+  const titleOf = (r: (typeof visible)[number]) => r.topic?.name ?? r.title
+
+  // Topic-backed rows first (alphabetical), then free-form rows in add order.
+  const topicRows  = visible.filter((r) => r.topicId).sort((a, b) => titleOf(a).localeCompare(titleOf(b)))
+  const manualRows = visible.filter((r) => !r.topicId)
+  const ordered    = [...topicRows, ...manualRows]
+
+  return {
+    departmentId:   department.id,
+    departmentName: department.name,
+    year:           filters.year,
+    rows: ordered.map((r) => {
+      const months = Array.from({ length: 12 }, () => false)
+      for (const m of r.marks) {
+        if (m.month >= 1 && m.month <= 12) months[m.month - 1] = true
+      }
+      return { id: r.id, title: titleOf(r), isTopic: r.topicId !== null, months }
+    }),
+  }
+}
+
+// Every Active/Pending topic (isActive === true — INACTIVE excluded), with a
+// flag for whether it is already on this department's calendar. Powers the
+// "Add topics" multi-select picker.
+export async function getAddableTopics(departmentId: string): Promise<{
+  id:           string
+  name:         string
+  sopReference: string | null
+  alreadyAdded: boolean
+}[]> {
+  const [topics, existing] = await Promise.all([
+    prisma.trainingTopic.findMany({
+      where:   { isActive: true },
+      select:  { id: true, name: true, sopReference: true },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.trainingCalendarRow.findMany({
+      where:  { departmentId, topicId: { not: null } },
+      select: { topicId: true },
+    }),
+  ])
+  const added = new Set(existing.map((e) => e.topicId))
+  return topics.map((t) => ({ ...t, alreadyAdded: added.has(t.id) }))
+}
+
+// Bulk-add topic-backed rows. Silently skips ids that are inactive, unknown,
+// or already on the calendar. Returns how many rows were actually created.
+export async function addTrainingCalendarTopics(input: {
+  departmentId: string
+  topicIds:     string[]
+}): Promise<{ added: number }> {
+  const ids = Array.from(new Set(input.topicIds ?? [])).filter(Boolean)
+  if (ids.length === 0) return { added: 0 }
+
+  const valid = await prisma.trainingTopic.findMany({
+    where:  { id: { in: ids }, isActive: true },
+    select: { id: true, name: true },
+  })
+  if (valid.length === 0) return { added: 0 }
+
+  const res = await prisma.trainingCalendarRow.createMany({
+    data: valid.map((t) => ({
+      departmentId: input.departmentId,
+      topicId:      t.id,
+      title:        t.name,
+    })),
+    skipDuplicates: true, // (departmentId, topicId) is unique
+  })
+  return { added: res.count }
+}
+
+export async function addTrainingCalendarRow(input: {
+  departmentId: string
+  title:        string
+  actorId:      string
+}): Promise<{ id: string }> {
+  const title = input.title.trim()
+  if (!title) throw new Error('Training title is required')
+
+  const last = await prisma.trainingCalendarRow.findFirst({
+    where:   { departmentId: input.departmentId },
+    orderBy: { orderIndex: 'desc' },
+    select:  { orderIndex: true },
+  })
+
+  const row = await prisma.trainingCalendarRow.create({
+    data: {
+      departmentId: input.departmentId,
+      title,
+      orderIndex:   (last?.orderIndex ?? 0) + 1,
+      createdById:  input.actorId,
+    },
+    select: { id: true },
+  })
+  return row
+}
+
+export async function renameTrainingCalendarRow(input: {
+  rowId: string
+  title: string
+}): Promise<void> {
+  const title = input.title.trim()
+  if (!title) throw new Error('Training title is required')
+  const row = await prisma.trainingCalendarRow.findUnique({
+    where:  { id: input.rowId },
+    select: { topicId: true },
+  })
+  if (!row) throw new Error('Row not found')
+  if (row.topicId) throw new Error('This training comes from the Topics list — rename it there')
+  await prisma.trainingCalendarRow.update({
+    where: { id: input.rowId },
+    data:  { title },
+  })
+}
+
+// Removes any row — a picked topic or a free-form one — from the calendar,
+// along with its ticks for every year. A topic removed here can be added
+// back any time from the "Add topics" picker.
+export async function deleteTrainingCalendarRow(rowId: string): Promise<void> {
+  await prisma.trainingCalendarRow.delete({ where: { id: rowId } })
+}
+
+// Toggle one month cell on/off for a row in a year. Idempotent — setting a
+// cell that is already in the requested state is a no-op.
+export async function setTrainingCalendarMark(input: {
+  rowId:   string
+  year:    number
+  month:   number  // 1–12
+  checked: boolean
+  actorId: string
+}): Promise<void> {
+  if (input.month < 1 || input.month > 12) throw new Error('Month must be 1–12')
+
+  if (input.checked) {
+    await prisma.trainingCalendarMark.upsert({
+      where:  { rowId_year_month: { rowId: input.rowId, year: input.year, month: input.month } },
+      create: {
+        rowId:      input.rowId,
+        year:       input.year,
+        month:      input.month,
+        markedById: input.actorId,
+      },
+      update: { markedById: input.actorId },
+    })
+  } else {
+    await prisma.trainingCalendarMark.deleteMany({
+      where: { rowId: input.rowId, year: input.year, month: input.month },
+    })
+  }
 }

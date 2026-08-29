@@ -1,7 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import { createDepartment, deleteDepartment } from '@/modules/organization'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+
+export async function GET() {
+  const session = await getSession()
+  if (!session) {
+    return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
+  }
+
+  const departments = await prisma.department.findMany({
+    where:   { isActive: true },
+    select: {
+      id:   true,
+      name: true,
+      code: true,
+      _count: { select: { persons: { where: { isActive: true } } } },
+      units: {
+        where:  { isActive: true },
+        select: {
+          id:   true,
+          name: true,
+          _count: { select: { persons: { where: { isActive: true } } } },
+          sections: {
+            where:   { isActive: true },
+            select: {
+              id: true, name: true, code: true,
+              _count: { select: { persons: { where: { isActive: true } } } },
+            },
+            orderBy: { name: 'asc' },
+          },
+        },
+        orderBy: { name: 'asc' },
+      },
+    },
+    orderBy: { name: 'asc' },
+  })
+
+  return NextResponse.json({ departments })
+}
 
 export async function POST(req: NextRequest) {
   const session = await getSession()

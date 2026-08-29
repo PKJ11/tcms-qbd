@@ -1,4 +1,4 @@
-export type TrainingType = 'MATERIAL_MCQ' | 'MATERIAL_ONLY' | 'ACKNOWLEDGEMENT_ONLY'
+export type TrainingType = 'MATERIAL_MCQ' | 'MATERIAL_ONLY' | 'ACKNOWLEDGEMENT_ONLY' | 'SOP_SELF_READOUT'
 
 export interface TopicScopeItem {
   departmentId: string

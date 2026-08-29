@@ -11,7 +11,17 @@ export {
   getTopicsForReport,
   getTopicCompletionReport,
   getTrainingAttendanceRecord,
+  getTrainingEvalObjective,
   getTrainersList,
+  getSopSelfReadoutList,
+  getCalendarDepartments,
+  getTrainingCalendar,
+  getAddableTopics,
+  addTrainingCalendarTopics,
+  addTrainingCalendarRow,
+  renameTrainingCalendarRow,
+  deleteTrainingCalendarRow,
+  setTrainingCalendarMark,
 } from './actions'
 
 // ← imported from utils, not actions
@@ -26,5 +36,11 @@ export type {
   TrainingAttendanceRecord,
   TrainingAttendanceRow,
   TrainerListItem,
+  TrainingCalendarRowDTO,
+  TrainingCalendarData,
+  EvalObjectiveQuestion,
+  TrainingEvalObjectiveData,
+  SopSelfReadoutRow,
+  SopSelfReadoutData,
   ReportType,
 } from './types'

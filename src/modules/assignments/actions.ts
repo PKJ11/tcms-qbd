@@ -997,7 +997,10 @@ export async function confirmAssignmentMaterial(
   let allConfirmed = false
   let completed     = false
 
-  if (assignment.topic.trainingType === 'MATERIAL_ONLY') {
+  if (
+    assignment.topic.trainingType === 'MATERIAL_ONLY' ||
+    assignment.topic.trainingType === 'SOP_SELF_READOUT'
+  ) {
     const confirmedCount = await prisma.assignmentMaterialConfirmation.count({
       where: { assignmentId },
     })

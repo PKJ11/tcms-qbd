@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getPersons, createPerson } from '@/modules/personnel'
-import { getSubordinateIds, REPORT_OVERSIGHT_ROLES } from '@/lib/subordinates'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
@@ -12,20 +11,8 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
 
-  // Report screens with org-wide ("All data") access pass scope=all to list
-  // every active person for their picker — only honoured for roles that
-  // already have REPORT_OVERSIGHT_ROLES org-wide report access.
-  const reportsAllScope = searchParams.get('scope') === 'all'
-    && hasAnyRole(session.user, REPORT_OVERSIGHT_ROLES)
-
-  // A Trainer/Guest Trainer without VIEW_PERSONNEL only sees their own direct/indirect reports
-  const isScoped = hasAnyRole(session.user, ['TRAINER', 'GUEST_TRAINER'])
-    && !hasAnyRole(session.user, [...PERMISSIONS.VIEW_PERSONNEL])
-    && !reportsAllScope
-  const subordinateIds = isScoped
-    ? await getSubordinateIds(session.user.id)
-    : undefined
-
+  // Personnel listing is no longer role-scoped — any authenticated user gets
+  // the full list, filtered only by the explicit query params below.
   const isActiveParam = searchParams.get('isActive')
   const isActive =
     isActiveParam === 'all'   ? undefined
@@ -33,7 +20,6 @@ export async function GET(req: NextRequest) {
     : true
 
   const persons = await getPersons({
-    subordinateIds,
     departmentId: searchParams.get('departmentId') ?? undefined,
     unitId:       searchParams.get('unitId')        ?? undefined,
     sectionId:    searchParams.get('sectionId')     ?? undefined,

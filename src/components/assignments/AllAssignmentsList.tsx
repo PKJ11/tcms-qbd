@@ -32,6 +32,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   INDUCTION: 'Induction',
   SCHEDULE:  'Schedule',
   REFRESHER: 'Refresher',
+  SOP_SELF_READOUT: 'SOP Self Readout',
 }
 
 export function AllAssignmentsList({

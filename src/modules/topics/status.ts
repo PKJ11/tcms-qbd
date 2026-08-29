@@ -22,6 +22,7 @@ export function getTopicContentStatus(topic: TopicReadinessInput): TopicContentS
     case 'ACKNOWLEDGEMENT_ONLY':
       return 'ACTIVE'
     case 'MATERIAL_ONLY':
+    case 'SOP_SELF_READOUT':
       return topic.materialCount > 0 ? 'ACTIVE' : 'PENDING'
     case 'MATERIAL_MCQ':
     default:
@@ -69,6 +70,14 @@ export const TOPIC_TYPE_INFO: Record<TrainingType, {
     description: 'Trainee completes by clicking Acknowledge. No material or assessment needed.',
     steps: [
       'Write the "Read & understood" statement in the Description field below — that is what the trainee will read and confirm',
+    ],
+  },
+  SOP_SELF_READOUT: {
+    label:       'SOP Self Readout',
+    shortLabel:  'SOP self readout',
+    description: 'Trainee self-reads the SOP material and confirms it. Completes once every material has been confirmed. No assessment.',
+    steps: [
+      'Upload the SOP document(s) as training material',
     ],
   },
 }

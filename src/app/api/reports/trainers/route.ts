@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession }   from '@/lib/auth'
 import { getTrainersList, convertToCSV } from '@/modules/reports'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+import { formatDate } from '@/lib/utils'
 import { TrainersListPdf } from '@/modules/reports/pdf/TrainersListPdf'
 import { renderReportPdf } from '@/modules/reports/pdf/render'
 
@@ -19,8 +20,8 @@ export async function GET(req: Request) {
   const trainers = await getTrainersList()
 
   if (format === 'csv') {
-    const headers = ['Name', 'Employee ID', 'Department', 'Unit', 'Section']
-    const rows    = trainers.map((t) => [t.name, t.employeeId, t.department ?? '', t.unit ?? '', t.section ?? ''])
+    const headers = ['Sr. No.', 'Name of Trainer', 'Designation', 'Department']
+    const rows    = trainers.map((t, i) => [String(i + 1), t.name, t.designation ?? '', t.department ?? ''])
     const csv     = convertToCSV(headers, rows)
     return new NextResponse(csv, {
       headers: {
@@ -31,7 +32,13 @@ export async function GET(req: Request) {
   }
 
   if (format === 'pdf') {
-    const buffer = await renderReportPdf(TrainersListPdf({ trainers }))
+    const buffer = await renderReportPdf(
+      TrainersListPdf({
+        trainers,
+        preparedByName: session.user.name,
+        preparedDate:   formatDate(new Date()),
+      })
+    )
     return new NextResponse(buffer, {
       headers: {
         'Content-Type':        'application/pdf',

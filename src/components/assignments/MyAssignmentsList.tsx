@@ -48,12 +48,14 @@ const TRIGGER_LABELS: Record<string, string> = {
   INDUCTION: 'Induction',
   SCHEDULE:  'Schedule',
   REFRESHER: 'Refresher',
+  SOP_SELF_READOUT: 'SOP Self Readout',
 }
 
 const TRAINING_TYPE_LABELS: Record<string, string> = {
   MATERIAL_MCQ:         'Material + MCQ Assessment',
   MATERIAL_ONLY:        'Material Only',
   ACKNOWLEDGEMENT_ONLY: 'Acknowledgement Only',
+  SOP_SELF_READOUT:     'SOP Self Readout',
 }
 
 const STATUS_TABS: { value: string; label: string }[] = [

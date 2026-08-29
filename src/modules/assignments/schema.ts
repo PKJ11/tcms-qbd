@@ -4,6 +4,7 @@ const TRIGGER_ENUM = z.enum([
   'INDUCTION',
   'SCHEDULE',
   'REFRESHER',
+  'SOP_SELF_READOUT',
 ])
 
 export const createAssignmentSchema = z.object({

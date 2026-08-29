@@ -1,5 +1,5 @@
 export type AssignmentStatus  = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE' | 'FAILED'
-export type TrainingTrigger   = 'INDUCTION' | 'SCHEDULE' | 'REFRESHER'
+export type TrainingTrigger   = 'INDUCTION' | 'SCHEDULE' | 'REFRESHER' | 'SOP_SELF_READOUT'
 
 export interface AssignmentListItem {
   id:           string
