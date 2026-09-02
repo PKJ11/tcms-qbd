@@ -1,15 +1,10 @@
 // hooks/useWorkDraft.ts
 'use client'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import {
   SESSION_ENDING_EVENT,
   WORK_DRAFT_AUTOSAVE_DEBOUNCE_MS,
 } from '@/lib/work-drafts'
-
-interface PendingDraft<T> {
-  payload: T
-  updatedAt: string
-}
 
 interface Options<T> {
   /** Where to send the user back after re-login. Must be an internal path. */
@@ -28,26 +23,20 @@ interface Options<T> {
   enabled?: boolean
 }
 
-interface WorkDraftApi<T> {
-  /** A server draft found on mount and not yet restored or discarded. */
-  pendingDraft: PendingDraft<T> | null
-  /** Apply `pendingDraft` and resume autosave. */
-  restore: () => void
-  /** Delete the server draft and resume autosave from the current state. */
-  discard: () => void
+interface WorkDraftApi {
   /** Delete the server draft after a successful real save. */
   clear: () => void
 }
 
-// While `pendingDraft` is unresolved we must NOT autosave — the live form is
-// still empty and a snapshot would clobber the good copy on the server.
-export function useWorkDraft<T>(draftKey: string, opts: Options<T>): WorkDraftApi<T> {
+// A server draft found on mount is now restored straight into the form — no
+// prompt. The user still goes through the normal Save + justification step, so
+// silently re-populating the fields they had open is safe.
+export function useWorkDraft<T>(draftKey: string, opts: Options<T>): WorkDraftApi {
   const { routePath, schemaVersion, snapshot, onRestore, watch, isEmpty, enabled = true } = opts
 
-  const [pendingDraft, setPendingDraft] = useState<PendingDraft<T> | null>(null)
-  const pendingDraftRef = useRef<PendingDraft<T> | null>(null)
-  pendingDraftRef.current = pendingDraft
-  const lockedRef = useRef(false) // mirrors "pendingDraft unresolved" for listeners
+  // While the server draft is still loading we must NOT autosave — the live
+  // form is still empty and a snapshot would clobber the good copy on the server.
+  const lockedRef = useRef(false)
 
   // Keep the latest closures without re-subscribing listeners every render.
   const snapshotRef = useRef(snapshot)
@@ -81,12 +70,11 @@ export function useWorkDraft<T>(draftKey: string, opts: Options<T>): WorkDraftAp
     [routePath, schemaVersion]
   )
 
-  // ── Load any existing draft once per key ──────────────────────────────
+  // ── Load any existing draft once per key and restore it immediately ───
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
-    lockedRef.current = false
-    setPendingDraft(null)
+    lockedRef.current = true
 
     fetch(url)
       .then(async (res) => {
@@ -95,10 +83,12 @@ export function useWorkDraft<T>(draftKey: string, opts: Options<T>): WorkDraftAp
         const d = data?.draft
         if (!d || d.schemaVersion !== schemaVersion) return // stale shape → ignore
         if (isEmptyRef.current?.(d.payload as T)) return
-        lockedRef.current = true
-        setPendingDraft({ payload: d.payload as T, updatedAt: d.updatedAt })
+        onRestoreRef.current(d.payload as T)
       })
       .catch(() => {})
+      .finally(() => {
+        if (!cancelled) lockedRef.current = false
+      })
 
     return () => {
       cancelled = true
@@ -130,26 +120,11 @@ export function useWorkDraft<T>(draftKey: string, opts: Options<T>): WorkDraftAp
     return () => window.removeEventListener(SESSION_ENDING_EVENT, onEnding)
   }, [enabled, save])
 
-  const restore = useCallback(() => {
-    const cur = pendingDraftRef.current
-    if (!cur) return
-    onRestoreRef.current(cur.payload)
-    lockedRef.current = false
-    setPendingDraft(null)
-  }, [])
-
-  const discard = useCallback(() => {
-    lockedRef.current = false
-    setPendingDraft(null)
-    void fetch(url, { method: 'DELETE' }).catch(() => {})
-  }, [url])
-
   const clear = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     lockedRef.current = false
-    setPendingDraft(null)
     void fetch(url, { method: 'DELETE' }).catch(() => {})
   }, [url])
 
-  return { pendingDraft, restore, discard, clear }
+  return { clear }
 }

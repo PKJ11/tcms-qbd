@@ -1,6 +1,7 @@
 import { Document, Page, View, Text } from '@react-pdf/renderer'
 import { letterheadStyles as s, BORDER } from './styles'
 import { Letterhead } from './Letterhead'
+import { PdfFooter } from './PdfFooter'
 import type { TrainingEvalObjectiveData } from '../types'
 
 // Physical form: QbD/QA/F/007-05, Ver. No. 05, Reference SOP QbD-QA-SOP-007.
@@ -123,7 +124,8 @@ export function TrainingEvalObjectivePdf({
         </Text>
 
         <Text style={{ fontSize: 7, marginTop: 16, textAlign: 'center' }}>{IPR_LINE}</Text>
-        <Text style={[s.label, { marginTop: 8 }]}>Format No. {FORMAT_NO}</Text>
+
+        <PdfFooter printedByName={preparedByName} formatNo={FORMAT_NO} versionNo={VERSION_NO} />
       </Page>
     </Document>
   )

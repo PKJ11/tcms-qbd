@@ -1,38 +1,42 @@
-import { Document, Page, View, Text } from '@react-pdf/renderer'
+import { Document, Page, Text } from '@react-pdf/renderer'
 import { letterheadStyles as s } from './styles'
 import { TrainingAttendanceHeader } from './TrainingAttendanceHeader'
+import { PdfFooter } from './PdfFooter'
 import { PdfTable, type PdfTableColumn } from './PdfTable'
+import { formatDate } from '@/lib/utils'
 import type { TrainingAttendanceRecord } from '../types'
 
 const FORMAT_NO = 'QbD/QA/F/007-02'
 
 const COLUMNS: PdfTableColumn[] = [
-  { key: 'sr',         header: 'Sr. No',           width: '10%' },
-  { key: 'name',       header: 'Name of Trainee',  width: '45%' },
-  { key: 'department', header: 'Department',       width: '25%' },
-  { key: 'sign',       header: 'Sign/Date',        width: '20%' },
+  { key: 'sr',         header: 'Sr. No',          width: '8%'  },
+  { key: 'name',       header: 'Name of Trainee', width: '34%' },
+  { key: 'department', header: 'Department',      width: '24%' },
+  { key: 'assigned',   header: 'Assigned On',     width: '17%' },
+  { key: 'sign',       header: 'Sign/Date',       width: '17%' },
 ]
 
-// "QbD-QC-SOP-067, Ver.No. 04" -> { documentNo: "QbD-QC-SOP-067", versionNo: "Ver.No. 04" }
-function splitSopReference(sopReference: string | null): { documentNo: string; versionNo: string } {
-  if (!sopReference) return { documentNo: '', versionNo: '' }
-  const [first, ...rest] = sopReference.split(',')
-  return { documentNo: first.trim(), versionNo: rest.join(',').trim() }
+// "QbD-QC-SOP-067, Ver.No. 04" -> "QbD-QC-SOP-067" (the document number only).
+function documentNoOf(sopReference: string | null): string {
+  if (!sopReference) return ''
+  return sopReference.split(',')[0].trim()
 }
 
 export function TrainingAttendancePdf({
-  record, dateLabel,
+  record, printedByName,
 }: {
-  record:    TrainingAttendanceRecord
-  dateLabel: string
+  record:        TrainingAttendanceRecord
+  printedByName: string
 }) {
-  const { documentNo, versionNo } = splitSopReference(record.sopReference)
-
   const tableRows = record.attendees.map((a, i) => ({
     sr:         String(i + 1),
     name:       a.name,
     department: a.department ?? '—',
-    sign:       '',
+    assigned:   formatDate(a.assignedAt),
+    // "Sign/Date" carries the completion date — the digital equivalent of
+    // the trainee dating the sheet on the day they were trained. Blank
+    // while the training is still pending.
+    sign:       a.completedAt ? formatDate(a.completedAt) : '',
   }))
 
   return (
@@ -40,23 +44,17 @@ export function TrainingAttendancePdf({
       <Page size="A4" style={s.page}>
         <TrainingAttendanceHeader
           topicName={record.topicName}
-          documentNo={documentNo}
-          versionNo={versionNo}
+          documentNo={documentNoOf(record.sopReference)}
           trainerName={record.trainerName ?? '—'}
-          dateLabel={dateLabel}
         />
 
         {tableRows.length === 0 ? (
-          <Text style={[s.value, { marginTop: 12 }]}>No one completed this training on the chosen date.</Text>
+          <Text style={[s.value, { marginTop: 12 }]}>This topic has not been assigned to anyone yet.</Text>
         ) : (
           <PdfTable columns={COLUMNS} rows={tableRows} />
         )}
 
-        <View style={{ marginTop: 24 }}>
-          <Text style={s.label}>Trainer (Sign/Date): _______________________</Text>
-        </View>
-
-        <Text style={[s.label, { marginTop: 16 }]}>Format No. {FORMAT_NO}</Text>
+        <PdfFooter printedByName={printedByName} formatNo={FORMAT_NO} />
       </Page>
     </Document>
   )

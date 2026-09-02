@@ -1,11 +1,10 @@
 import { Document, Page, View, Text } from '@react-pdf/renderer'
 import { letterheadStyles as s } from './styles'
-import { TrainingIndexHeader } from './TrainingIndexHeader'
+import { TrainingIndexHeader, FORMAT_NO, VERSION_NO } from './TrainingIndexHeader'
+import { PdfFooter } from './PdfFooter'
 import { PdfTable, type PdfTableColumn } from './PdfTable'
 import { formatDate } from '@/lib/utils'
 import type { TrainingIndexEntry } from '../types'
-
-const REFERENCE_SOP_NO = 'QbD-QA-SOP-007'
 
 const COLUMNS: PdfTableColumn[] = [
   { key: 'sr',      header: 'Sr. No',                                  width: '8%'  },
@@ -18,24 +17,14 @@ export function TrainingIndexPdf({
   entries,
   personName,
   personEmployeeId,
-  personDesignation,
   personDepartment,
-  preparedByName,
-  preparedByTitle,
-  preparedDate,
-  reviewedByName,
-  reviewedByTitle,
+  printedByName,
 }: {
   entries:            TrainingIndexEntry[]
   personName:         string
   personEmployeeId:   string
-  personDesignation:  string
   personDepartment:   string
-  preparedByName:     string
-  preparedByTitle:    string
-  preparedDate:       string
-  reviewedByName:     string
-  reviewedByTitle:    string
+  printedByName:      string
 }) {
   // The printed index is a completion log — only trainings with an actual
   // "date of the training" belong in it — sorted oldest-first like a
@@ -54,31 +43,23 @@ export function TrainingIndexPdf({
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        <TrainingIndexHeader
-          preparedByName={preparedByName}
-          preparedByTitle={preparedByTitle}
-          preparedDate={preparedDate}
-          reviewedByName={reviewedByName}
-          reviewedByTitle={reviewedByTitle}
-        />
+        <TrainingIndexHeader />
 
-        {/* Plain identification lines — not a bordered table, matching the
-            physical form */}
-        <Text style={[s.label, { marginTop: 12 }]}>Reference SOP No.: {REFERENCE_SOP_NO}</Text>
-        <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 14, textAlign: 'center', marginTop: 6 }}>
+        <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 14, textAlign: 'center', marginTop: 12 }}>
           TRAINING INDEX
         </Text>
-        <View style={{ flexDirection: 'row', marginTop: 6 }}>
+        <View style={{ flexDirection: 'row', marginTop: 6, marginBottom: 8 }}>
           <Text style={[s.label, { flex: 1 }]}>Name of Employee: {personName} ({personEmployeeId})</Text>
           <Text style={[s.label, { flex: 1 }]}>Department: {personDepartment}</Text>
         </View>
-        <Text style={[s.label, { marginTop: 4, marginBottom: 8 }]}>Designation: {personDesignation}</Text>
 
         {tableRows.length === 0 ? (
           <Text style={[s.value, { marginTop: 12 }]}>No completed trainings on record for this person.</Text>
         ) : (
           <PdfTable columns={COLUMNS} rows={tableRows} />
         )}
+
+        <PdfFooter printedByName={printedByName} formatNo={FORMAT_NO} versionNo={VERSION_NO} />
       </Page>
     </Document>
   )

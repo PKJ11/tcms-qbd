@@ -23,12 +23,10 @@ export async function GET(req: NextRequest) {
   const data = await getSopSelfReadoutList({ subordinateIds })
 
   if (format === 'csv') {
-    const headers = ['Sr. No.', 'SOP No.', 'Title', 'Revision No.', 'SOP read on (Date)', 'Emp. Name', 'Date of Trainee']
+    const headers = ['Sr. No.', 'Title', 'SOP read on (Date)', 'Emp. Name', 'Date of Trainee']
     const rows    = data.rows.map((r, i) => [
       String(i + 1),
-      r.sopNo,
       r.title,
-      r.revisionNo,
       r.readOn ? formatDate(r.readOn) : '—',
       r.empName,
       r.completedAt ? formatDate(r.completedAt) : 'N/A',

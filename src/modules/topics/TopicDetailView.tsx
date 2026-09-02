@@ -35,7 +35,6 @@ const TRAINING_TYPES: { value: string; label: string }[] = [
   { value: 'MATERIAL_MCQ',          label: 'Material + MCQ Assessment' },
   { value: 'MATERIAL_ONLY',         label: 'Material Only' },
   { value: 'ACKNOWLEDGEMENT_ONLY',  label: 'Acknowledgement Only' },
-  { value: 'SOP_SELF_READOUT',      label: 'SOP Self Readout' },
 ]
 
 type ActionType = 'deactivate' | 'edit-scopes' | null

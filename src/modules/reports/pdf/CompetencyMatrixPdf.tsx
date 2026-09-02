@@ -1,7 +1,10 @@
 import { Document, Page } from '@react-pdf/renderer'
 import { letterheadStyles as s } from './styles'
 import { Letterhead } from './Letterhead'
+import { PdfFooter } from './PdfFooter'
 import { PdfTable, type PdfTableColumn } from './PdfTable'
+
+const FORMAT_NO = '—'
 
 interface Person {
   id:         string
@@ -77,11 +80,12 @@ export function CompetencyMatrixPdf({
       <Page size="A4" orientation="landscape" style={s.page}>
         <Letterhead
           title="COMPETENCY MATRIX"
-          formatNo="—"
+          formatNo={FORMAT_NO}
           preparedByName={preparedByName}
           preparedDate={preparedDate}
         />
         <PdfTable columns={columns} rows={rows} />
+        <PdfFooter printedByName={preparedByName} formatNo={FORMAT_NO} />
       </Page>
     </Document>
   )

@@ -24,9 +24,11 @@ enum TrainingType {
   MATERIAL_MCQ // material + assessment — completes only after passing
   MATERIAL_ONLY // completes when the material has been opened/read
   ACKNOWLEDGEMENT_ONLY // completes when the trainee clicks acknowledge
-  SOP_SELF_READOUT // trainee self-reads the SOP material and confirms each — completes like MATERIAL_ONLY
 }
 
+// How an assignment came about. SOP_SELF_READOUT is the "trainee self-reads a
+// new/revised SOP" workflow — it completes exactly like a MATERIAL_ONLY topic,
+// so it lives here as an assignment trigger rather than as a training type.
 enum TrainingTrigger {
   INDUCTION
   SCHEDULE
@@ -180,8 +182,6 @@ model Department {
   techniques  Technique[]
   topicScopes TopicScope[]
   topicGroups TopicGroup[]
-
-  trainingCalendarRows TrainingCalendarRow[]
 
   @@map("departments")
 }
@@ -461,20 +461,18 @@ model TopicGroupItem {
 }
 
 // ─────────────────────────────────────────────
-// TRAINING CALENDAR — department-wise yearly plan
+// TRAINING CALENDAR — organisation-wide yearly plan
 // ─────────────────────────────────────────────
 // A trainer-maintained planning sheet (physical form QbD/QA/F/007-03): one
-// free-form list of training titles per department, and a tick against each
-// month a training is planned to be given in a given year. Deliberately NOT
-// tied to TrainingTopic — the titles are typed by the trainer, exactly like
-// the paper form. Rows persist across years; the marks are per (row, year).
+// org-wide free-form list of training titles, and a tick against each month
+// a training is planned to be given in a given year. Not scoped by
+// department. Rows persist across years; the marks are per (row, year).
 model TrainingCalendarRow {
   id           String   @id @default(cuid())
-  departmentId String
   // Set when the row mirrors a topic from the Topics list (auto-seeded for
-  // every Active/Pending topic scoped to the department). Null for extra
-  // rows a trainer typed in by hand. Topic-backed rows cannot be renamed or
-  // deleted from the calendar — they follow the topic.
+  // every Active/Pending topic). Null for extra rows a trainer typed in by
+  // hand. Topic-backed rows cannot be renamed or deleted from the calendar
+  // — they follow the topic.
   topicId      String?
   title        String
   orderIndex   Int      @default(0)
@@ -482,13 +480,11 @@ model TrainingCalendarRow {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  department Department             @relation(fields: [departmentId], references: [id])
   topic      TrainingTopic?         @relation(fields: [topicId], references: [id], onDelete: Cascade)
   createdBy  Person?                @relation("trainingCalendarRowCreator", fields: [createdById], references: [id])
   marks      TrainingCalendarMark[]
 
-  @@unique([departmentId, topicId])
-  @@index([departmentId])
+  @@unique([topicId])
   @@map("training_calendar_rows")
 }
 

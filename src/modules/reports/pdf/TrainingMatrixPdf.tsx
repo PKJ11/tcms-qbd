@@ -1,6 +1,7 @@
 import { Document, Page, View, Text } from '@react-pdf/renderer'
 import { letterheadStyles as s } from './styles'
 import { TrainingMatrixHeader } from './TrainingMatrixHeader'
+import { PdfFooter } from './PdfFooter'
 import { PdfTable, type PdfTableColumn } from './PdfTable'
 import type { TrainingMatrixRow } from '../types'
 
@@ -15,11 +16,10 @@ function formatShortDate(date: Date | string): string {
 }
 
 export function TrainingMatrixPdf({
-  matrix, preparedByName, preparedDate, periodLabel,
+  matrix, preparedByName, periodLabel,
 }: {
   matrix:         TrainingMatrixRow[]
   preparedByName: string
-  preparedDate:   string
   periodLabel:    string
 }) {
   const topics = matrix[0]?.topics ?? []
@@ -59,8 +59,7 @@ export function TrainingMatrixPdf({
           <PdfTable columns={columns} rows={tableRows} />
         )}
 
-        {/* Footer — note, sign-off lines and format number, matching the
-            physical form */}
+        {/* Note line, matching the physical form */}
         <View style={{ marginTop: 14 }}>
           <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold' }}>
             Note: Write actual Title of Document/Document No with version No. in the column, write
@@ -70,17 +69,7 @@ export function TrainingMatrixPdf({
           </Text>
         </View>
 
-        <View style={{ flexDirection: 'row', marginTop: 16 }}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.label}>Prepared By (Sign/Date):</Text>
-            <Text style={[s.value, { marginTop: 4 }]}>{preparedByName} — {preparedDate}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.label}>Checked By (Sign/Date):</Text>
-          </View>
-        </View>
-
-        <Text style={[s.label, { marginTop: 16 }]}>Format No. {FORMAT_NO}</Text>
+        <PdfFooter printedByName={preparedByName} formatNo={FORMAT_NO} />
       </Page>
     </Document>
   )

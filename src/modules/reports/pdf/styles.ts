@@ -6,7 +6,9 @@ export const BORDER      = '#000000'
 export const letterheadStyles = StyleSheet.create({
   page: {
     paddingTop:    24,
-    paddingBottom: 32,
+    // Room for the fixed PdfFooter (see PdfFooter.tsx) so flowing content
+    // never runs under it.
+    paddingBottom: 46,
     paddingHorizontal: 24,
     fontSize:  8,
     fontFamily: 'Helvetica',
@@ -78,6 +80,23 @@ export const letterheadStyles = StyleSheet.create({
 
   signBlock: {
     lineHeight: 1.6,
+  },
+
+  // Controlled-print footer, repeated on every page (see PdfFooter.tsx) —
+  // left: who printed it / when; right: the format (and version) number.
+  footer: {
+    position: 'absolute',
+    bottom: 16,
+    // Align with the page's horizontal padding so the text isn't flush
+    // against the sheet edges.
+    left: 24,
+    right: 24,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  footerText: {
+    fontSize: 7.5,
+    fontFamily: 'Helvetica',
   },
 
   contextLine: {

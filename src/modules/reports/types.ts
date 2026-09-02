@@ -98,17 +98,20 @@ export interface TrainingAttendanceRow {
   name:        string
   employeeId:  string
   department:  string | null
-  completedAt: Date
+  assignedAt:  Date
+  completedAt: Date | null
 }
 
-// A trainer picks one topic + one calendar date; the record lists everyone
-// who completed that topic on that day — the digital equivalent of the
-// physical "Training Attendance Record" sign-in sheet.
+// A trainer picks one topic; the record lists everyone the topic has been
+// assigned to so far — with each person's assigned date and, once done,
+// their completion date. The digital equivalent of the physical "Training
+// Attendance Record" sign-in sheet. For a Trainer/Guest Trainer the list is
+// limited to the people they themselves assigned the topic to.
 export interface TrainingAttendanceRecord {
   topicId:      string
   topicName:    string
   sopReference: string | null
-  date:         string // 'YYYY-MM-DD'
+  date:         string | null // 'YYYY-MM-DD', or null when not filtered by date
   trainerName:  string | null
   attendees:    TrainingAttendanceRow[]
 }
@@ -127,24 +130,22 @@ export interface TrainerListItem {
 }
 
 // ── Training Calendar (physical form QbD/QA/F/007-03) ─────────────
-// A department's free-form list of training titles, each with a tick
+// One organisation-wide free-form list of training titles, each with a tick
 // against every month it is planned for in a given year.
 export interface TrainingCalendarRowDTO {
   id:     string
   title:  string
   // True when the row mirrors a topic from the Topics list (auto-seeded for
-  // every Active/Pending topic scoped to the department) — such rows cannot
-  // be renamed or removed from the calendar. False for trainer-typed rows.
+  // every Active/Pending topic) — such rows cannot be renamed or removed
+  // from the calendar. False for trainer-typed rows.
   isTopic: boolean
   // 12 booleans, index 0 = January … index 11 = December.
   months: boolean[]
 }
 
 export interface TrainingCalendarData {
-  departmentId:   string
-  departmentName: string
-  year:           number
-  rows:           TrainingCalendarRowDTO[]
+  year: number
+  rows: TrainingCalendarRowDTO[]
 }
 
 // ── Training Evaluation Sheet for Objective Questions (form QbD/QA/F/007-05) ──

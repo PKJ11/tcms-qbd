@@ -1,8 +1,11 @@
 import { Document, Page, View, Text } from '@react-pdf/renderer'
 import { letterheadStyles as s } from './styles'
 import { Letterhead } from './Letterhead'
+import { PdfFooter } from './PdfFooter'
 import { PdfTable, type PdfTableColumn } from './PdfTable'
 import { formatDate } from '@/lib/utils'
+
+const FORMAT_NO = '—'
 
 interface QualificationRecordPdfData {
   status:      string
@@ -76,7 +79,7 @@ export function QualificationRecordPdf({
       <Page size="A4" style={s.page}>
         <Letterhead
           title="QUALIFICATION / COMPETENCY RECORD"
-          formatNo="—"
+          formatNo={FORMAT_NO}
           preparedByName={preparedByName}
           preparedDate={preparedDate}
           contextLine={`${qual.person.name} (${qual.person.employeeId})  ·  ${qual.technique.name} (${qual.technique.code})`}
@@ -148,6 +151,8 @@ export function QualificationRecordPdf({
         ) : (
           <Text style={s.value}>No evidence documents uploaded.</Text>
         )}
+
+        <PdfFooter printedByName={preparedByName} formatNo={FORMAT_NO} />
       </Page>
     </Document>
   )

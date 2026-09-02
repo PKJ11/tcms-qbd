@@ -661,13 +661,17 @@ export async function getTrainingEvalObjective(
 }
 
 // ─────────────────────────────────────────────────────────────────
-// TRAINING ATTENDANCE RECORD — everyone who completed one topic on one day
+// TRAINING ATTENDANCE RECORD — everyone a topic has been assigned to, with
+// each person's assigned date and (once done) completion date
 // ─────────────────────────────────────────────────────────────────
 
 export async function getTrainingAttendanceRecord(filters: {
   topicId:         string
-  date:            string  // 'YYYY-MM-DD' — a calendar date, not an instant
+  date?:           string | null // 'YYYY-MM-DD' — a calendar date, not an instant; omit for all dates
   subordinateIds?: string[]
+  // When set, only assignments this person made are counted — a Trainer's
+  // attendance record shows the trainees they themselves assigned.
+  assignedById?:   string
 }): Promise<TrainingAttendanceRecord> {
   const topic = await prisma.trainingTopic.findUnique({
     where:  { id: filters.topicId },
@@ -678,18 +682,28 @@ export async function getTrainingAttendanceRecord(filters: {
   // Parsed as UTC (per the ES spec for bare "YYYY-MM-DD" strings) so the
   // day boundary is the same regardless of the server's local timezone —
   // appending a local offset via setHours() here would silently shift the
-  // window on a server not running in UTC.
-  const dayStart = new Date(`${filters.date}T00:00:00.000Z`)
-  const dayEnd   = new Date(`${filters.date}T23:59:59.999Z`)
+  // window on a server not running in UTC. Only applied when a date is given.
+  const dateWindow = filters.date
+    ? {
+        completedAt: {
+          gte: new Date(`${filters.date}T00:00:00.000Z`),
+          lte: new Date(`${filters.date}T23:59:59.999Z`),
+        },
+      }
+    : {}
 
   const assignments = await prisma.trainingAssignment.findMany({
     where: {
       topicId:     filters.topicId,
-      status:      'COMPLETED',
-      completedAt: { gte: dayStart, lte: dayEnd },
+      // Everyone the topic has been assigned to — not just those who have
+      // completed it. Whether each person is done is shown by completedAt.
+      ...dateWindow,
       ...(filters.subordinateIds !== undefined && { personId: { in: filters.subordinateIds } }),
+      ...(filters.assignedById && { assignedById: filters.assignedById }),
     },
     select: {
+      personId:    true,
+      createdAt:   true,
       completedAt: true,
       assignedBy:  { select: { name: true } },
       person: {
@@ -699,31 +713,35 @@ export async function getTrainingAttendanceRecord(filters: {
         },
       },
     },
-    // One row per person even if they somehow have more than one completed
-    // assignment of the same topic on the same day (e.g. a retraining
-    // cycle) — a sign-in sheet lists each attendee once.
-    distinct: ['personId'],
-    orderBy: { person: { name: 'asc' } },
+    orderBy: { createdAt: 'desc' },
   })
 
-  // Most common assigner among the day's attendees — the "trainer" line
-  // on the printed record. Falls back to null if there's no clear one.
+  // One row per person even if they have more than one assignment of the
+  // same topic (e.g. a retraining cycle) — a sign-in sheet lists each
+  // person once; the most recent assignment (first, given the orderBy) wins.
+  const byPerson = new Map<string, (typeof assignments)[number]>()
+  for (const a of assignments) if (!byPerson.has(a.personId)) byPerson.set(a.personId, a)
+  const rows = Array.from(byPerson.values()).sort((a, b) => a.person.name.localeCompare(b.person.name))
+
+  // Most common assigner among the listed people — the "trainer" line on the
+  // printed record. Falls back to null if there's no clear one.
   const trainerCounts = new Map<string, number>()
-  for (const a of assignments) trainerCounts.set(a.assignedBy.name, (trainerCounts.get(a.assignedBy.name) ?? 0) + 1)
+  for (const a of rows) trainerCounts.set(a.assignedBy.name, (trainerCounts.get(a.assignedBy.name) ?? 0) + 1)
   const trainerName = Array.from(trainerCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
   return {
     topicId:      topic.id,
     topicName:    topic.name,
     sopReference: topic.sopReference,
-    date:         filters.date,
+    date:         filters.date ?? null,
     trainerName,
-    attendees: assignments.map((a) => ({
+    attendees: rows.map((a) => ({
       personId:    a.person.id,
       name:        a.person.name,
       employeeId:  a.person.employeeId,
       department:  a.person.department?.name ?? null,
-      completedAt: a.completedAt!,
+      assignedAt:  a.createdAt,
+      completedAt: a.completedAt,
     })),
   }
 }
@@ -825,33 +843,17 @@ export async function getSopSelfReadoutList(filters?: {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// TRAINING CALENDAR — department-wise yearly plan (form QbD/QA/F/007-03)
+// TRAINING CALENDAR — organisation-wide yearly plan (form QbD/QA/F/007-03)
 // ─────────────────────────────────────────────────────────────────
 
-export async function getCalendarDepartments(): Promise<{ id: string; name: string }[]> {
-  return prisma.department.findMany({
-    where:   { isActive: true },
-    select:  { id: true, name: true },
-    orderBy: { name: 'asc' },
-  })
-}
-
-// One department's calendar for one year. Rows are added explicitly by a
-// trainer — either picked from the Topics list (topicId set, title follows
-// the topic) or typed in free-form (topicId null). Each row carries a
-// 12-slot boolean array of which months are ticked for the requested year.
+// The whole organisation's calendar for one year. Rows are added explicitly
+// by a trainer — either picked from the Topics list (topicId set, title
+// follows the topic) or typed in free-form (topicId null). Each row carries
+// a 12-slot boolean array of which months are ticked for the requested year.
 export async function getTrainingCalendar(filters: {
-  departmentId: string
-  year:         number
+  year: number
 }): Promise<TrainingCalendarData> {
-  const department = await prisma.department.findUnique({
-    where:  { id: filters.departmentId },
-    select: { id: true, name: true },
-  })
-  if (!department) throw new Error('Department not found')
-
   const rows = await prisma.trainingCalendarRow.findMany({
-    where:   { departmentId: filters.departmentId },
     orderBy: [{ orderIndex: 'asc' }, { createdAt: 'asc' }],
     select: {
       id:      true,
@@ -884,9 +886,7 @@ export async function getTrainingCalendar(filters: {
   const ordered    = [...topicRows, ...manualRows]
 
   return {
-    departmentId:   department.id,
-    departmentName: department.name,
-    year:           filters.year,
+    year: filters.year,
     rows: ordered.map((r) => {
       const months = Array.from({ length: 12 }, () => false)
       for (const m of r.marks) {
@@ -898,9 +898,9 @@ export async function getTrainingCalendar(filters: {
 }
 
 // Every Active/Pending topic (isActive === true — INACTIVE excluded), with a
-// flag for whether it is already on this department's calendar. Powers the
-// "Add topics" multi-select picker.
-export async function getAddableTopics(departmentId: string): Promise<{
+// flag for whether it is already on the calendar. Powers the "Add topics"
+// multi-select picker.
+export async function getAddableTopics(): Promise<{
   id:           string
   name:         string
   sopReference: string | null
@@ -913,7 +913,7 @@ export async function getAddableTopics(departmentId: string): Promise<{
       orderBy: { name: 'asc' },
     }),
     prisma.trainingCalendarRow.findMany({
-      where:  { departmentId, topicId: { not: null } },
+      where:  { topicId: { not: null } },
       select: { topicId: true },
     }),
   ])
@@ -924,8 +924,7 @@ export async function getAddableTopics(departmentId: string): Promise<{
 // Bulk-add topic-backed rows. Silently skips ids that are inactive, unknown,
 // or already on the calendar. Returns how many rows were actually created.
 export async function addTrainingCalendarTopics(input: {
-  departmentId: string
-  topicIds:     string[]
+  topicIds: string[]
 }): Promise<{ added: number }> {
   const ids = Array.from(new Set(input.topicIds ?? [])).filter(Boolean)
   if (ids.length === 0) return { added: 0 }
@@ -938,39 +937,12 @@ export async function addTrainingCalendarTopics(input: {
 
   const res = await prisma.trainingCalendarRow.createMany({
     data: valid.map((t) => ({
-      departmentId: input.departmentId,
-      topicId:      t.id,
-      title:        t.name,
+      topicId: t.id,
+      title:   t.name,
     })),
-    skipDuplicates: true, // (departmentId, topicId) is unique
+    skipDuplicates: true, // topicId is unique
   })
   return { added: res.count }
-}
-
-export async function addTrainingCalendarRow(input: {
-  departmentId: string
-  title:        string
-  actorId:      string
-}): Promise<{ id: string }> {
-  const title = input.title.trim()
-  if (!title) throw new Error('Training title is required')
-
-  const last = await prisma.trainingCalendarRow.findFirst({
-    where:   { departmentId: input.departmentId },
-    orderBy: { orderIndex: 'desc' },
-    select:  { orderIndex: true },
-  })
-
-  const row = await prisma.trainingCalendarRow.create({
-    data: {
-      departmentId: input.departmentId,
-      title,
-      orderIndex:   (last?.orderIndex ?? 0) + 1,
-      createdById:  input.actorId,
-    },
-    select: { id: true },
-  })
-  return row
 }
 
 export async function renameTrainingCalendarRow(input: {

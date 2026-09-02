@@ -6,7 +6,6 @@ import {
 } from '@/modules/reports'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 import { resolveScopeFilter }      from '@/lib/subordinates'
-import { formatDate }              from '@/lib/utils'
 import { TrainingMatrixPdf }       from '@/modules/reports/pdf/TrainingMatrixPdf'
 import { renderReportPdf }         from '@/modules/reports/pdf/render'
 
@@ -85,7 +84,6 @@ export async function GET(req: NextRequest) {
       TrainingMatrixPdf({
         matrix,
         preparedByName: session.user.name,
-        preparedDate:   formatDate(new Date()),
         periodLabel,
       })
     )

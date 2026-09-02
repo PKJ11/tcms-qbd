@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
-import { WorkDraftBanner } from '@/components/WorkDraftBanner'
 import { useWorkDraft } from '@/hooks/useWorkDraft'
 import { PERSONNEL_NEW_DRAFT_KEY, PERSONNEL_NEW_DRAFT_SCHEMA } from '@/lib/work-drafts'
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/permissions'
@@ -264,15 +263,6 @@ export function CreatePersonForm({ departments }: Props) {
 
   return (
     <>
-      {draft.pendingDraft && (
-        <WorkDraftBanner
-          summary={`a draft user${draft.pendingDraft.payload.form?.name ? ` — ${draft.pendingDraft.payload.form.name}` : ''}`}
-          updatedAt={draft.pendingDraft.updatedAt}
-          onRestore={draft.restore}
-          onDiscard={draft.discard}
-        />
-      )}
-
       <div
         className="bg-white rounded-2xl border p-6"
         style={{ borderColor: '#e5e7eb' }}

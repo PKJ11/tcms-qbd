@@ -6,25 +6,12 @@ import { letterheadStyles as s } from './styles'
 import { getLogoDataUri } from './logo'
 
 // Controlled-document identity for this format — fixed, matching the
-// physical QbD-QA-SOP-007 "Training Index" form. Not data about the
-// employee, so it doesn't vary per print.
-const FORMAT_NO    = 'QbD/QA/F/007-09'
-const VERSION_NO   = '04'
-const REPLACES     = 'QbD/QA/F/007-09, V.03'
-const EFFECTIVE_ON = '21-May-22'
-const REVIEW_ON    = '20-May-25'
+// physical QbD "Training Index" form. Not data about the employee, so it
+// doesn't vary per print. Shown only in the page footer (see PdfFooter.tsx).
+export const FORMAT_NO  = 'QbD/QA/F/007-09'
+export const VERSION_NO = '04'
 
-export interface TrainingIndexHeaderProps {
-  preparedByName:  string
-  preparedByTitle: string
-  preparedDate:    string
-  reviewedByName:  string
-  reviewedByTitle: string
-}
-
-export function TrainingIndexHeader({
-  preparedByName, preparedByTitle, preparedDate, reviewedByName, reviewedByTitle,
-}: TrainingIndexHeaderProps) {
+export function TrainingIndexHeader() {
   return (
     <View fixed>
       <View style={s.headerBox}>
@@ -51,46 +38,9 @@ export function TrainingIndexHeader({
           />
         </View>
 
-        <View style={s.row}>
-          <View style={[s.cell, { flex: 3 }]}>
-            <Text style={s.label}>Department: Quality Assurance</Text>
-          </View>
-          <View style={[s.cellLast, { flex: 1 }]}>
-            <Text style={s.label}>Format No. {FORMAT_NO}</Text>
-          </View>
-        </View>
-
-        <View style={s.row}>
-          <View style={[s.cell, { flex: 1 }]}><Text style={s.label}>Ver. No.: {VERSION_NO}</Text></View>
-          <View style={[s.cell, { flex: 1 }]}><Text style={s.label}>Replaces: {REPLACES}</Text></View>
-          <View style={[s.cell, { flex: 1 }]}><Text style={s.label}>Effective On: {EFFECTIVE_ON}</Text></View>
-          <View style={[s.cellLast, { flex: 1 }]}><Text style={s.label}>Review On: {REVIEW_ON}</Text></View>
-        </View>
-
-        <View style={s.row}>
-          <View style={[s.cell, { flex: 1 }, s.signBlock]}>
-            <Text style={s.label}>Prepared By:</Text>
-            <Text style={s.value}>Date: {preparedDate}</Text>
-            <Text style={s.value}>Name: {preparedByName}</Text>
-            <Text style={s.value}>Title: {preparedByTitle}</Text>
-          </View>
-          <View style={[s.cell, { flex: 1 }, s.signBlock]}>
-            <Text style={s.label}>Reviewed By:</Text>
-            <Text style={s.value}>Date: {preparedDate}</Text>
-            <Text style={s.value}>Name: {reviewedByName}</Text>
-            <Text style={s.value}>Title: {reviewedByTitle}</Text>
-          </View>
-          <View style={[s.cellLast, { flex: 1 }, s.signBlock]}>
-            <Text style={s.label}>Approved By:</Text>
-            <Text style={s.value}>Date: {preparedDate}</Text>
-            <Text style={s.value}>Name: {reviewedByName}</Text>
-            <Text style={s.value}>Title: {reviewedByTitle}</Text>
-          </View>
-        </View>
-
         <View style={s.rowLast}>
           <View style={[s.cellLast, { flex: 1 }]}>
-            <Text style={s.label}>Copy No.: —</Text>
+            <Text style={s.label}>Department: Quality Assurance</Text>
           </View>
         </View>
       </View>

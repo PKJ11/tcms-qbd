@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
-import { WorkDraftBanner } from '@/components/WorkDraftBanner'
 import { useWorkDraft } from '@/hooks/useWorkDraft'
 import { QUALIFICATION_NEW_DRAFT_KEY, QUALIFICATION_NEW_DRAFT_SCHEMA } from '@/lib/work-drafts'
 
@@ -94,15 +93,6 @@ export function CreateQualificationForm({ persons, techniques }: Props) {
 
   return (
     <>
-      {draft.pendingDraft && (
-        <WorkDraftBanner
-          summary="a partly-filled qualification record"
-          updatedAt={draft.pendingDraft.updatedAt}
-          onRestore={draft.restore}
-          onDiscard={draft.discard}
-        />
-      )}
-
       <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
         <form onSubmit={handleSubmitClick} className="flex flex-col gap-5">
 

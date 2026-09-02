@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
-import { WorkDraftBanner } from '@/components/WorkDraftBanner'
 import { useWorkDraft } from '@/hooks/useWorkDraft'
 import { REFRESHER_NEW_DRAFT_KEY, REFRESHER_NEW_DRAFT_SCHEMA } from '@/lib/work-drafts'
 
@@ -141,15 +140,6 @@ export function TriggerRefresherForm({ topics, persons }: Props) {
 
   return (
     <>
-      {draft.pendingDraft && (
-        <WorkDraftBanner
-          summary={`a refresher for ${draft.pendingDraft.payload.selectedPersons?.length ?? 0} person(s)`}
-          updatedAt={draft.pendingDraft.updatedAt}
-          onRestore={draft.restore}
-          onDiscard={draft.discard}
-        />
-      )}
-
       <div
         className="bg-white rounded-2xl border p-6"
         style={{ borderColor: '#e5e7eb' }}

@@ -1,13 +1,12 @@
 import { Document, Page, View, Text, Svg, Polyline } from '@react-pdf/renderer'
 import { letterheadStyles as s, BORDER } from './styles'
 import { Letterhead } from './Letterhead'
+import { PdfFooter } from './PdfFooter'
 import type { TrainingCalendarData } from '../types'
 
-// Physical form: QbD/QA/F/007-03, Ver. No. 08, Reference SOP QbD-QA-SOP-007.
+// Physical form: QbD/QA/F/007-03, Ver. No. 08.
 const FORMAT_NO       = 'QbD/QA/F/007-03'
 const VERSION_NO      = '08'
-const REPLACES        = 'QbD/QA/F/007-03, V.07'
-const REFERENCE_SOP   = 'Reference SOP No.: QbD-QA-SOP-007'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const SR_W    = '6%'
@@ -57,12 +56,10 @@ export function TrainingCalendarPdf({
         <Letterhead
           title="TRAINING CALENDAR"
           formatNo={FORMAT_NO}
-          versionNo={VERSION_NO}
-          replaces={REPLACES}
-          department={data.departmentName}
+          department="All Departments"
           preparedByName={preparedByName}
           preparedDate={preparedDate}
-          contextLine={REFERENCE_SOP}
+          showControlledMeta={false}
         />
 
         <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 12, textAlign: 'center', marginTop: 8, marginBottom: 6 }}>
@@ -83,7 +80,7 @@ export function TrainingCalendarPdf({
           {data.rows.length === 0 ? (
             <View style={{ flexDirection: 'row' }}>
               <Text style={[cell, { width: '100%', borderRightWidth: 0 }]}>
-                No trainings have been added to this department&apos;s calendar yet.
+                No trainings have been added to the calendar yet.
               </Text>
             </View>
           ) : (
@@ -101,17 +98,7 @@ export function TrainingCalendarPdf({
           )}
         </View>
 
-        <View style={{ flexDirection: 'row', marginTop: 16 }}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.label}>Prepared By (Sign/Date):</Text>
-            <Text style={[s.value, { marginTop: 4 }]}>{preparedByName} — {preparedDate}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.label}>Checked By (Sign/Date):</Text>
-          </View>
-        </View>
-
-        <Text style={[s.label, { marginTop: 16 }]}>Format No. {FORMAT_NO}</Text>
+        <PdfFooter printedByName={preparedByName} formatNo={FORMAT_NO} versionNo={VERSION_NO} />
       </Page>
     </Document>
   )

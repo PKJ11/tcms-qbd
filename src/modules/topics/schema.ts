@@ -7,7 +7,7 @@ const scopeSchema = z.object({
 })
 
 export const trainingTypeSchema = z.enum([
-  'MATERIAL_MCQ', 'MATERIAL_ONLY', 'ACKNOWLEDGEMENT_ONLY', 'SOP_SELF_READOUT',
+  'MATERIAL_MCQ', 'MATERIAL_ONLY', 'ACKNOWLEDGEMENT_ONLY',
 ])
 
 export const createTopicSchema = z.object({

@@ -19,12 +19,19 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const format         = searchParams.get('format')
   const topicId        = searchParams.get('topicId')
-  const dateParam       = searchParams.get('date')
+  const dateParam       = searchParams.get('date') || undefined
   const subordinateIds  = await resolveScopeFilter(session.user, searchParams.get('scope'))
 
-  if (!topicId || !dateParam) {
+  // A Trainer/Guest Trainer only ever sees the trainees they themselves
+  // assigned the topic to — their attendance record covers the sessions
+  // they ran, not another trainer's.
+  const assignedById = hasAnyRole(session.user, PERMISSIONS.ASSIGN_TRAINING)
+    ? session.user.id
+    : undefined
+
+  if (!topicId) {
     if (format === 'csv' || format === 'pdf') {
-      return NextResponse.json({ message: 'Select a training topic and date first' }, { status: 400 })
+      return NextResponse.json({ message: 'Select a training topic first' }, { status: 400 })
     }
     return NextResponse.json({ record: null, needsFilters: true })
   }
@@ -35,6 +42,7 @@ export async function GET(req: NextRequest) {
       topicId,
       date: dateParam,
       subordinateIds,
+      assignedById,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to build attendance record'
@@ -42,8 +50,14 @@ export async function GET(req: NextRequest) {
   }
 
   if (format === 'csv') {
-    const headers = ['Sr. No', 'Name of Trainee', 'Department']
-    const rows    = record.attendees.map((a, i) => [String(i + 1), a.name, a.department ?? ''])
+    const headers = ['Sr. No', 'Name of Trainee', 'Department', 'Assigned on', 'Sign/Date']
+    const rows    = record.attendees.map((a, i) => [
+      String(i + 1),
+      a.name,
+      a.department ?? '',
+      formatDate(a.assignedAt),
+      a.completedAt ? formatDate(a.completedAt) : '',
+    ])
     const csv     = convertToCSV(headers, rows)
     return new NextResponse(csv, {
       headers: {
@@ -57,7 +71,7 @@ export async function GET(req: NextRequest) {
     const buffer = await renderReportPdf(
       TrainingAttendancePdf({
         record,
-        dateLabel: formatDate(record.date),
+        printedByName: session.user.name,
       })
     )
     return new NextResponse(buffer, {

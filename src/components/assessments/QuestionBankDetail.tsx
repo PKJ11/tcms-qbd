@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { SaveChangesModal } from './SaveChangesModal'
 import { VersionHistory } from './VersionHistory'
-import { WorkDraftBanner } from '@/components/WorkDraftBanner'
 import { useWorkDraft } from '@/hooks/useWorkDraft'
 import { BANK_EDIT_DRAFT_SCHEMA, bankEditDraftKey } from '@/lib/work-drafts'
 import { validateOptionSet, filledOptions, OPTION_LETTERS } from '@/modules/assessment/schema'
@@ -332,15 +331,6 @@ export function QuestionBankDetail({ bankId, topicId }: { bankId: string; topicI
 
   return (
     <div className="flex flex-col gap-4">
-      {draft.pendingDraft && (
-        <WorkDraftBanner
-          summary="an in-progress question form"
-          updatedAt={draft.pendingDraft.updatedAt}
-          onRestore={draft.restore}
-          onDiscard={draft.discard}
-        />
-      )}
-
       {accessKnown && !canEdit && (
         <div className="px-4 py-3 rounded-2xl text-sm flex items-center gap-2" style={{ background: '#fffbeb', color: '#92400e' }}>
           <LockIcon />

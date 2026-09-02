@@ -1,9 +1,12 @@
 import { Document, Page } from '@react-pdf/renderer'
 import { letterheadStyles as s } from './styles'
 import { Letterhead } from './Letterhead'
+import { PdfFooter } from './PdfFooter'
 import { PdfTable, type PdfTableColumn } from './PdfTable'
 import { formatDate } from '@/lib/utils'
 import type { OverdueReportRow } from '../types'
+
+const FORMAT_NO = 'URS-RPT-003'
 
 const COLUMNS: PdfTableColumn[] = [
   { key: 'name',        header: 'Person',       width: '20%' },
@@ -37,11 +40,12 @@ export function OverdueReportPdf({
       <Page size="A4" style={s.page}>
         <Letterhead
           title="OVERDUE TRAINING REPORT"
-          formatNo="URS-RPT-003"
+          formatNo={FORMAT_NO}
           preparedByName={preparedByName}
           preparedDate={preparedDate}
         />
         <PdfTable columns={COLUMNS} rows={tableRows} />
+        <PdfFooter printedByName={preparedByName} formatNo={FORMAT_NO} />
       </Page>
     </Document>
   )

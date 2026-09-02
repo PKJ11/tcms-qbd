@@ -3,7 +3,6 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
-import { WorkDraftBanner } from '@/components/WorkDraftBanner'
 import { useWorkDraft } from '@/hooks/useWorkDraft'
 import { BANK_NEW_DRAFT_KEY, BANK_NEW_DRAFT_SCHEMA } from '@/lib/work-drafts'
 import { validateOptionSet, filledOptions, OPTION_LETTERS } from '@/modules/assessment/schema'
@@ -200,17 +199,6 @@ export function CreateBankForm({ topics, initialTopicId }: Props) {
 
   return (
     <>
-      {draft.pendingDraft && (
-        <WorkDraftBanner
-          summary={`${draft.pendingDraft.payload.questions?.length ?? 0} question${
-            (draft.pendingDraft.payload.questions?.length ?? 0) === 1 ? '' : 's'
-          } staged`}
-          updatedAt={draft.pendingDraft.updatedAt}
-          onRestore={draft.restore}
-          onDiscard={draft.discard}
-        />
-      )}
-
       <div className="bg-white rounded-2xl border p-6 mb-4" style={{ borderColor: '#e5e7eb' }}>
         <div className="flex flex-col gap-5">
 

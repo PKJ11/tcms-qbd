@@ -103,7 +103,7 @@ export function SopSelfReadoutList({ scope }: { scope: ReportScope }) {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['#', 'SOP No.', 'Title', 'Revision No.', 'SOP read on', 'Emp. Name / Date of Trainee'].map((h, i) => (
+                {['#', 'Title', 'SOP read on', 'Emp. Name / Date of Trainee'].map((h, i) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
@@ -118,9 +118,7 @@ export function SopSelfReadoutList({ scope }: { scope: ReportScope }) {
               {filtered.map((r, idx) => (
                 <tr key={r.assignmentId} style={{ borderBottom: '1px solid #f3f4f6' }} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-xs text-gray-400">{idx + 1}</td>
-                  <td className="px-4 py-3 text-xs text-gray-700">{r.sopNo}</td>
                   <td className="px-4 py-3 text-xs font-medium text-gray-900">{r.title}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{r.revisionNo}</td>
                   <td className="px-4 py-3 text-xs text-gray-500">{r.readOn ? formatDate(r.readOn) : '—'}</td>
                   <td className="px-4 py-3 text-xs">
                     <div className="font-medium text-gray-900">{r.empName}</div>

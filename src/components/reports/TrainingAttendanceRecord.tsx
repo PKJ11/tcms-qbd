@@ -11,14 +11,15 @@ interface Attendee {
   name:        string
   employeeId:  string
   department:  string | null
-  completedAt: string
+  assignedAt:  string
+  completedAt: string | null
 }
 
 interface Record_ {
   topicId:      string
   topicName:    string
   sopReference: string | null
-  date:         string
+  date:         string | null
   trainerName:  string | null
   attendees:    Attendee[]
 }
@@ -26,11 +27,10 @@ interface Record_ {
 export function TrainingAttendanceRecord({ scope }: { scope: ReportScope }) {
   const [topics,  setTopics]  = useState<Topic[]>([])
   const [topicId, setTopicId] = useState('')
-  const [date,    setDate]    = useState('')
   const [record,  setRecord]  = useState<Record_ | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const hasRequiredFilters = !!topicId && !!date
+  const hasRequiredFilters = !!topicId
 
   // Topic list — reuses the Topic Completion report's topic lookup so the
   // dropdown doesn't need its own duplicate endpoint.
@@ -43,17 +43,17 @@ export function TrainingAttendanceRecord({ scope }: { scope: ReportScope }) {
   const fetchRecord = useCallback(async () => {
     if (!hasRequiredFilters) { setRecord(null); return }
     setLoading(true)
-    const params = new URLSearchParams({ scope, topicId, date })
+    const params = new URLSearchParams({ scope, topicId })
     const res  = await fetch(`/api/reports/training-attendance?${params}`)
     const data = await res.json()
     setRecord(data.record ?? null)
     setLoading(false)
-  }, [scope, topicId, date, hasRequiredFilters])
+  }, [scope, topicId, hasRequiredFilters])
 
   useEffect(() => { fetchRecord() }, [fetchRecord])
 
   function handleExport(format: 'csv' | 'pdf') {
-    const params = new URLSearchParams({ scope, topicId, date, format })
+    const params = new URLSearchParams({ scope, topicId, format })
     window.open(`/api/reports/training-attendance?${params}`, '_blank')
   }
 
@@ -64,8 +64,8 @@ export function TrainingAttendanceRecord({ scope }: { scope: ReportScope }) {
         <div>
           <h2 className="text-sm font-semibold text-gray-700">Training Attendance Record</h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            Pick a training topic and date — everyone who completed it that day is listed below.
-            Format QbD/QA/F/007-02
+            Pick a training topic — everyone you have assigned it to is listed below, with their
+            assigned date and, once done, the completion date under Sign/Date. Format QbD/QA/F/007-02
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -98,7 +98,7 @@ export function TrainingAttendanceRecord({ scope }: { scope: ReportScope }) {
         </div>
       </div>
 
-      {/* Topic + date picker */}
+      {/* Topic picker */}
       <div className="bg-white rounded-xl border p-4 mb-4 flex items-center gap-3 flex-wrap" style={{ borderColor: '#e5e7eb' }}>
         <select
           value={topicId}
@@ -111,14 +111,6 @@ export function TrainingAttendanceRecord({ scope }: { scope: ReportScope }) {
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
         </select>
-        <span className="text-sm text-gray-400">on</span>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="px-3 py-2 rounded-lg border text-sm outline-none"
-          style={{ borderColor: '#e5e7eb' }}
-        />
       </div>
 
       {!hasRequiredFilters ? (
@@ -127,7 +119,7 @@ export function TrainingAttendanceRecord({ scope }: { scope: ReportScope }) {
             <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
             <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
           </svg>
-          <p className="text-sm text-gray-400">Choose a topic and date to see who attended.</p>
+          <p className="text-sm text-gray-400">Choose a topic to see who attended.</p>
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
@@ -135,14 +127,13 @@ export function TrainingAttendanceRecord({ scope }: { scope: ReportScope }) {
         </div>
       ) : !record || record.attendees.length === 0 ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
-          No one completed this training on {formatDate(date)}.
+          You haven&apos;t assigned this topic to anyone yet.
         </div>
       ) : (
         <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: '#e5e7eb' }}>
           {/* Identification block */}
           <div className="px-5 py-4 grid grid-cols-2 gap-x-6 gap-y-1" style={{ borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
             <div className="text-sm"><span className="text-gray-400">Topic of Training: </span><span className="font-semibold text-gray-900">{record.topicName}</span></div>
-            <div className="text-sm"><span className="text-gray-400">Date of Training: </span><span className="font-semibold text-gray-900">{formatDate(record.date)}</span></div>
             <div className="text-sm"><span className="text-gray-400">Document No.: </span><span className="text-gray-700">{record.sopReference ?? '—'}</span></div>
             <div className="text-sm"><span className="text-gray-400">Name of the Trainer: </span><span className="text-gray-700">{record.trainerName ?? '—'}</span></div>
           </div>
@@ -150,7 +141,7 @@ export function TrainingAttendanceRecord({ scope }: { scope: ReportScope }) {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['Sr. No', 'Name of Trainee', 'Department', 'Sign/Date'].map((h, i) => (
+                {['Sr. No', 'Name of Trainee', 'Department', 'Assigned On', 'Sign/Date'].map((h, i) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
@@ -167,7 +158,8 @@ export function TrainingAttendanceRecord({ scope }: { scope: ReportScope }) {
                   <td className="px-4 py-3 text-xs text-gray-400">{idx + 1}</td>
                   <td className="px-4 py-3 text-xs font-medium text-gray-900">{a.name}</td>
                   <td className="px-4 py-3 text-xs text-gray-500">{a.department ?? '—'}</td>
-                  <td className="px-4 py-3 text-xs text-gray-300">—</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{formatDate(a.assignedAt)}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{a.completedAt ? formatDate(a.completedAt) : '—'}</td>
                 </tr>
               ))}
             </tbody>

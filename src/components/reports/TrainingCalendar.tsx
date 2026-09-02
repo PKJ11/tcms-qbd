@@ -5,19 +5,15 @@ import type { TrainingCalendarData } from '@/modules/reports'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-interface Department { id: string; name: string }
 interface AddableTopic { id: string; name: string; sopReference: string | null; alreadyAdded: boolean }
 
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1, CURRENT_YEAR + 2]
 
 export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
-  const [departments, setDepartments] = useState<Department[]>([])
-  const [departmentId, setDepartmentId] = useState('')
   const [year, setYear] = useState(CURRENT_YEAR)
   const [data, setData] = useState<TrainingCalendarData | null>(null)
   const [loading, setLoading] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingText, setEditingText] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -33,20 +29,11 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [adding, setAdding] = useState(false)
 
-  // Bootstrap — department list
-  useEffect(() => {
-    fetch('/api/reports/training-calendar')
-      .then((res) => res.json())
-      .then((d) => setDepartments(d.departments ?? []))
-      .catch(() => setDepartments([]))
-  }, [])
-
   const fetchCalendar = useCallback(async () => {
-    if (!departmentId) { setData(null); return }
     setLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams({ departmentId, year: String(year) })
+      const params = new URLSearchParams({ year: String(year) })
       const res  = await fetch(`/api/reports/training-calendar?${params}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.message ?? 'Failed to load calendar')
@@ -57,33 +44,23 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
     } finally {
       setLoading(false)
     }
-  }, [departmentId, year])
+  }, [year])
 
   useEffect(() => { fetchCalendar() }, [fetchCalendar])
-
-  // Reset the picker + save indicator whenever the department changes
-  useEffect(() => {
-    setPickerOpen(false)
-    setSelected(new Set())
-    setPickerSearch('')
-    setSaveState('idle')
-  }, [departmentId])
 
   // A different year is a different sheet — clear the "saved" flag
   useEffect(() => { setSaveState('idle') }, [year])
 
   const fetchAddable = useCallback(async () => {
-    if (!departmentId) return
     setAddableLoading(true)
     try {
-      const params = new URLSearchParams({ departmentId, addable: '1' })
-      const res  = await fetch(`/api/reports/training-calendar?${params}`)
+      const res  = await fetch('/api/reports/training-calendar?addable=1')
       const json = await res.json()
       setAddable(json.topics ?? [])
     } finally {
       setAddableLoading(false)
     }
-  }, [departmentId])
+  }, [])
 
   async function post(payload: Record<string, unknown>) {
     setSaveState('saving')
@@ -127,7 +104,7 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
     if (selected.size === 0) return
     setAdding(true)
     try {
-      await post({ action: 'addTopics', departmentId, topicIds: Array.from(selected) })
+      await post({ action: 'addTopics', topicIds: Array.from(selected) })
       setSelected(new Set())
       await Promise.all([fetchCalendar(), fetchAddable()])
     } catch (e) {
@@ -155,18 +132,6 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
     }
   }
 
-  async function addRow() {
-    const title = newTitle.trim()
-    if (!title || !departmentId) return
-    try {
-      await post({ action: 'addRow', departmentId, title })
-      setNewTitle('')
-      fetchCalendar()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not add training')
-    }
-  }
-
   async function saveRename(rowId: string) {
     const title = editingText.trim()
     setEditingId(null)
@@ -191,8 +156,7 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
   }
 
   function handleExport(format: 'csv' | 'pdf') {
-    if (!departmentId) return
-    const params = new URLSearchParams({ departmentId, year: String(year), format })
+    const params = new URLSearchParams({ year: String(year), format })
     window.open(`/api/reports/training-calendar?${params}`, '_blank')
   }
 
@@ -203,7 +167,7 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
         <div>
           <h2 className="text-sm font-semibold text-gray-700">Training Calendar</h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            Department-wise yearly training plan. {canEdit
+            Organisation-wide yearly training plan. {canEdit
               ? 'Add trainings from the Topics list, then tick a month when each is planned to be given. Every change saves automatically — there is no Save button.'
               : 'View only — a Trainer maintains the ticks.'} Format QbD/QA/F/007-03
           </p>
@@ -211,16 +175,14 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => handleExport('csv')}
-            disabled={!departmentId}
-            className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2 disabled:opacity-40"
+            className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2"
             style={{ borderColor: '#e5e7eb', color: '#374151' }}
           >
             Export CSV
           </button>
           <button
             onClick={() => handleExport('pdf')}
-            disabled={!departmentId}
-            className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2 disabled:opacity-40"
+            className="px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2"
             style={{ borderColor: '#e5e7eb', color: '#374151' }}
           >
             Export PDF
@@ -228,19 +190,8 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
         </div>
       </div>
 
-      {/* Department + year picker */}
+      {/* Year picker */}
       <div className="bg-white rounded-xl border p-4 mb-4 flex items-center gap-3 flex-wrap" style={{ borderColor: '#e5e7eb' }}>
-        <select
-          value={departmentId}
-          onChange={(e) => setDepartmentId(e.target.value)}
-          className="px-3 py-2 rounded-lg border text-sm outline-none"
-          style={{ borderColor: '#e5e7eb', minWidth: 240 }}
-        >
-          <option value="">Select department</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>{d.name}</option>
-          ))}
-        </select>
         <select
           value={year}
           onChange={(e) => setYear(Number(e.target.value))}
@@ -252,7 +203,7 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
           ))}
         </select>
 
-        {canEdit && departmentId && (
+        {canEdit && (
           <button
             type="button"
             onClick={() => (pickerOpen ? setPickerOpen(false) : openPicker())}
@@ -271,7 +222,7 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
       )}
 
       {/* Topic picker panel */}
-      {canEdit && pickerOpen && departmentId && (
+      {canEdit && pickerOpen && (
         <div className="bg-white rounded-xl border mb-4" style={{ borderColor: '#e5e7eb' }}>
           <div className="px-4 py-3 flex items-center gap-3" style={{ borderBottom: '1px solid #f3f4f6' }}>
             <div className="flex-1">
@@ -364,20 +315,13 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
         </div>
       )}
 
-      {!departmentId ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-2 bg-white rounded-xl border" style={{ borderColor: '#e5e7eb' }}>
-          <p className="text-sm text-gray-400">Choose a department to see its training calendar.</p>
-        </div>
-      ) : loading ? (
+      {loading ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400">
           Loading calendar...
         </div>
       ) : data ? (
         <div className="bg-white rounded-xl border overflow-x-auto" style={{ borderColor: '#e5e7eb' }}>
           <div className="px-5 py-3 text-sm flex items-center gap-2" style={{ borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
-            <span className="text-gray-400">Department: </span>
-            <span className="font-semibold text-gray-900">{data.departmentName}</span>
-            <span className="text-gray-300 mx-2">|</span>
             <span className="text-gray-400">Year: </span>
             <span className="font-semibold text-gray-900">{data.year}</span>
 
@@ -498,28 +442,6 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
               )}
             </tbody>
           </table>
-
-          {canEdit && (
-            <div className="flex items-center gap-2 px-3 py-3" style={{ borderTop: '1px solid #f3f4f6' }}>
-              <input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addRow() }}
-                placeholder="Add an extra training not in the Topics list…"
-                className="flex-1 px-3 py-2 rounded-lg border text-sm outline-none"
-                style={{ borderColor: '#e5e7eb' }}
-              />
-              <button
-                type="button"
-                onClick={addRow}
-                disabled={!newTitle.trim()}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40"
-                style={{ background: '#2d6a4f' }}
-              >
-                Add
-              </button>
-            </div>
-          )}
         </div>
       ) : null}
     </div>

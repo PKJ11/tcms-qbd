@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession }                from '@/lib/auth'
 import {
-  getCalendarDepartments,
   getTrainingCalendar,
   getAddableTopics,
   addTrainingCalendarTopics,
-  addTrainingCalendarRow,
   renameTrainingCalendarRow,
   deleteTrainingCalendarRow,
   setTrainingCalendarMark,
@@ -35,23 +33,16 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
 
-  // No department → the picker's bootstrap call: return the department list.
-  const departmentId = searchParams.get('departmentId')
-  if (!departmentId) {
-    const departments = await getCalendarDepartments()
-    return NextResponse.json({ departments })
-  }
-
   // ?addable=1 → the "Add topics" picker: every Active/Pending topic, each
-  // flagged with whether it is already on this department's calendar.
+  // flagged with whether it is already on the calendar.
   if (searchParams.get('addable')) {
-    const topics = await getAddableTopics(departmentId)
+    const topics = await getAddableTopics()
     return NextResponse.json({ topics })
   }
 
   const year   = parseYear(searchParams.get('year'))
   const format = searchParams.get('format')
-  const data   = await getTrainingCalendar({ departmentId, year })
+  const data   = await getTrainingCalendar({ year })
 
   if (format === 'csv') {
     const headers = ['Sr. No.', 'Topic of Training', ...MONTHS]
@@ -103,25 +94,12 @@ export async function POST(req: NextRequest) {
 
   try {
     switch (action) {
-      case 'addRow': {
-        if (!body.departmentId || !body.title) {
-          return NextResponse.json({ message: 'departmentId and title are required' }, { status: 400 })
-        }
-        const row = await addTrainingCalendarRow({
-          departmentId: body.departmentId,
-          title:        body.title,
-          actorId:      session.user.id,
-        })
-        return NextResponse.json({ row }, { status: 201 })
-      }
-
       case 'addTopics': {
-        if (!body.departmentId || !Array.isArray(body.topicIds)) {
-          return NextResponse.json({ message: 'departmentId and topicIds[] are required' }, { status: 400 })
+        if (!Array.isArray(body.topicIds)) {
+          return NextResponse.json({ message: 'topicIds[] is required' }, { status: 400 })
         }
         const { added } = await addTrainingCalendarTopics({
-          departmentId: body.departmentId,
-          topicIds:     body.topicIds,
+          topicIds: body.topicIds,
         })
         return NextResponse.json({ added }, { status: 201 })
       }

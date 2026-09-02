@@ -7,15 +7,13 @@ import { letterheadStyles as s } from './styles'
 import { getLogoDataUri } from './logo'
 
 export interface TrainingAttendanceHeaderProps {
-  topicName:    string
-  documentNo:   string
-  versionNo:    string
-  trainerName:  string
-  dateLabel:    string
+  topicName:   string
+  documentNo:  string
+  trainerName: string
 }
 
 export function TrainingAttendanceHeader({
-  topicName, documentNo, versionNo, trainerName, dateLabel,
+  topicName, documentNo, trainerName,
 }: TrainingAttendanceHeaderProps) {
   return (
     <View fixed>
@@ -45,24 +43,9 @@ export function TrainingAttendanceHeader({
           </View>
         </View>
 
-        <View style={s.row}>
-          <View style={[s.cell, { flex: 2 }]}>
-            <Text style={s.label}>Name of the Trainer: {trainerName}</Text>
-          </View>
-          <View style={[s.cellLast, { flex: 1 }]}>
-            <Text style={s.label}>Version No.: {versionNo}</Text>
-          </View>
-        </View>
-
         <View style={s.rowLast}>
-          <View style={[s.cell, { flex: 2 }]}>
-            <Text style={s.label}>Time: From _____ Hrs. to _____ Hrs.</Text>
-          </View>
-          <View style={[s.cell, { flex: 1 }]}>
-            <Text style={s.label}>Date of Training: {dateLabel}</Text>
-          </View>
           <View style={[s.cellLast, { flex: 1 }]}>
-            <Text style={s.label}>Venue: </Text>
+            <Text style={s.label}>Name of the Trainer: {trainerName}</Text>
           </View>
         </View>
       </View>

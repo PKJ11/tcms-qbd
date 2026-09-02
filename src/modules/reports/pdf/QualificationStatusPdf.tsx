@@ -1,9 +1,12 @@
 import { Document, Page } from '@react-pdf/renderer'
 import { letterheadStyles as s } from './styles'
 import { Letterhead } from './Letterhead'
+import { PdfFooter } from './PdfFooter'
 import { PdfTable, type PdfTableColumn } from './PdfTable'
 import { formatDate } from '@/lib/utils'
 import type { QualificationStatusRow } from '../types'
+
+const FORMAT_NO = 'URS-RPT-004'
 
 const COLUMNS: PdfTableColumn[] = [
   { key: 'name',       header: 'Person',          width: '18%' },
@@ -41,11 +44,12 @@ export function QualificationStatusPdf({
       <Page size="A4" style={s.page}>
         <Letterhead
           title="QUALIFICATION STATUS REPORT"
-          formatNo="URS-RPT-004"
+          formatNo={FORMAT_NO}
           preparedByName={preparedByName}
           preparedDate={preparedDate}
         />
         <PdfTable columns={COLUMNS} rows={tableRows} />
+        <PdfFooter printedByName={preparedByName} formatNo={FORMAT_NO} />
       </Page>
     </Document>
   )

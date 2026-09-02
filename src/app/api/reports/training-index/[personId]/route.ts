@@ -7,7 +7,6 @@ import {
 import { hasAnyRole } from '@/lib/permissions'
 import { isInTeam, REPORT_OVERSIGHT_ROLES } from '@/lib/subordinates'
 import { prisma }        from '@/lib/prisma'
-import { formatDate }    from '@/lib/utils'
 import { TrainingIndexPdf } from '@/modules/reports/pdf/TrainingIndexPdf'
 import { renderReportPdf }  from '@/modules/reports/pdf/render'
 
@@ -60,37 +59,21 @@ export async function GET(
   }
 
   if (format === 'pdf') {
-    const [person, preparer] = await Promise.all([
-      prisma.person.findUnique({
-        where:  { id: params.personId },
-        select: {
-          name: true, employeeId: true, designation: true,
-          department: { select: { name: true } },
-          manager:    { select: { name: true, designation: true } },
-        },
-      }),
-      prisma.person.findUnique({
-        where:  { id: session.user.id },
-        select: { designation: true },
-      }),
-    ])
-
-    const today = formatDate(new Date())
+    const person = await prisma.person.findUnique({
+      where:  { id: params.personId },
+      select: {
+        name: true, employeeId: true,
+        department: { select: { name: true } },
+      },
+    })
 
     const buffer = await renderReportPdf(
       TrainingIndexPdf({
         entries,
-        personName:        person?.name ?? '—',
-        personEmployeeId:  person?.employeeId ?? '—',
-        personDesignation: person?.designation ?? '—',
-        personDepartment:  person?.department?.name ?? '—',
-        preparedByName:    session.user.name,
-        preparedByTitle:   preparer?.designation ?? '—',
-        preparedDate:      today,
-        // Reviewed By / Approved By are always the employee's manager —
-        // that reporting-line sign-off is what makes this a controlled record.
-        reviewedByName:    person?.manager?.name       ?? '—',
-        reviewedByTitle:   person?.manager?.designation ?? '—',
+        personName:       person?.name ?? '—',
+        personEmployeeId: person?.employeeId ?? '—',
+        personDepartment: person?.department?.name ?? '—',
+        printedByName:    session.user.name,
       })
     )
     return new NextResponse(buffer, {

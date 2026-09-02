@@ -64,7 +64,6 @@ const TRAINING_TYPE_LABELS: Record<string, string> = {
   MATERIAL_MCQ:         'Material + MCQ Assessment',
   MATERIAL_ONLY:        'Material Only',
   ACKNOWLEDGEMENT_ONLY: 'Acknowledgement Only',
-  SOP_SELF_READOUT:     'SOP Self Readout',
 }
 
 const OUTCOME_STYLES: Record<string, { bg: string; color: string; label: string }> = {
@@ -287,7 +286,7 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
         {/* Bottom action, branched by training type */}
         {assignment.status !== 'COMPLETED' && assignment.status !== 'CANCELLED' && (
           <div className="mt-4">
-            {(trainingType === 'MATERIAL_ONLY' || trainingType === 'SOP_SELF_READOUT') && (
+            {trainingType === 'MATERIAL_ONLY' && (
               <div
                 className="p-3 rounded-lg border text-xs"
                 style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' }}
