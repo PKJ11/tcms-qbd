@@ -5,12 +5,9 @@ import { TrainingMatrixReport }      from './TrainingMatrixReport'
 import { OverdueReport }             from './OverdueReport'
 import { QualificationStatusReport } from './QualificationStatusReport'
 import { TrainingIndexReport }       from './TrainingIndexReport'
-import { TopicCompletionReport }     from './TopicCompletionReport'
 import { TrainingAttendanceRecord }  from './TrainingAttendanceRecord'
 import { TrainersList }              from './TrainersList'
 import { TrainingCalendar }          from './TrainingCalendar'
-import { TrainingEvalObjectiveSheet } from './TrainingEvalObjectiveSheet'
-import { SopSelfReadoutList }         from './SopSelfReadoutList'
 import { OrgFilterBar, EMPTY_ORG_FILTER, type OrgFilterValue } from '@/components/shared/OrgFilterBar'
 import type { AppRole } from '@/lib/types'
 
@@ -29,12 +26,9 @@ type ReportTab =
   | 'matrix'
   | 'overdue'
   | 'qualification'
-  | 'topic-completion'
   | 'training-attendance'
   | 'trainers-list'
   | 'training-calendar'
-  | 'training-eval-objective'
-  | 'sop-self-readout'
 
 const CARDS: { key: ReportTab; label: string; description: string; icon: React.ReactNode }[] = [
   {
@@ -78,16 +72,6 @@ const CARDS: { key: ReportTab; label: string; description: string; icon: React.R
     ),
   },
   {
-    key: 'topic-completion', label: 'Topic Completion',
-    description: 'Completion rate for each training topic.',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2">
-        <polyline points="9 11 12 14 22 4"/>
-        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-      </svg>
-    ),
-  },
-  {
     key: 'training-attendance', label: 'Training Attendance Record',
     description: 'Pick a topic and date — who completed it that day.',
     icon: (
@@ -119,27 +103,6 @@ const CARDS: { key: ReportTab; label: string; description: string; icon: React.R
       </svg>
     ),
   },
-  {
-    key: 'training-eval-objective', label: 'Training Evaluation Sheet for Objective Questions',
-    description: 'Pick a topic — its objective questions print as a blank evaluation sheet.',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2">
-        <path d="M9 11l3 3L22 4"/>
-        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-      </svg>
-    ),
-  },
-  {
-    key: 'sop-self-readout', label: 'List of SOPs-Self Readout',
-    description: 'Every SOP self-readout training — trainee name and completion date, or N/A if pending.',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f766e" strokeWidth="2">
-        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <path d="M9 15l2 2 4-4"/>
-      </svg>
-    ),
-  },
 ]
 
 const TAB_LABELS: Record<ReportTab, string> = {
@@ -147,12 +110,9 @@ const TAB_LABELS: Record<ReportTab, string> = {
   matrix:                'Training Matrix',
   overdue:               'Overdue Report',
   qualification:         'Qualification Status',
-  'topic-completion':    'Topic Completion',
   'training-attendance': 'Training Attendance Record',
   'trainers-list':       'List of Trainers',
   'training-calendar':   'Training Calendar',
-  'training-eval-objective': 'Training Evaluation Sheet for Objective Questions',
-  'sop-self-readout':    'List of SOPs-Self Readout',
 }
 
 export function ReportsHub({ roles, userId, userName, canViewAll, teamIds }: Props) {
@@ -229,7 +189,7 @@ export function ReportsHub({ roles, userId, userName, canViewAll, teamIds }: Pro
           </div>
 
           {/* Department → Unit → Section filter — org-wide "All data" scope only */}
-          {isOrgWide && (openReport === 'matrix' || openReport === 'overdue' || openReport === 'qualification' || openReport === 'topic-completion') && (
+          {isOrgWide && (openReport === 'matrix' || openReport === 'overdue' || openReport === 'qualification') && (
             <OrgFilterBar value={orgFilter} onChange={setOrgFilter} />
           )}
 
@@ -251,9 +211,6 @@ export function ReportsHub({ roles, userId, userName, canViewAll, teamIds }: Pro
           {openReport === 'qualification' && (
             <QualificationStatusReport scope={scope} orgFilter={orgFilter} />
           )}
-          {openReport === 'topic-completion' && (
-            <TopicCompletionReport scope={scope} orgFilter={orgFilter} />
-          )}
           {openReport === 'training-attendance' && (
             <TrainingAttendanceRecord scope={scope} />
           )}
@@ -262,12 +219,6 @@ export function ReportsHub({ roles, userId, userName, canViewAll, teamIds }: Pro
           )}
           {openReport === 'training-calendar' && (
             <TrainingCalendar canEdit={roles.includes('TRAINER')} />
-          )}
-          {openReport === 'training-eval-objective' && (
-            <TrainingEvalObjectiveSheet />
-          )}
-          {openReport === 'sop-self-readout' && (
-            <SopSelfReadoutList scope={scope} />
           )}
         </div>
       )}

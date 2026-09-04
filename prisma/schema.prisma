@@ -430,7 +430,10 @@ model TopicGroup {
   id           String   @id @default(cuid())
   name         String
   departmentId String
-  unitId       String
+  // Null = a department-wide group: applies to every new joinee of every
+  // unit in the department. Set = a whole-unit group (optionally narrowed
+  // to one section via sectionId).
+  unitId       String?
   sectionId    String?
   createdById  String
   isActive     Boolean  @default(true)
@@ -438,7 +441,7 @@ model TopicGroup {
   updatedAt    DateTime @updatedAt
 
   department Department       @relation(fields: [departmentId], references: [id])
-  unit       Unit             @relation(fields: [unitId], references: [id])
+  unit       Unit?            @relation(fields: [unitId], references: [id])
   section    Section?         @relation(fields: [sectionId], references: [id])
   createdBy  Person           @relation("topicGroupCreator", fields: [createdById], references: [id])
   items      TopicGroupItem[]

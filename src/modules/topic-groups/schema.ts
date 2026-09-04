@@ -1,14 +1,22 @@
 import { z } from 'zod'
 
-// departmentId/unitId are deliberately NOT accepted here — a topic group is
-// always scoped server-side to the creating trainer's own department+unit
-// ("their team"). Only the optional section narrowing is client-supplied.
+// departmentId is deliberately NOT accepted here — a topic group is always
+// scoped server-side to the creating trainer's own department. unitId and
+// sectionId are client-supplied and validated against that department:
+//   - unitId null            -> department-wide group
+//   - unitId set, no section  -> whole-unit group
+//   - unitId + sectionId set  -> one section of that unit
 export const createTopicGroupSchema = z.object({
   name: z
     .string()
     .trim()
     .min(3, 'Group name must be at least 3 characters')
     .max(120, 'Group name is too long'),
+
+  unitId: z
+    .string()
+    .nullable()
+    .optional(),
 
   sectionId: z
     .string()

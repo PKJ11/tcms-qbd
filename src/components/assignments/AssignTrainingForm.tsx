@@ -40,10 +40,9 @@ interface Props {
 }
 
 const TRIGGERS = [
-  { value: 'INDUCTION', label: 'Induction', description: 'New joiner training — auto-assigned on joining' },
   { value: 'SCHEDULE',  label: 'Schedule',  description: 'Planned or scheduled training' },
+  { value: 'INDUCTION', label: 'Induction', description: 'New joiner training — auto-assigned on joining' },
   { value: 'REFRESHER', label: 'Refresher', description: 'Scheduled periodic refresh' },
-  { value: 'SOP_SELF_READOUT', label: 'SOP Self Readout', description: 'Trainee self-reads a new or revised SOP' },
 ]
 
 export function AssignTrainingForm({ topics, initialTopicId }: Props) {
@@ -53,7 +52,7 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
 
   const [form, setForm] = useState({
     topicId: initialTopicId ?? '',
-    trigger: 'INDUCTION',
+    trigger: 'SCHEDULE',
     dueDate: '',
   })
 
@@ -96,7 +95,7 @@ export function AssignTrainingForm({ topics, initialTopicId }: Props) {
       setMode(s.mode ?? 'bulk')
       setForm({
         topicId: preselectedTopic ? (initialTopicId ?? '') : (s.form?.topicId ?? ''),
-        trigger: s.form?.trigger ?? 'INDUCTION',
+        trigger: s.form?.trigger ?? 'SCHEDULE',
         dueDate: s.form?.dueDate ?? '',
       })
       setSelectedPersons(s.selectedPersons ?? [])

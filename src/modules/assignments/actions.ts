@@ -214,12 +214,18 @@ export async function createAssignments(
     throw new Error('No valid active persons found')
   }
 
-  // Check for existing incomplete assignments for same topic made by THIS
-  // trainer — other trainers may independently assign the same topic
+  // Check for existing incomplete assignments for the same topic AND the
+  // same trigger, made by THIS trainer. The trigger match matters: an
+  // induction assignment of a topic and a scheduled (or refresher)
+  // assignment of the same topic are separate obligations — the person
+  // must do each one — so an active INDUCTION assignment must never block
+  // a new SCHEDULE assignment of that topic (and vice versa). Other
+  // trainers may also independently assign the same topic+trigger.
   const existing = await prisma.trainingAssignment.findMany({
     where: {
       personId:     { in: persons.map((p) => p.id) },
       topicId:      input.topicId,
+      trigger:      input.trigger,
       assignedById: actorId,
       status:       { in: ['NOT_STARTED', 'IN_PROGRESS', 'OVERDUE'] },
     },
@@ -228,8 +234,17 @@ export async function createAssignments(
   const existingPersonIds = new Set(existing.map((e) => e.personId))
   const newPersons = persons.filter((p) => !existingPersonIds.has(p.id))
 
+  const triggerLabel: Record<string, string> = {
+    INDUCTION:        'induction',
+    SCHEDULE:         'scheduled',
+    REFRESHER:        'refresher',
+    SOP_SELF_READOUT: 'SOP self-readout',
+  }
+  const tLabel = triggerLabel[input.trigger] ?? input.trigger.toLowerCase()
+
   // Notify the assigning trainer if any selected persons were skipped because
-  // this topic is already due for them — fires even when everyone was skipped
+  // this topic is already due for them under the SAME trigger — fires even
+  // when everyone was skipped
   if (existingPersonIds.size > 0) {
     const skippedNames = persons
       .filter((p) => existingPersonIds.has(p.id))
@@ -240,14 +255,14 @@ export async function createAssignments(
         personId: actorId,
         type:     'ASSIGNMENT',
         channel:  'IN_APP',
-        title:    `"${topic.name}" already due for some people`,
-        message:  `${skippedNames.length} of the selected people already have an active assignment for "${topic.name}" and were skipped: ${skippedNames.join(', ')}.`,
+        title:    `"${topic.name}" ${tLabel} training already due for some people`,
+        message:  `${skippedNames.length} of the selected people already have an active ${tLabel} assignment for "${topic.name}" and were skipped: ${skippedNames.join(', ')}.`,
       },
     })
   }
 
   if (newPersons.length === 0) {
-    throw new Error('All selected persons already have an active assignment for this topic')
+    throw new Error(`All selected persons already have an active ${tLabel} assignment for this topic`)
   }
 
   // Pin the question-bank/material versions that are live right now, so this
@@ -441,16 +456,16 @@ export async function autoAssignInductionTraining(
 
 // ── Auto-assign trainer-curated Topic Group induction training ─────
 // Called from personnel/actions.ts alongside autoAssignInductionTraining.
-// A Topic Group is scoped to one unit ("a trainer's team"), optionally
-// narrowed to one section within it. Matching mirrors getScopedTopics:
-// unit-wide groups (sectionId null) apply to everyone in the unit, and a
-// section-scoped group additionally applies only to that section — so a
-// person in the group's section gets both the unit-wide and section-only
-// groups' topics, while everyone else in the unit gets only the unit-wide
-// ones. Due `joiningDate + 1 month` — distinct from the 14-day due date
-// used for TopicScope-driven induction above. excludeTopicIds skips topics
-// already assigned by that call, so a topic in both a TopicScope and a
-// TopicGroup doesn't create two induction assignments for the same person.
+// A Topic Group is scoped one of three ways: department-wide (no unit),
+// whole-unit, or one section of a unit. They stack for a new joinee:
+//   - the department-wide group applies to everyone in the department;
+//   - the whole-unit group applies to everyone in that unit;
+//   - a section group additionally applies only to that section.
+// So a person in QA / Unit 2 / LCMS gets department-wide + Unit 2 + LCMS
+// topics, deduped. Due `joiningDate + 1 month` — distinct from the 14-day
+// due date used for TopicScope-driven induction above. excludeTopicIds
+// skips topics already assigned by that call, so a topic in both a
+// TopicScope and a TopicGroup doesn't create two induction assignments.
 
 export async function autoAssignTopicGroupInduction(
   personId:         string,
@@ -461,12 +476,17 @@ export async function autoAssignTopicGroupInduction(
   sectionId?:       string | null,
   excludeTopicIds:  string[] = []
 ) {
-  const sectionCond = sectionId
-    ? { OR: [{ sectionId: null }, { sectionId }] }
-    : { sectionId: null }
+  // department-wide, plus whole-unit and this-section for the person's own unit
+  const scopeConds: { unitId: string | null; sectionId: string | null }[] = [
+    { unitId: null, sectionId: null },
+  ]
+  if (unitId) {
+    scopeConds.push({ unitId, sectionId: null })
+    if (sectionId) scopeConds.push({ unitId, sectionId })
+  }
 
   const groups = await prisma.topicGroup.findMany({
-    where: { departmentId, unitId, isActive: true, ...sectionCond },
+    where: { departmentId, isActive: true, OR: scopeConds },
     select: {
       createdById: true,
       items: {

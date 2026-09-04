@@ -13,8 +13,8 @@ import type {
   QuestionItemSafe,
   AttemptResult,
 } from './types'
+import type { Prisma } from '@prisma/client'
 import { syncRefresherCompletion } from '@/modules/refresher'
-import { resolveVersionPins, pinAssignmentMaterialVersions } from '@/modules/assignments/version-pins'
 import { assertTopicContentAccess } from '@/modules/topics'
 import { PASSING_PERCENTAGE, QUESTIONS_PER_ATTEMPT, MAX_ATTEMPTS } from './constants'
 
@@ -253,6 +253,107 @@ export async function getAttemptQuestions(
   }
 }
 
+// ── Exhausted all assessment attempts (written or oral) ───────────
+// The system NEVER auto-creates the next training. The failed assignment
+// is marked FAILED and everyone is notified — a Trainer reviews and
+// assigns retraining manually if appropriate. Once three retraining
+// cycles have themselves been failed, the person is flagged for
+// job-reassignment review per SOP QbD-QA-SOP-007 Section 5.11.
+async function handleNeedsRetraining(
+  tx:   Prisma.TransactionClient,
+  opts: { assignmentId: string; personId: string; topicId: string; maxAttempts: number }
+) {
+  await tx.trainingAssignment.update({
+    where: { id: opts.assignmentId },
+    data:  { status: 'FAILED' },
+  })
+
+  // Completed/failed retraining cycles so far for this person+topic
+  const totalRetrain = await tx.trainingAssignment.count({
+    where: {
+      personId: opts.personId,
+      topicId:  opts.topicId,
+      trigger:  'SCHEDULE',
+      status:   { in: ['FAILED', 'COMPLETED'] },
+    },
+  })
+
+  const [person, topic] = await Promise.all([
+    tx.person.findUnique({ where: { id: opts.personId }, select: { name: true, employeeId: true } }),
+    tx.trainingTopic.findUnique({ where: { id: opts.topicId }, select: { name: true } }),
+  ])
+
+  const trainers = await tx.person.findMany({
+    where:  { isActive: true, roles: { some: { role: 'TRAINER' } } },
+    select: { id: true },
+  })
+
+  if (totalRetrain >= 3) {
+    // ── 3 cycles exhausted — flag person for job-reassignment review ──
+    await tx.person.update({
+      where: { id: opts.personId },
+      data:  {
+        flaggedForJobReassignment: true,
+        flaggedAt:      new Date(),
+        flagTopicId:    opts.topicId,
+        flagCycleCount: totalRetrain,
+        flagReason:     `${person?.name ?? 'This analyst'} (${person?.employeeId}) failed "${topic?.name}" training after ${totalRetrain} complete retraining cycles. Job reassignment review required per SOP QbD-QA-SOP-007 Section 5.11.`,
+        resolvedAt:       null,
+        resolvedById:     null,
+        resolutionAction: null,
+        resolutionNotes:  null,
+      },
+    })
+
+    await tx.notification.create({
+      data: {
+        personId: opts.personId,
+        type:     'RETRAINING',
+        channel:  'IN_APP',
+        title:    'Training escalated to coordinator',
+        message:  `You have been unable to achieve competency on "${topic?.name}" after ${totalRetrain} retraining cycles. Your Training Coordinator has been notified and will contact you regarding your job responsibilities.`,
+      },
+    })
+
+    if (trainers.length > 0) {
+      await tx.notification.createMany({
+        data: trainers.map((th) => ({
+          personId: th.id,
+          type:     'RETRAINING' as const,
+          channel:  'IN_APP'     as const,
+          title:    `Job reassignment review — ${person?.name} (${person?.employeeId})`,
+          message:  `${person?.name} has failed "${topic?.name}" training after ${totalRetrain} complete retraining cycles. Per SOP QbD-QA-SOP-007 Section 5.11, job responsibilities must be reviewed. Go to Admin → Flagged Persons to take action.`,
+        })),
+      })
+    }
+    return
+  }
+
+  // ── Under 3 cycles — NOTIFY ONLY. No assignment is created; a Trainer
+  // assigns retraining manually if it is warranted. ──
+  await tx.notification.create({
+    data: {
+      personId: opts.personId,
+      type:     'RETRAINING',
+      channel:  'IN_APP',
+      title:    'Assessment not passed',
+      message:  `You did not pass "${topic?.name}" after ${opts.maxAttempts} attempts. Your Trainer has been notified and will review whether retraining is assigned — no new assignment has been created automatically.`,
+    },
+  })
+
+  if (trainers.length > 0) {
+    await tx.notification.createMany({
+      data: trainers.map((th) => ({
+        personId: th.id,
+        type:     'RETRAINING' as const,
+        channel:  'IN_APP'     as const,
+        title:    `Retraining review — ${person?.name} (${person?.employeeId})`,
+        message:  `${person?.name} (${person?.employeeId}) failed "${topic?.name}" after ${opts.maxAttempts} attempts. This would be retraining cycle ${totalRetrain + 1} of 3. Review and assign a retraining if appropriate — the system no longer creates it automatically.`,
+      })),
+    })
+  }
+}
+
 // ── Submit attempt — grades server-side, never trusts client score ──
 
 export async function submitAttempt(
@@ -352,114 +453,13 @@ export async function submitAttempt(
         data:  { status: 'COMPLETED', completedAt: new Date() },
       })
     } else if (outcome === 'NEEDS_RETRAINING') {
-  // Mark current assignment as FAILED
-  await tx.trainingAssignment.update({
-    where: { id: input.assignmentId },
-    data:  { status: 'FAILED' },
-  })
-
-  // Count total completed retraining cycles for this person+topic
-  const totalRetrain = await tx.trainingAssignment.count({
-    where: {
-      personId: actorId,
-      topicId:  assignment.topicId,
-      trigger:  'SCHEDULE',
-      status:   { in: ['FAILED', 'COMPLETED'] },
-    },
-  })
-
-  if (totalRetrain >= 3) {
-    // ── 3 cycles exhausted — flag person, DO NOT create 4th assignment ──
-
-    // Get person and topic details for the notification
-    const [person, topic] = await Promise.all([
-      tx.person.findUnique({
-        where:  { id: actorId },
-        select: { name: true, employeeId: true },
-      }),
-      tx.trainingTopic.findUnique({
-        where:  { id: assignment.topicId },
-        select: { name: true },
-      }),
-    ])
-
-    // Flag the person with full details
-    await tx.person.update({
-      where: { id: actorId },
-      data:  {
-        flaggedForJobReassignment: true,
-        flaggedAt:              new Date(),
-        flagTopicId:            assignment.topicId,
-        flagCycleCount:         totalRetrain,
-        flagReason:             `${person?.name ?? 'This analyst'} (${person?.employeeId}) failed "${topic?.name}" training after ${totalRetrain} complete retraining cycles. Job reassignment review required per SOP QbD-QA-SOP-007 Section 5.11.`,
-        // Clear any previous resolution
-        resolvedAt:       null,
-        resolvedById:     null,
-        resolutionAction: null,
-        resolutionNotes:  null,
-      },
-    })
-
-    // Notify the person themselves
-    await tx.notification.create({
-      data: {
-        personId: actorId,
-        type:     'RETRAINING',
-        channel:  'IN_APP',
-        title:    'Training escalated to coordinator',
-        message:  `You have been unable to achieve competency on "${topic?.name}" after ${totalRetrain} retraining cycles. Your Training Coordinator has been notified and will contact you regarding your job responsibilities.`,
-      },
-    })
-
-    // Notify ALL Trainers with full person + topic details
-    const trainers = await tx.person.findMany({
-      where:  { isActive: true, roles: { some: { role: 'TRAINER' } } },
-      select: { id: true },
-    })
-
-    if (trainers.length > 0) {
-      await tx.notification.createMany({
-        data: trainers.map((th) => ({
-          personId: th.id,
-          type:     'RETRAINING' as const,
-          channel:  'IN_APP'     as const,
-          title:    `Job reassignment review — ${person?.name} (${person?.employeeId})`,
-          message:  `${person?.name} has failed "${topic?.name}" training after ${totalRetrain} complete retraining cycles. Per SOP QbD-QA-SOP-007 Section 5.11, job responsibilities must be reviewed. Go to Admin → Flagged Persons to take action.`,
-        })),
+      await handleNeedsRetraining(tx, {
+        assignmentId: input.assignmentId,
+        personId:     actorId,
+        topicId:      assignment.topicId,
+        maxAttempts:  bank.maxAttempts,
       })
-    }
-
-  } else {
-    // ── Under 3 cycles — create next retraining assignment ──
-    const dueDate = new Date()
-    dueDate.setDate(dueDate.getDate() + 14)
-
-    const pins = await resolveVersionPins(tx, assignment.topicId)
-
-    const retrainingAssignment = await tx.trainingAssignment.create({
-      data: {
-        personId:              actorId,
-        topicId:               assignment.topicId,
-        trigger:               'SCHEDULE',
-        status:                'NOT_STARTED',
-        assignedById:          actorId,
-        dueDate,
-        questionBankVersionId: pins.questionBankVersionId,
-      },
-    })
-    await pinAssignmentMaterialVersions(tx, [retrainingAssignment.id], pins.materialPins)
-
-    await tx.notification.create({
-      data: {
-        personId: actorId,
-        type:     'RETRAINING',
-        channel:  'IN_APP',
-        title:    'Retraining required',
-        message:  `You did not pass the assessment. A new retraining assignment has been created. Cycle ${totalRetrain + 1} of 3. Please review the material carefully before attempting again.`,
-      },
-    })
-  }
-} else {
+    } else {
       // FAIL but attempts remain — keep assignment IN_PROGRESS
       await tx.trainingAssignment.update({
         where: { id: input.assignmentId },
@@ -639,37 +639,11 @@ export async function submitOralAttempt(
         data:  { status: 'COMPLETED', completedAt: new Date() },
       })
     } else if (outcome === 'NEEDS_RETRAINING') {
-      await tx.trainingAssignment.update({
-        where: { id: input.assignmentId },
-        data:  { status: 'FAILED' },
-      })
-
-      const dueDate = new Date()
-      dueDate.setDate(dueDate.getDate() + 14)
-
-      const pins = await resolveVersionPins(tx, assignment.topicId)
-
-      const retrainingAssignment = await tx.trainingAssignment.create({
-        data: {
-          personId:              assignment.personId,
-          topicId:               assignment.topicId,
-          trigger:               'SCHEDULE',
-          status:                'NOT_STARTED',
-          assignedById:          actorId,
-          dueDate,
-          questionBankVersionId: pins.questionBankVersionId,
-        },
-      })
-      await pinAssignmentMaterialVersions(tx, [retrainingAssignment.id], pins.materialPins)
-
-      await tx.notification.create({
-        data: {
-          personId: assignment.personId,
-          type:     'RETRAINING',
-          channel:  'IN_APP',
-          title:    'Retraining required',
-          message:  `You did not pass the oral assessment after ${bank.maxAttempts} attempts. A retraining assignment has been created.`,
-        },
+      await handleNeedsRetraining(tx, {
+        assignmentId: input.assignmentId,
+        personId:     assignment.personId,
+        topicId:      assignment.topicId,
+        maxAttempts:  bank.maxAttempts,
       })
     }
   })

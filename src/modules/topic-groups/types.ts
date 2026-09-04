@@ -20,7 +20,7 @@ export interface TopicGroupListItem {
   unit: {
     id:   string
     name: string
-  }
+  } | null
   section: {
     id:   string
     name: string
@@ -32,25 +32,31 @@ export interface TopicGroupListItem {
   items: TopicGroupItem[]
 }
 
-// departmentId/unitId are never taken from the client — they're always
-// the creating trainer's own department+unit ("their team"). sectionId is
-// optional and narrows the group to one section of that unit.
+// departmentId is never taken from the client — it's always the creating
+// trainer's own department. unitId null = department-wide; unitId set =
+// whole-unit; unitId + sectionId = one section of that unit.
 export interface CreateTopicGroupInput {
-  name:      string
+  name:       string
+  unitId?:    string | null
   sectionId?: string | null
-  topicIds:  string[]
+  topicIds:   string[]
 }
 
 export interface UpdateTopicGroupTopicsInput {
   topicIds: string[]
 }
 
-// The trainer's own department/unit + that unit's sections — used to
-// render the (fixed) scope on the group builder and the section picker.
+// The trainer's own department, every unit in it, and each unit's sections
+// — used to render the scope pickers on the group builder. myUnitId is the
+// trainer's own unit, pre-selected as a sensible default.
 export interface MyGroupingScope {
   department: { id: string; name: string; code: string }
-  unit:       { id: string; name: string }
-  sections:   { id: string; name: string; code: string }[]
+  myUnitId:   string
+  units: {
+    id:       string
+    name:     string
+    sections: { id: string; name: string; code: string }[]
+  }[]
 }
 
 // ── Team overview (trainer's reporting tree) ────────────────────────

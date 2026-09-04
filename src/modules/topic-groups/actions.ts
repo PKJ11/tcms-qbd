@@ -51,7 +51,9 @@ async function getActorScope(actorId: string) {
   return actor
 }
 
-// ── List topic groups for the trainer's own unit ("their team") ────
+// ── List topic groups for the trainer's own department ─────────────
+// Every group in the department: the department-wide one, each unit's
+// whole-unit group, and every section group.
 
 export async function getTopicGroups(actorId: string, filters?: { isActive?: boolean }) {
   const scope = await getActorScope(actorId)
@@ -59,11 +61,10 @@ export async function getTopicGroups(actorId: string, filters?: { isActive?: boo
   return prisma.topicGroup.findMany({
     where: {
       departmentId: scope.departmentId,
-      unitId:       scope.unitId,
       isActive:     filters?.isActive ?? true,
     },
     select:  GROUP_SELECT,
-    orderBy: [{ section: { name: 'asc' } }, { name: 'asc' }],
+    orderBy: [{ unit: { name: 'asc' } }, { section: { name: 'asc' } }, { name: 'asc' }],
   })
 }
 
@@ -77,21 +78,30 @@ export async function getActiveTopicsForGrouping() {
   })
 }
 
-// The trainer's own department/unit (fixed, non-editable scope) + that
-// unit's sections, for the optional "narrow to one section" picker.
+// The trainer's own department (fixed), every unit in it, and each unit's
+// sections — feeds the scope pickers on the group builder. myUnitId is the
+// trainer's own unit, pre-selected as the default.
 export async function getMyGroupingScope(actorId: string) {
   const scope = await getActorScope(actorId)
 
-  const sections = await prisma.section.findMany({
-    where:   { unitId: scope.unitId, isActive: true },
-    select:  { id: true, name: true, code: true },
+  const units = await prisma.unit.findMany({
+    where:  { departmentId: scope.departmentId, isActive: true },
+    select: {
+      id:   true,
+      name: true,
+      sections: {
+        where:   { isActive: true },
+        select:  { id: true, name: true, code: true },
+        orderBy: { name: 'asc' },
+      },
+    },
     orderBy: { name: 'asc' },
   })
 
   return {
     department: scope.department,
-    unit:       scope.unit,
-    sections,
+    myUnitId:   scope.unitId,
+    units,
   }
 }
 
@@ -113,14 +123,48 @@ export async function createTopicGroup(
 
   const scope = await getActorScope(actorId)
 
-  let sectionId: string | null = null
-  if (parsed.data.sectionId) {
-    const section = await prisma.section.findFirst({
-      where:  { id: parsed.data.sectionId, unitId: scope.unitId, isActive: true },
+  // Resolve the scope: department-wide (no unit), whole-unit, or one
+  // section. unitId/sectionId are validated against the trainer's own
+  // department so a group can never be created outside it.
+  let unitId: string | null = null
+  if (parsed.data.unitId) {
+    const unit = await prisma.unit.findFirst({
+      where:  { id: parsed.data.unitId, departmentId: scope.departmentId, isActive: true },
       select: { id: true },
     })
-    if (!section) throw new Error('That section does not belong to your unit')
+    if (!unit) throw new Error('That unit does not belong to your department')
+    unitId = unit.id
+  }
+
+  let sectionId: string | null = null
+  if (parsed.data.sectionId) {
+    if (!unitId) throw new Error('Pick a unit before narrowing the group to a section')
+    const section = await prisma.section.findFirst({
+      where:  { id: parsed.data.sectionId, unitId, isActive: true },
+      select: { id: true },
+    })
+    if (!section) throw new Error('That section does not belong to the selected unit')
     sectionId = section.id
+  }
+
+  // One topic group per unique scope — one department-wide group, one
+  // whole-unit group per unit, one group per section. Re-creating the same
+  // scope is blocked; the trainer edits the existing group instead.
+  const duplicate = await prisma.topicGroup.findFirst({
+    where: {
+      departmentId: scope.departmentId,
+      unitId,
+      sectionId,
+      isActive:     true,
+    },
+    select: { id: true, name: true },
+  })
+  if (duplicate) {
+    throw new Error(
+      sectionId ? `A topic group for that section already exists ("${duplicate.name}"). Edit it instead of creating a new one.`
+      : unitId  ? `A whole-unit topic group already exists ("${duplicate.name}"). Edit it instead of creating a new one.`
+      :           `A department-wide topic group already exists ("${duplicate.name}"). Edit it instead of creating a new one.`
+    )
   }
 
   const topics = await prisma.trainingTopic.findMany({
@@ -133,7 +177,7 @@ export async function createTopicGroup(
     data: {
       name:         parsed.data.name,
       departmentId: scope.departmentId,
-      unitId:       scope.unitId,
+      unitId,
       sectionId,
       createdById:  actorId,
       items: {
@@ -151,10 +195,11 @@ export async function createTopicGroup(
     recordType:    'TopicGroup',
     beforeValue:   null,
     afterValue:    {
-      name:    group.name,
-      unit:    `${scope.department.name} / ${scope.unit.name}`,
-      section: group.section?.name ?? null,
-      topics:  topics.map((t) => t.name),
+      name:  group.name,
+      scope: group.unit
+        ? `${scope.department.name} / ${group.unit.name}${group.section ? ` / ${group.section.name}` : ''}`
+        : `${scope.department.name} (department-wide)`,
+      topics: topics.map((t) => t.name),
     },
     justification,
   })
@@ -163,7 +208,8 @@ export async function createTopicGroup(
 }
 
 // ── Authorisation helper — a trainer may only manage groups for their
-// own department+unit, regardless of who created them ──────────────
+// own department (any unit or section in it), regardless of who created
+// them ─────────────────────────────────────────────────────────────
 
 async function assertOwnsGroup(groupId: string, actorId: string) {
   const scope = await getActorScope(actorId)
@@ -173,8 +219,8 @@ async function assertOwnsGroup(groupId: string, actorId: string) {
     select: { id: true, name: true, departmentId: true, unitId: true, items: { select: { topic: { select: { name: true } } } } },
   })
   if (!group) throw new Error('Topic group not found')
-  if (group.departmentId !== scope.departmentId || group.unitId !== scope.unitId) {
-    throw new Error('You can only manage topic groups for your own team')
+  if (group.departmentId !== scope.departmentId) {
+    throw new Error('You can only manage topic groups for your own department')
   }
 
   return group
