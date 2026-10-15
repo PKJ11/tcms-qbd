@@ -13,6 +13,7 @@ import { scanAndNotifyOverdue } from '@/modules/notifications'
 const ASSIGNMENT_SELECT = {
   id:           true,
   trigger:      true,
+  trainingType: true,
   status:       true,
   dueDate:      true,
   startedAt:    true,
@@ -282,6 +283,7 @@ export async function createAssignments(
         dueDate:               new Date(input.dueDate),
         needIdentifiedById:    input.needIdentifiedById?.trim() || null,
         needBasis:             input.needBasis?.trim() || null,
+        trainingType:          pins.trainingType,
         questionBankVersionId: pins.questionBankVersionId,
       })),
     })
@@ -405,6 +407,7 @@ export async function autoAssignInductionTraining(
         status:                'NOT_STARTED' as const,
         assignedById:          actorId,
         dueDate,
+        trainingType:          topicPins.find((tp) => tp.topicId === t.id)!.pins.trainingType,
         questionBankVersionId: topicPins.find((tp) => tp.topicId === t.id)!.pins.questionBankVersionId,
       })),
     })
@@ -528,6 +531,7 @@ export async function autoAssignTopicGroupInduction(
         status:                'NOT_STARTED' as const,
         assignedById:          t.assignedById,
         dueDate,
+        trainingType:          topicPins.find((tp) => tp.topicId === t.id)!.pins.trainingType,
         questionBankVersionId: topicPins.find((tp) => tp.topicId === t.id)!.pins.questionBankVersionId,
       })),
     })
@@ -671,6 +675,7 @@ export async function assignScopedTrainingsOnTransfer(
         status:                'NOT_STARTED' as const,
         assignedById:          actorId,
         dueDate:                dueDateObj,
+        trainingType:          topicPins.find((tp) => tp.topicId === t.id)!.pins.trainingType,
         questionBankVersionId: topicPins.find((tp) => tp.topicId === t.id)!.pins.questionBankVersionId,
       })),
     })
@@ -879,7 +884,7 @@ export async function acknowledgeAssignment(
     where:  { id: assignmentId },
     select: {
       id: true, personId: true, status: true, topicId: true, trigger: true, acknowledged: true,
-      topic: { select: { trainingType: true } },
+      trainingType: true,
     },
   })
 
@@ -894,7 +899,7 @@ export async function acknowledgeAssignment(
 
   // Only Acknowledgement-Only topics complete on the ack button itself —
   // Material-Only completes on view, Material+MCQ completes on passing the assessment.
-  const willComplete = assignment.topic.trainingType === 'ACKNOWLEDGEMENT_ONLY'
+  const willComplete = assignment.trainingType === 'ACKNOWLEDGEMENT_ONLY'
 
   await prisma.trainingAssignment.update({
     where: { id: assignmentId },
@@ -985,7 +990,7 @@ export async function confirmAssignmentMaterial(
   const assignment = await prisma.trainingAssignment.findUnique({
     where:  { id: assignmentId },
     select: {
-      id: true, personId: true, status: true, topicId: true, trigger: true,
+      id: true, personId: true, status: true, topicId: true, trigger: true, trainingType: true,
       topic: {
         select: {
           trainingType: true,
@@ -1000,6 +1005,14 @@ export async function confirmAssignmentMaterial(
 
   if (!assignment)                     throw new Error('Assignment not found')
   if (assignment.personId !== actorId) throw new Error('Not authorised')
+  if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(assignment.status)) {
+    throw new Error('This training is already finished — material can no longer be confirmed')
+  }
+
+  const existing = await prisma.assignmentMaterialConfirmation.findUnique({
+    where: { assignmentId_materialId: { assignmentId, materialId } },
+  })
+  if (existing) throw new Error('This material has already been confirmed')
 
   await prisma.assignmentMaterialConfirmation.upsert({
     where:  { assignmentId_materialId: { assignmentId, materialId } },
@@ -1017,7 +1030,7 @@ export async function confirmAssignmentMaterial(
   let allConfirmed = false
   let completed     = false
 
-  if (assignment.topic.trainingType === 'MATERIAL_ONLY') {
+  if (assignment.trainingType === 'MATERIAL_ONLY') {
     const confirmedCount = await prisma.assignmentMaterialConfirmation.count({
       where: { assignmentId },
     })

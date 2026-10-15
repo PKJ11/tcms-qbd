@@ -575,6 +575,9 @@ model TrainingAssignment {
   personId              String
   topicId               String
   trigger               TrainingTrigger
+  // Snapshot of the topic's training type when assigned — a later upgrade of
+  // the topic (e.g. Material Only → Material + MCQ) only affects new assignments.
+  trainingType          TrainingType
   status                AssignmentStatus @default(NOT_STARTED)
   assignedById          String
   dueDate               DateTime

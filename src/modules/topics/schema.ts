@@ -10,6 +10,18 @@ export const trainingTypeSchema = z.enum([
   'MATERIAL_MCQ', 'MATERIAL_ONLY', 'ACKNOWLEDGEMENT_ONLY',
 ])
 
+// A topic's training type may only be upgraded, never reversed:
+// Acknowledgement Only → Material Only → Material + MCQ Assessment.
+export const TRAINING_TYPE_RANK: Record<string, number> = {
+  ACKNOWLEDGEMENT_ONLY: 0,
+  MATERIAL_ONLY:        1,
+  MATERIAL_MCQ:         2,
+}
+
+export function isTrainingTypeDowngrade(from: string, to: string): boolean {
+  return (TRAINING_TYPE_RANK[to] ?? 0) < (TRAINING_TYPE_RANK[from] ?? 0)
+}
+
 export const createTopicSchema = z.object({
   name: z
     .string()

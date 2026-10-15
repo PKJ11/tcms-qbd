@@ -1,8 +1,9 @@
-import type { Prisma } from '@prisma/client'
+import type { Prisma, TrainingType } from '@prisma/client'
 
 export type PrismaTx = Prisma.TransactionClient
 
 export interface VersionPins {
+  trainingType:          TrainingType
   questionBankVersionId: string | null
   materialPins: { materialId: string; materialVersionId: string }[]
 }
@@ -11,6 +12,11 @@ export interface VersionPins {
 // currently live for a topic, so a newly created TrainingAssignment can pin
 // exactly what was used — traceable even after the bank/materials change later.
 export async function resolveVersionPins(tx: PrismaTx, topicId: string): Promise<VersionPins> {
+  const topic = await tx.trainingTopic.findUniqueOrThrow({
+    where:  { id: topicId },
+    select: { trainingType: true },
+  })
+
   const bank = await tx.questionBank.findUnique({
     where:  { topicId },
     select: { currentVersionId: true },
@@ -30,6 +36,7 @@ export async function resolveVersionPins(tx: PrismaTx, topicId: string): Promise
   })
 
   return {
+    trainingType:          topic.trainingType,
     questionBankVersionId: bank?.currentVersionId ?? null,
     materialPins: materials
       .filter((m) => m.versions[0])

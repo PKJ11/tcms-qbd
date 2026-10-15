@@ -87,11 +87,17 @@ export async function POST(
         const dueDate = new Date()
         dueDate.setDate(dueDate.getDate() + 21) // 21 days for override
 
+        const flagTopic = await tx.trainingTopic.findUniqueOrThrow({
+          where:  { id: person.flagTopicId },
+          select: { trainingType: true },
+        })
+
         await tx.trainingAssignment.create({
           data: {
             personId:     params.id,
             topicId:      person.flagTopicId,
             trigger:      'SCHEDULE',
+            trainingType: flagTopic.trainingType,
             status:       'NOT_STARTED',
             assignedById: session.user.id,
             dueDate,

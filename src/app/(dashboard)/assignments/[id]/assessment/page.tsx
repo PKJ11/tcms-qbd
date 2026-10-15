@@ -18,7 +18,7 @@ export default async function AssignmentAssessmentPage({
   const detailUrl = `/assignments/${params.id}`
 
   if (assignment.person.id !== session.user.id) redirect(detailUrl)
-  if (assignment.topic.trainingType !== 'MATERIAL_MCQ') redirect(detailUrl)
+  if (assignment.trainingType !== 'MATERIAL_MCQ') redirect(detailUrl)
   if (assignment.status === 'COMPLETED') redirect(detailUrl)
 
   const approvedMaterials = assignment.topic.materials.filter((m) => m.versions.length > 0)

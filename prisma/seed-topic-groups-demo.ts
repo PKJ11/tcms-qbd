@@ -152,11 +152,15 @@ async function seedInductionAssignments(opts: {
       })
       if (existingAssignment) continue
 
+      const { trainingType } = await prisma.trainingTopic.findUniqueOrThrow({
+        where: { id: topicId }, select: { trainingType: true },
+      })
       await prisma.trainingAssignment.create({
         data: {
           personId:     person.id,
           topicId,
           trigger:      'INDUCTION',
+          trainingType,
           status:       AssignmentStatus.NOT_STARTED,
           assignedById: opts.assignedById,
           dueDate,

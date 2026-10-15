@@ -333,6 +333,9 @@ async function main() {
     completedAt?: Date | null
     questionBankVersionId?: string | null
   }) {
+    const { trainingType } = await prisma.trainingTopic.findUniqueOrThrow({
+      where: { id: opts.topicId }, select: { trainingType: true },
+    })
     return prisma.trainingAssignment.upsert({
       where: { id: opts.id },
       update: {},
@@ -341,6 +344,7 @@ async function main() {
         personId: opts.personId,
         topicId: opts.topicId,
         trigger: opts.trigger,
+        trainingType,
         status: opts.status,
         assignedById: opts.assignedById,
         dueDate: opts.dueDate,

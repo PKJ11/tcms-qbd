@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { logAuditEvent } from '@/modules/audit-trail'
 import { getDepartmentTree } from '@/modules/organization'
-import { createTopicSchema, updateTopicSchema } from './schema'
+import { createTopicSchema, updateTopicSchema, isTrainingTypeDowngrade } from './schema'
 import type { CreateTopicInput, UpdateTopicInput, TopicScopeItem } from './types'
 
 // ── Shared select ─────────────────────────────────────────────────
@@ -232,6 +232,13 @@ export async function updateTopic(
     },
   })
   if (!before) throw new Error('Topic not found')
+
+  // Training type is upgrade-only: Acknowledgement → Material → Material + MCQ
+  if (input.trainingType !== undefined && isTrainingTypeDowngrade(before.trainingType, input.trainingType)) {
+    throw new Error(
+      'Training type can only be upgraded (Acknowledgement Only → Material Only → Material + MCQ Assessment). It cannot be changed back.'
+    )
+  }
 
   // Update in transaction
   const after = await prisma.$transaction(async (tx) => {

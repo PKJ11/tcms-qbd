@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
+import { TRAINING_TYPE_RANK } from './schema'
 
 interface Section    { id: string; name: string }
 interface Unit       { id: string; name: string; sections: Section[] }
@@ -37,7 +38,7 @@ const TRAINING_TYPES: { value: string; label: string }[] = [
   { value: 'ACKNOWLEDGEMENT_ONLY',  label: 'Acknowledgement Only' },
 ]
 
-type ActionType = 'deactivate' | 'edit-scopes' | null
+type ActionType = 'deactivate' | 'edit-scopes' | 'change-type' | null
 
 // Not part of the current business requirement — button (and its modal)
 // stay in place, just hidden, so this can be switched back on later.
@@ -57,6 +58,13 @@ export function TopicDetailView({ topic, departments }: Props) {
   const [trainingType, setTrainingType] = useState(topic.trainingType)
   const [modalLoading, setModalLoading] = useState(false)
   const [result,       setResult]       = useState<string | null>(null)
+  const [typeJustification, setTypeJustification] = useState('')
+
+  // Training type is upgrade-only — offer just the current type and the ones above it
+  const currentRank      = TRAINING_TYPE_RANK[topic.trainingType] ?? 0
+  const allowedTypes     = TRAINING_TYPES.filter((t) => (TRAINING_TYPE_RANK[t.value] ?? 0) >= currentRank)
+  const upgradeTypes     = allowedTypes.filter((t) => t.value !== topic.trainingType)
+  const currentTypeLabel = TRAINING_TYPES.find((t) => t.value === topic.trainingType)?.label ?? topic.trainingType
 
   const [builderDeptId,    setBuilderDeptId]    = useState('')
   const [builderUnitId,    setBuilderUnitId]    = useState('')
@@ -106,6 +114,8 @@ export function TopicDetailView({ topic, departments }: Props) {
     const body =
       action === 'deactivate'
         ? { action: 'deactivate', justification }
+        : action === 'change-type'
+        ? { trainingType, justification }
         : { scopes, trainingType, justification }
 
     const res = await fetch(`/api/topics/${topic.id}`, {
@@ -119,6 +129,7 @@ export function TopicDetailView({ topic, departments }: Props) {
     setAction(null)
 
     if (!res.ok) {
+      setTrainingType(topic.trainingType)
       setResult(`Error: ${data.message}`)
       return
     }
@@ -150,6 +161,20 @@ export function TopicDetailView({ topic, departments }: Props) {
               style={{ borderColor: '#e5e7eb', color: '#374151' }}
             >
               Edit scope &amp; training type
+            </button>
+          )}
+
+          {topic.isActive && upgradeTypes.length > 0 && (
+            <button
+              onClick={() => {
+                setTrainingType(upgradeTypes[0].value)
+                setTypeJustification('')
+                setAction('change-type')
+              }}
+              className="px-4 py-2 rounded-lg border text-sm font-medium transition-colors"
+              style={{ borderColor: '#bbf7d0', color: '#2d6a4f' }}
+            >
+              Upgrade training type
             </button>
           )}
 
@@ -188,6 +213,91 @@ export function TopicDetailView({ topic, departments }: Props) {
         loading={modalLoading}
       />
 
+      {/* Upgrade training type modal — forward-only, cannot be reversed */}
+      {action === 'change-type' && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(0,0,0,0.4)' }}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-xl"
+            style={{ border: '1px solid #e5e7eb' }}
+          >
+            <div className="px-6 pt-6 pb-4" style={{ borderBottom: '1px solid #f3f4f6' }}>
+              <h3 className="text-base font-semibold text-gray-900">Upgrade training type</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Currently: <span className="font-medium text-gray-700">{currentTypeLabel}</span>
+              </p>
+            </div>
+
+            <div className="px-6 py-4 flex flex-col gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  New training type
+                </label>
+                <select
+                  value={trainingType}
+                  onChange={(e) => setTrainingType(e.target.value)}
+                  className={inputClass}
+                  style={inputStyle}
+                >
+                  {upgradeTypes.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div
+                className="px-3 py-2.5 rounded-lg border text-xs"
+                style={{ background: '#fff7ed', borderColor: '#fed7aa', color: '#92400e' }}
+              >
+                This change is permanent. A training type can only move forward
+                (Acknowledgement Only → Material Only → Material + MCQ Assessment) and
+                cannot be changed back afterwards.
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Justification
+                </label>
+                <textarea
+                  value={typeJustification}
+                  onChange={(e) => setTypeJustification(e.target.value)}
+                  rows={3}
+                  placeholder="Why is the training type being upgraded? (min. 10 characters)"
+                  className={inputClass}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div
+              className="flex items-center justify-end gap-3 px-6 py-4"
+              style={{ borderTop: '1px solid #f3f4f6' }}
+            >
+              <button
+                onClick={() => { setTrainingType(topic.trainingType); setAction(null) }}
+                disabled={modalLoading}
+                className="px-4 py-2 rounded-lg border text-sm font-medium"
+                style={{ borderColor: '#e5e7eb', color: '#374151' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleConfirm(typeJustification.trim())}
+                disabled={modalLoading || typeJustification.trim().length < 10}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+                style={{
+                  background: modalLoading || typeJustification.trim().length < 10 ? '#9ca3af' : '#2d6a4f',
+                }}
+              >
+                {modalLoading ? 'Saving...' : 'Upgrade'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit scope + training type modal */}
       {action === 'edit-scopes' && (
         <div
@@ -222,7 +332,7 @@ export function TopicDetailView({ topic, departments }: Props) {
                   className={inputClass}
                   style={inputStyle}
                 >
-                  {TRAINING_TYPES.map((t) => (
+                  {allowedTypes.map((t) => (
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>

@@ -97,7 +97,7 @@ export async function createRefreshers(
 
   const topic = await prisma.trainingTopic.findUnique({
     where:  { id: input.topicId },
-    select: { id: true, name: true, isActive: true },
+    select: { id: true, name: true, isActive: true, trainingType: true },
   })
   if (!topic)          throw new Error('Topic not found')
   if (!topic.isActive) throw new Error('Topic is inactive')
@@ -137,6 +137,7 @@ export async function createRefreshers(
           personId:     person.id,
           topicId:      input.topicId,
           trigger:      'REFRESHER',
+          trainingType: topic.trainingType,
           status:       'NOT_STARTED',
           assignedById: actorId,
           dueDate,

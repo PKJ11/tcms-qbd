@@ -22,6 +22,7 @@ interface Material {
 interface Assignment {
   id:           string
   trigger:      string
+  trainingType: string   // snapshot taken at assignment time — not the topic's current type
   status:       string
   dueDate:      string | Date
   startedAt:    string | Date | null
@@ -94,7 +95,7 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
   }, [initialAssignment.id])
 
   useEffect(() => {
-    if (initialAssignment.topic.trainingType !== 'MATERIAL_MCQ') return
+    if (initialAssignment.trainingType !== 'MATERIAL_MCQ') return
 
     async function fetchResults() {
       const [attemptsRes, bankRes] = await Promise.all([
@@ -107,7 +108,7 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
       setPassMark(bankData.bank?.passingPercentage ?? null)
     }
     fetchResults()
-  }, [initialAssignment.id, initialAssignment.topic.id, initialAssignment.topic.trainingType])
+  }, [initialAssignment.id, initialAssignment.topic.id, initialAssignment.trainingType])
 
   async function handleAcknowledge() {
     setAckLoading(true)
@@ -116,12 +117,15 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
     refetch()
   }
 
-  const trainingType       = assignment.topic.trainingType
+  const trainingType       = assignment.trainingType
   const approvedMaterials  = assignment.topic.materials.filter((m) => m.versions.length > 0)
   const confirmedIds       = new Set(assignment.materialConfirmations.map((c) => c.materialId))
   const allConfirmed       = approvedMaterials.length > 0 &&
     approvedMaterials.every((m) => confirmedIds.has(m.id))
   const statusStyle = STATUS_STYLES[assignment.status] ?? STATUS_STYLES.NOT_STARTED
+  // Once the training is finished (passed, failed out, or withdrawn) the
+  // material is locked — it can no longer be opened from this assignment.
+  const isClosed = ['COMPLETED', 'FAILED', 'CANCELLED'].includes(assignment.status)
 
   return (
     <>
@@ -269,13 +273,27 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
                         ✓ Confirmed
                       </span>
                     )}
-                    <button
-                      onClick={() => setViewerMaterial(material)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
-                      style={{ background: '#2d6a4f' }}
-                    >
-                      View
-                    </button>
+                    {isClosed ? (
+                      <span
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium cursor-not-allowed select-none"
+                        style={{ background: '#f3f4f6', color: '#9ca3af' }}
+                        title="This training is finished — the material can no longer be opened"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        Locked
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setViewerMaterial(material)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                        style={{ background: '#2d6a4f' }}
+                      >
+                        View
+                      </button>
+                    )}
                   </div>
                 </div>
               )
@@ -382,11 +400,12 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
         </div>
       )}
 
-      {viewerMaterial && (
+      {viewerMaterial && !isClosed && (
         <MaterialViewerModal
           assignmentId={assignment.id}
           material={viewerMaterial}
           trainingType={trainingType}
+          confirmed={confirmedIds.has(viewerMaterial.id)}
           onClose={() => setViewerMaterial(null)}
           onConfirmed={() => { setViewerMaterial(null); refetch() }}
         />

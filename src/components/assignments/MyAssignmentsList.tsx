@@ -19,6 +19,7 @@ interface Material {
 interface Assignment {
   id:           string
   trigger:      string
+  trainingType: string
   status:       string
   dueDate:      string
   startedAt:    string | null
@@ -159,7 +160,7 @@ export function MyAssignmentsList() {
         <div className="flex flex-col gap-3">
           {filteredAssignments.map((a) => {
             const statusStyle = STATUS_STYLES[a.status] ?? STATUS_STYLES.NOT_STARTED
-            const trainingType = a.topic.trainingType
+            const trainingType = a.trainingType
 
             return (
               <a
