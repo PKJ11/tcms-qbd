@@ -330,7 +330,7 @@ export default async function DashboardPage() {
         style={{ borderColor: '#e5e7eb' }}
       >
         <h1 className="text-xl font-bold text-gray-900">
-          Welcome back, {user.name.split(' ')[0]} 👋
+          Welcome back, {user.name.split(' ')[0]}
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">
           {user.department}

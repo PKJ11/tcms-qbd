@@ -145,13 +145,13 @@ export function TrainingCalendar({ canEdit }: { canEdit: boolean }) {
   }
 
   async function deleteRow(rowId: string) {
-    if (!confirm('Remove this training from the calendar? Its ticks for every year will be deleted.')) return
+    if (!confirm('Remove this training from the calendar? Its ticks for every year will be cleared.')) return
     try {
       await post({ action: 'deleteRow', rowId })
       fetchCalendar()
       if (pickerOpen) fetchAddable()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not delete training')
+      setError(e instanceof Error ? e.message : 'Could not remove training')
     }
   }
 

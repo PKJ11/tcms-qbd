@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { createDepartment, deleteDepartment } from '@/modules/organization'
+import { createDepartment, deactivateDepartment } from '@/modules/organization'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET() {
@@ -94,10 +94,10 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    const result = await deleteDepartment(id, justification, session.user.id, password)
+    const result = await deactivateDepartment(id, justification, session.user.id, password)
     return NextResponse.json(result)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to delete department'
+    const message = error instanceof Error ? error.message : 'Failed to deactivate department'
     return NextResponse.json({ message }, { status: 400 })
   }
 }

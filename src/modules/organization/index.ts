@@ -1,9 +1,7 @@
 export {
   getDepartmentTree,
   createDepartment,
-  deleteDepartment,
+  deactivateDepartment,
   createUnit,
-  deleteUnit,
   createSection,
-  deleteSection,
 } from './actions'

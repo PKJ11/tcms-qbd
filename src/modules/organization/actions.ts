@@ -117,9 +117,9 @@ export async function createDepartment(
   return department
 }
 
-// ── Delete (deactivate) a Department ──────────────────────────────
+// ── Deactivate a Department ──────────────────────────────
 
-export async function deleteDepartment(
+export async function deactivateDepartment(
   id: string,
   justification: string,
   actorId: string,
@@ -136,7 +136,7 @@ export async function deleteDepartment(
 
   const activeUnits = await prisma.unit.count({ where: { departmentId: id, isActive: true } })
   if (activeUnits > 0) {
-    throw new Error('Delete all units in this department first')
+    throw new Error('This department still has active units')
   }
   const activePersons = await prisma.person.count({ where: { departmentId: id, isActive: true } })
   if (activePersons > 0) {
@@ -147,7 +147,7 @@ export async function deleteDepartment(
 
   await logAuditEvent({
     userId:        actorId,
-    action:        'DELETE',
+    action:        'DEACTIVATE',
     module:        'ORGANIZATION',
     recordId:      id,
     recordType:    'Department',
@@ -200,48 +200,6 @@ export async function createUnit(
   return unit
 }
 
-// ── Delete (deactivate) a Unit ───────────────────────────────────
-
-export async function deleteUnit(
-  id: string,
-  justification: string,
-  actorId: string,
-  password: string
-) {
-  const passwordValid = await verifyUserPassword(actorId, password)
-  if (!passwordValid) throw new Error('Incorrect password')
-
-  const unit = await prisma.unit.findUnique({
-    where:  { id },
-    select: { id: true, name: true, code: true, department: { select: { name: true } } },
-  })
-  if (!unit) throw new Error('Unit not found')
-
-  const activeSections = await prisma.section.count({ where: { unitId: id, isActive: true } })
-  if (activeSections > 0) {
-    throw new Error('Delete all sections in this unit first')
-  }
-  const activePersons = await prisma.person.count({ where: { unitId: id, isActive: true } })
-  if (activePersons > 0) {
-    throw new Error('This unit still has active members assigned')
-  }
-
-  await prisma.unit.update({ where: { id }, data: { isActive: false } })
-
-  await logAuditEvent({
-    userId:        actorId,
-    action:        'DELETE',
-    module:        'ORGANIZATION',
-    recordId:      id,
-    recordType:    'Unit',
-    beforeValue:   { name: unit.name, code: unit.code, department: unit.department.name },
-    afterValue:    null,
-    justification,
-  })
-
-  return { id }
-}
-
 // ── Create a Section within a Unit ─────────────────────────────────
 
 export async function createSection(
@@ -281,42 +239,4 @@ export async function createSection(
   })
 
   return section
-}
-
-// ── Delete (deactivate) a Section ─────────────────────────────────
-
-export async function deleteSection(
-  id: string,
-  justification: string,
-  actorId: string,
-  password: string
-) {
-  const passwordValid = await verifyUserPassword(actorId, password)
-  if (!passwordValid) throw new Error('Incorrect password')
-
-  const section = await prisma.section.findUnique({
-    where:  { id },
-    select: { id: true, name: true, code: true, unit: { select: { name: true } } },
-  })
-  if (!section) throw new Error('Section not found')
-
-  const activePersons = await prisma.person.count({ where: { sectionId: id, isActive: true } })
-  if (activePersons > 0) {
-    throw new Error('This section still has active members assigned')
-  }
-
-  await prisma.section.update({ where: { id }, data: { isActive: false } })
-
-  await logAuditEvent({
-    userId:        actorId,
-    action:        'DELETE',
-    module:        'ORGANIZATION',
-    recordId:      id,
-    recordType:    'Section',
-    beforeValue:   { name: section.name, code: section.code, unit: section.unit.name },
-    afterValue:    null,
-    justification,
-  })
-
-  return { id }
 }

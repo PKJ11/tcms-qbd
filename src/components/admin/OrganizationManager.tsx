@@ -16,9 +16,7 @@ type PendingAction =
   | { kind: 'add-department';    name: string }
   | { kind: 'add-unit';          name: string }
   | { kind: 'add-section';       name: string }
-  | { kind: 'delete-department'; id: string; name: string }
-  | { kind: 'delete-unit';       id: string; name: string }
-  | { kind: 'delete-section';    id: string; name: string }
+  | { kind: 'deactivate-department'; id: string; name: string }
   | null
 
 export function OrganizationManager({ departments }: Props) {
@@ -86,11 +84,7 @@ export function OrganizationManager({ departments }: Props) {
         ? { url: '/api/units',       method: 'POST',   body: { name: pending.name, departmentId: selectedDeptId } }
       : pending.kind === 'add-section'
         ? { url: '/api/sections',    method: 'POST',   body: { name: pending.name, unitId: selectedUnitId } }
-      : pending.kind === 'delete-department'
-        ? { url: '/api/departments', method: 'DELETE', body: { id: pending.id } }
-      : pending.kind === 'delete-unit'
-        ? { url: '/api/units',       method: 'DELETE', body: { id: pending.id } }
-        : { url: '/api/sections',    method: 'DELETE', body: { id: pending.id } }
+        : { url: '/api/departments', method: 'DELETE', body: { id: pending.id } }
 
     const res  = await fetch(req.url, {
       method:  req.method,
@@ -110,8 +104,7 @@ export function OrganizationManager({ departments }: Props) {
     if (kind === 'add-department') setDeptForm({ name: '' })
     if (kind === 'add-unit')       setUnitForm({ name: '' })
     if (kind === 'add-section')    setSectionForm({ name: '' })
-    if (kind === 'delete-department') { setSelectedDeptId(''); setSelectedUnitId('') }
-    if (kind === 'delete-unit')       setSelectedUnitId('')
+    if (kind === 'deactivate-department') { setSelectedDeptId(''); setSelectedUnitId('') }
 
     router.refresh()
   }
@@ -119,7 +112,7 @@ export function OrganizationManager({ departments }: Props) {
   const inputClass = 'w-full px-3 py-2 rounded-lg border text-sm outline-none transition-all'
   const inputStyle = { borderColor: '#d1d5db', background: '#fff' }
 
-  const DeleteBtn = ({ onClick, label }: { onClick: () => void; label: string }) => (
+  const DeactivateBtn = ({ onClick, label }: { onClick: () => void; label: string }) => (
     <button
       type="button"
       onClick={onClick}
@@ -162,9 +155,9 @@ export function OrganizationManager({ departments }: Props) {
                   />
                   <span className="text-sm text-gray-800">{d.name}</span>
                   <span className="text-xs text-gray-400">· {d.code}</span>
-                  <DeleteBtn
-                    label={`Delete ${d.name}`}
-                    onClick={() => setPending({ kind: 'delete-department', id: d.id, name: d.name })}
+                  <DeactivateBtn
+                    label={`Deactivate ${d.name}`}
+                    onClick={() => setPending({ kind: 'deactivate-department', id: d.id, name: d.name })}
                   />
                 </div>
               ))
@@ -229,10 +222,6 @@ export function OrganizationManager({ departments }: Props) {
                       <span className="text-xs text-gray-400">
                         · {u.sections.length} section{u.sections.length !== 1 ? 's' : ''}
                       </span>
-                      <DeleteBtn
-                        label={`Delete ${u.name}`}
-                        onClick={() => setPending({ kind: 'delete-unit', id: u.id, name: u.name })}
-                      />
                     </div>
                   ))
                 )}
@@ -280,10 +269,6 @@ export function OrganizationManager({ departments }: Props) {
                     >
                       <span>{s.name}</span>
                       <span className="text-xs text-gray-400">· {s.code}</span>
-                      <DeleteBtn
-                        label={`Delete ${s.name}`}
-                        onClick={() => setPending({ kind: 'delete-section', id: s.id, name: s.name })}
-                      />
                     </div>
                   ))
                 )}
@@ -327,9 +312,7 @@ export function OrganizationManager({ departments }: Props) {
           pending?.kind === 'add-department'    ? 'Confirm new department'
           : pending?.kind === 'add-unit'        ? 'Confirm new unit'
           : pending?.kind === 'add-section'     ? 'Confirm new section'
-          : pending?.kind === 'delete-department' ? 'Delete department'
-          : pending?.kind === 'delete-unit'    ? 'Delete unit'
-          : pending?.kind === 'delete-section' ? 'Delete section'
+          : pending?.kind === 'deactivate-department' ? 'Deactivate department'
           : ''
         }
         description={
@@ -337,7 +320,7 @@ export function OrganizationManager({ departments }: Props) {
           : pending.kind === 'add-department' ? `Create department "${pending.name}".`
           : pending.kind === 'add-unit'       ? `Create unit "${pending.name}" under ${selectedDept?.name}.`
           : pending.kind === 'add-section'    ? `Create section "${pending.name}" under ${selectedUnit?.name}.`
-          : `Delete "${pending.name}"? It is hidden everywhere and can only be recreated by name. Blocked if active members or child items remain.`
+          : `Deactivate "${pending.name}"? It is hidden everywhere and can only be recreated by name. Blocked if active members or units remain.`
         }
         onConfirm={handleConfirm}
         onCancel={() => setPending(null)}

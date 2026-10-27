@@ -243,7 +243,7 @@ export function AuditTrailViewer() {
           >
             <option value="">All actions</option>
             {[
-              'CREATE','UPDATE','DELETE','DEACTIVATE','LOGIN',
+              'CREATE','UPDATE','DEACTIVATE','LOGIN',
               'LOGOUT','APPROVE','REJECT','UPLOAD',
               'GENERATE','ASSIGN','REVOKE',
             ].map((a) => (
