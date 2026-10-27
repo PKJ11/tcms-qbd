@@ -10,7 +10,6 @@ const STATUS_OPTIONS = [
   { value: 'INITIATED',   label: 'Initiated' },
   { value: 'IN_PROGRESS', label: 'In progress' },
   { value: 'APPROVED',    label: 'Approved' },
-  { value: 'EXPIRED',     label: 'Expired' },
   { value: 'REVOKED',     label: 'Revoked' },
 ]
 
@@ -20,21 +19,17 @@ interface QualRow {
   status:      string
   outcome:     string | null
   approvedAt:  string | null
-  expiryDate:  string | null
-  daysToExpiry: number | null
   certNumber:  string | null
 }
 
 const DATE_FILTERS: DateFilterConfig[] = [
   { key: 'approved', label: 'Approved' },
-  { key: 'expiry',   label: 'Expiry' },
 ]
 
 const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   INITIATED:   { bg: '#f5f3ff', color: '#6d28d9' },
   IN_PROGRESS: { bg: '#eff6ff', color: '#1d4ed8' },
   APPROVED:    { bg: '#f0fdf4', color: '#166534' },
-  EXPIRED:     { bg: '#fef2f2', color: '#dc2626' },
   REVOKED:     { bg: '#f9fafb', color: '#6b7280' },
 }
 
@@ -73,7 +68,7 @@ export function QualificationStatusReport({ scope, orgFilter }: { scope: ReportS
     name: row.person.name,
     employeeId: row.person.employeeId,
     status: row.status,
-    dateValues: { approved: row.approvedAt, expiry: row.expiryDate },
+    dateValues: { approved: row.approvedAt },
   })), [rows, filters])
 
   return (
@@ -145,7 +140,7 @@ export function QualificationStatusReport({ scope, orgFilter }: { scope: ReportS
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['Person', 'Technique', 'Status', 'Approved', 'Expiry', 'Days left', 'Certificate'].map((h) => (
+                {['Person', 'Technique', 'Status', 'Approved', 'Certificate'].map((h) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
@@ -158,18 +153,11 @@ export function QualificationStatusReport({ scope, orgFilter }: { scope: ReportS
             <tbody>
               {filteredRows.map((row, i) => {
                 const statusStyle  = STATUS_STYLES[row.status] ?? STATUS_STYLES.IN_PROGRESS
-                const isExpiringSoon = row.daysToExpiry !== null && row.daysToExpiry <= 30 && row.daysToExpiry > 0
-                const isExpired      = row.status === 'EXPIRED' || (row.daysToExpiry !== null && row.daysToExpiry <= 0)
 
                 return (
                   <tr
                     key={i}
-                    style={{
-                      borderBottom: '1px solid #f3f4f6',
-                      background:   isExpired      ? '#fef2f250'
-                                  : isExpiringSoon ? '#fefce850'
-                                  : 'transparent',
-                    }}
+                    style={{ borderBottom: '1px solid #f3f4f6' }}
                     className="hover:bg-gray-50"
                   >
                     <td className="px-4 py-3">
@@ -192,26 +180,6 @@ export function QualificationStatusReport({ scope, orgFilter }: { scope: ReportS
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">
                       {row.approvedAt ? formatDate(row.approvedAt) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
-                      {row.expiryDate ? formatDate(row.expiryDate) : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {row.daysToExpiry !== null ? (
-                        <span
-                          className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                          style={{
-                            background: isExpired      ? '#fef2f2'
-                                      : isExpiringSoon ? '#fefce8'
-                                      : '#f0fdf4',
-                            color:      isExpired      ? '#dc2626'
-                                      : isExpiringSoon ? '#854d0e'
-                                      : '#166534',
-                          }}
-                        >
-                          {isExpired ? 'Expired' : `${row.daysToExpiry}d`}
-                        </span>
-                      ) : '—'}
                     </td>
                     <td className="px-4 py-3 text-xs font-mono text-gray-500">
                       {row.certNumber ?? '—'}

@@ -70,8 +70,6 @@ export interface QualificationStatusRow {
   status:      string
   outcome:     string | null
   approvedAt:  Date | null
-  expiryDate:  Date | null
-  daysToExpiry: number | null
   certNumber:  string | null
 }
 

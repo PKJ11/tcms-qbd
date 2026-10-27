@@ -440,7 +440,6 @@ async function main() {
       status: QualStatus.APPROVED, outcome: QualOutcome.COMPETENT,
       performedOn: daysFromNow(-8), supervisorId: supervisorQC.id, initiatedById: trainerQC.id,
       initiatedAt: daysFromNow(-9), approvedAt: daysFromNow(-2),
-      expiryDate: daysFromNow(355),
     },
   })
 
@@ -470,7 +469,6 @@ async function main() {
       certNumber: 'CERT-2026-0001', qualificationId: approvedQual.id, personId: trainee1.id,
       issuedById: admin.id, issuedAt: daysFromNow(-2),
       fileUrl: 'demo-content/certificates/CERT-2026-0001.pdf',
-      validUntil: daysFromNow(355),
     },
   })
 
@@ -505,18 +503,18 @@ async function main() {
   })
 
   await prisma.qualificationRecord.upsert({
-    where: { id: 'seeded-qual-trainee4-titration-expired' },
+    where: { id: 'seeded-qual-trainee4-titration-revoked' },
     update: {},
     create: {
-      id: 'seeded-qual-trainee4-titration-expired',
+      id: 'seeded-qual-trainee4-titration-revoked',
       personId: trainee4.id, techniqueId: techTitration.id,
-      status: QualStatus.EXPIRED, outcome: QualOutcome.COMPETENT,
-      performedOn: daysFromNow(-400), supervisorId: trainerQA.id, initiatedById: trainerQA.id,
-      initiatedAt: daysFromNow(-400), approvedAt: daysFromNow(-395), expiryDate: daysFromNow(-30),
+      status: QualStatus.REVOKED, outcome: QualOutcome.NOT_YET_COMPETENT,
+      performedOn: daysFromNow(-20), supervisorId: trainerQA.id, initiatedById: trainerQA.id,
+      initiatedAt: daysFromNow(-20),
     },
   })
 
-  console.log('✅ 4 qualification records created (approved+certificate, in-progress, initiated, expired)')
+  console.log('✅ 4 qualification records created (approved+certificate, in-progress, initiated, revoked)')
 
   // ─── Notifications ───────────────────────────────────────────────
 
@@ -524,7 +522,7 @@ async function main() {
     { id: 'seeded-notif-1', personId: trainee1.id, type: NotificationType.ASSIGNMENT, title: 'New training assigned', message: 'You have been assigned: Data Integrity Awareness', isRead: false },
     { id: 'seeded-notif-2', personId: trainee2.id, type: NotificationType.FAILED, title: 'Assessment failed', message: 'Your GC Safety & Operation assessment was not passed. Retraining required.', isRead: false },
     { id: 'seeded-notif-3', personId: contractual.id, type: NotificationType.OVERDUE, title: 'Training overdue', message: 'GC Safety & Operation is overdue.', isRead: false },
-    { id: 'seeded-notif-4', personId: trainee1.id, type: NotificationType.QUALIFICATION_EXPIRY, title: 'Qualification expiring soon', message: 'Your HPLC Analysis qualification expires in under a year.', isRead: true },
+    { id: 'seeded-notif-4', personId: trainee1.id, type: NotificationType.ASSIGNMENT, title: 'Qualification approved', message: 'You are now qualified on "HPLC Analysis". Certificate issued.', isRead: true },
   ]
   for (const n of notifData) {
     await prisma.notification.upsert({

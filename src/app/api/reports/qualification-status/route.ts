@@ -34,8 +34,7 @@ export async function GET(req: NextRequest) {
   if (format === 'csv') {
     const headers = [
       'Employee ID', 'Name', 'Department', 'Technique',
-      'Status', 'Outcome', 'Approved date', 'Expiry date',
-      'Days to expiry', 'Certificate no.',
+      'Status', 'Outcome', 'Approved date', 'Certificate no.',
     ]
     const csvRows = rows.map((r) => [
       r.person.employeeId,
@@ -45,8 +44,6 @@ export async function GET(req: NextRequest) {
       r.status,
       r.outcome          ?? '',
       r.approvedAt?.toLocaleDateString('en-IN') ?? '',
-      r.expiryDate?.toLocaleDateString('en-IN') ?? '',
-      r.daysToExpiry?.toString() ?? '',
       r.certNumber ?? '',
     ])
 

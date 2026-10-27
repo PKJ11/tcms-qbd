@@ -51,7 +51,6 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
   INITIATED:   { bg: '#f5f3ff', color: '#6d28d9', label: 'Initiated'   },
   IN_PROGRESS: { bg: '#eff6ff', color: '#1d4ed8', label: 'In progress' },
   APPROVED:    { bg: '#f0fdf4', color: '#166534', label: 'Approved'    },
-  EXPIRED:     { bg: '#fef2f2', color: '#dc2626', label: 'Expired'     },
   REVOKED:     { bg: '#f9fafb', color: '#6b7280', label: 'Revoked'     },
 }
 

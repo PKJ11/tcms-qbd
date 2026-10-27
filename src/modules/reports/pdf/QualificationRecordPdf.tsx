@@ -13,7 +13,6 @@ interface QualificationRecordPdfData {
   performedOn: Date | null
   initiatedAt: Date
   approvedAt:  Date | null
-  expiryDate:  Date | null
   person:      { name: string; employeeId: string; department: { name: string } | null }
   technique:   { name: string; code: string; type: string }
   supervisor:  { name: string } | null
@@ -118,13 +117,9 @@ export function QualificationRecordPdf({
             <Text style={s.kvLabel}>Initiated at</Text>
             <Text style={s.kvValue}>{formatDate(qual.initiatedAt)}</Text>
           </View>
-          <View style={[s.kvItem, { borderBottomWidth: 0 }]}>
+          <View style={[s.kvItem, { width: '100%', borderRightWidth: 0, borderBottomWidth: 0 }]}>
             <Text style={s.kvLabel}>Approved at</Text>
             <Text style={s.kvValue}>{formatDate(qual.approvedAt)}</Text>
-          </View>
-          <View style={[s.kvItem, { borderRightWidth: 0, borderBottomWidth: 0 }]}>
-            <Text style={s.kvLabel}>Expiry date</Text>
-            <Text style={s.kvValue}>{formatDate(qual.expiryDate)}</Text>
           </View>
         </View>
 

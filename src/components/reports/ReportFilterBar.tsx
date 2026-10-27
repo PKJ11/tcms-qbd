@@ -8,7 +8,7 @@ export interface DateRangeValue {
 export const EMPTY_DATE_RANGE: DateRangeValue = { from: '', to: '' }
 
 export interface DateFilterConfig {
-  key:   string  // e.g. 'assigned' | 'due' | 'completed' | 'approved' | 'expiry'
+  key:   string  // e.g. 'assigned' | 'due' | 'completed' | 'approved'
   label: string  // e.g. 'Assigned date'
 }
 

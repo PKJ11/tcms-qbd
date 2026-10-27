@@ -14,7 +14,6 @@ interface Person {
   qualificationRecords: {
     id:          string
     status:      string
-    expiryDate:  Date | null
     techniqueId: string
   }[]
 }
@@ -27,7 +26,6 @@ interface Technique {
 
 const STATUS_LABEL: Record<string, string> = {
   APPROVED:    'Qualified',
-  EXPIRED:     'Expired',
   IN_PROGRESS: 'In progress',
   INITIATED:   'Initiated',
   NONE:        '—',
@@ -35,12 +33,6 @@ const STATUS_LABEL: Record<string, string> = {
 
 function cellLabel(qual: Person['qualificationRecords'][number] | undefined): string {
   if (!qual) return STATUS_LABEL.NONE
-
-  const isExpiringSoon = qual.status === 'APPROVED' && qual.expiryDate
-    ? new Date(qual.expiryDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    : false
-
-  if (isExpiringSoon) return 'Expiring soon'
   return STATUS_LABEL[qual.status] ?? qual.status
 }
 

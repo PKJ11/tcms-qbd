@@ -33,7 +33,6 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
   INITIATED:   { bg: '#f5f3ff', color: '#6d28d9', label: 'Initiated'   },
   IN_PROGRESS: { bg: '#eff6ff', color: '#1d4ed8', label: 'In progress' },
   APPROVED:    { bg: '#f0fdf4', color: '#166534', label: 'Approved'    },
-  EXPIRED:     { bg: '#fef2f2', color: '#dc2626', label: 'Expired'     },
   REVOKED:     { bg: '#f9fafb', color: '#6b7280', label: 'Revoked'     },
 }
 
@@ -129,7 +128,6 @@ export function QualificationsList({ canCreate }: Props) {
           <option value="INITIATED">Initiated</option>
           <option value="IN_PROGRESS">In progress</option>
           <option value="APPROVED">Approved</option>
-          <option value="EXPIRED">Expired</option>
           <option value="REVOKED">Revoked</option>
         </select>
 
@@ -195,9 +193,7 @@ export function QualificationsList({ canCreate }: Props) {
                 onClick={() => router.push(`/qualifications/${q.id}`)}
                 onKeyDown={(e) => { if (e.key === 'Enter') router.push(`/qualifications/${q.id}`) }}
                 className="bg-white rounded-xl border p-5 cursor-pointer hover:shadow-sm transition-shadow"
-                style={{
-                  borderColor: q.status === 'EXPIRED' ? '#fecaca' : '#e5e7eb',
-                }}
+                style={{ borderColor: '#e5e7eb' }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">

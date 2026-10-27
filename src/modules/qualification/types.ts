@@ -1,4 +1,4 @@
-export type QualStatus  = 'INITIATED' | 'IN_PROGRESS' | 'APPROVED' | 'EXPIRED' | 'REVOKED'
+export type QualStatus  = 'INITIATED' | 'IN_PROGRESS' | 'APPROVED' | 'REVOKED'
 export type QualOutcome = 'COMPETENT' | 'NOT_YET_COMPETENT'
 export type TechniqueType = 'METHOD' | 'INSTRUMENT' | 'TECHNIQUE'
 export type SignatoryRole   = 'QC_TRAINER' | 'QA_TRAINER'
@@ -27,7 +27,6 @@ export interface QualificationListItem {
   performedOn:   Date | null
   initiatedAt:   Date
   approvedAt:    Date | null
-  expiryDate:    Date | null
   createdAt:     Date
   person: {
     id:         string

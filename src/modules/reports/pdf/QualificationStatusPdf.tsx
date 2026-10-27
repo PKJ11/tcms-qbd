@@ -9,15 +9,13 @@ import type { QualificationStatusRow } from '../types'
 const FORMAT_NO = 'URS-RPT-004'
 
 const COLUMNS: PdfTableColumn[] = [
-  { key: 'name',       header: 'Person',          width: '18%' },
-  { key: 'department', header: 'Department',      width: '13%' },
-  { key: 'technique',  header: 'Technique',       width: '15%' },
+  { key: 'name',       header: 'Person',          width: '22%' },
+  { key: 'department', header: 'Department',      width: '15%' },
+  { key: 'technique',  header: 'Technique',       width: '19%' },
   { key: 'status',     header: 'Status',          width: '10%' },
-  { key: 'outcome',    header: 'Outcome',         width: '9%'  },
-  { key: 'approved',   header: 'Approved date',   width: '10%' },
-  { key: 'expiry',     header: 'Expiry date',     width: '10%' },
-  { key: 'daysLeft',   header: 'Days left',       width: '7%'  },
-  { key: 'cert',       header: 'Certificate no.', width: '8%'  },
+  { key: 'outcome',    header: 'Outcome',         width: '10%' },
+  { key: 'approved',   header: 'Approved date',   width: '12%' },
+  { key: 'cert',       header: 'Certificate no.', width: '12%' },
 ]
 
 export function QualificationStatusPdf({
@@ -34,8 +32,6 @@ export function QualificationStatusPdf({
     status:     r.status,
     outcome:    r.outcome ?? '—',
     approved:   formatDate(r.approvedAt),
-    expiry:     formatDate(r.expiryDate),
-    daysLeft:   r.daysToExpiry?.toString() ?? '—',
     cert:       r.certNumber ?? '—',
   }))
 

@@ -101,7 +101,7 @@ async function TrainingHeadDashboard({ userId }: { userId: string }) {
         <StatCard label="Active personnel"    value={stats.totalPersons}       color="#1d4ed8" href="/personnel"       />
         <StatCard label="Overdue trainings"   value={stats.overdueAssignments} color="#dc2626" href="/reports"         />
         <StatCard label="Pending approvals"   value={stats.pendingApprovals}   color="#854d0e" href="/content"         />
-        <StatCard label="Expiring quals"      value={stats.expiringQuals}      color="#c2410c" href="/qualifications"  />
+        <StatCard label="Active quals"        value={stats.activeQualifications} color="#c2410c" href="/qualifications"  />
         <StatCard label="Completed (month)"   value={stats.completedThisMonth} color="#166534"                        />
       </div>
 

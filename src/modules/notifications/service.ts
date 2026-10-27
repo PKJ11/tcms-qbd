@@ -10,7 +10,6 @@ const EMAIL_SUBJECTS: Record<NotificationType, string> = {
   OVERDUE:             'Training overdue — TCMS',
   FAILED:              'Assessment not passed — TCMS',
   RETRAINING:          'Retraining required — TCMS',
-  QUALIFICATION_EXPIRY: 'Qualification expiring — TCMS',
   PASSWORD_RESET:       'Your TCMS password has been reset',
   DOCUMENT_UPDATED:     'Training document updated — TCMS',
 }
@@ -351,48 +350,6 @@ export async function scanAndNotifyOverdue(): Promise<{
         },
       })
     }
-  }
-
-  // ── Qualification expiry (within 30 days) ──────────────────────
-  const expiringQuals = await prisma.qualificationRecord.findMany({
-    where: {
-      status:     'APPROVED',
-      expiryDate: {
-        lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        gte: now,
-      },
-    },
-    select: {
-      personId:  true,
-      expiryDate: true,
-      technique: { select: { name: true } },
-    },
-  })
-
-  for (const qual of expiringQuals) {
-    const alreadySent = await prisma.notification.findFirst({
-      where: {
-        personId: qual.personId,
-        type:     'QUALIFICATION_EXPIRY',
-        message:  { contains: qual.technique.name },
-        sentAt:   { gte: new Date(new Date().setDate(new Date().getDate() - 7)) },
-      },
-    })
-    if (alreadySent) continue
-
-    const daysLeft = Math.ceil(
-      (qual.expiryDate!.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-    )
-
-    await prisma.notification.create({
-      data: {
-        personId: qual.personId,
-        type:     'QUALIFICATION_EXPIRY',
-        channel:  'IN_APP',
-        title:    'Qualification expiring soon',
-        message:  `Your qualification on "${qual.technique.name}" expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. Please initiate re-qualification.`,
-      },
-    })
   }
 
   return { dueSoon: dueSoonCount, overdue: overdueCount }

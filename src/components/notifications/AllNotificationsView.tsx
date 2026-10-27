@@ -19,7 +19,6 @@ const TYPE_STYLES: Record<string, { label: string; bg: string; color: string; ic
   OVERDUE:             { label: 'Overdue',       bg: '#fef2f2', color: '#dc2626', icon: '🚨' },
   FAILED:              { label: 'Failed',        bg: '#fef2f2', color: '#dc2626', icon: '❌' },
   RETRAINING:          { label: 'Retraining',    bg: '#fff7ed', color: '#c2410c', icon: '🔄' },
-  QUALIFICATION_EXPIRY: { label: 'Expiry',        bg: '#fefce8', color: '#854d0e', icon: '⚠️' },
   PASSWORD_RESET:       { label: 'Password',      bg: '#f5f3ff', color: '#6d28d9', icon: '🔑' },
   DOCUMENT_UPDATED:     { label: 'Document',      bg: '#eff6ff', color: '#1d4ed8', icon: '📄' },
   ASSIGNMENT_WITHDRAWN: { label: 'Withdrawn',     bg: '#fef2f2', color: '#dc2626', icon: '🚫' },

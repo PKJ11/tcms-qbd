@@ -10,7 +10,6 @@ interface Person {
   qualificationRecords: {
     id:          string
     status:      string
-    expiryDate:  string | null
     techniqueId: string
   }[]
 }
@@ -28,7 +27,6 @@ interface Props {
 
 const CELL_STYLES: Record<string, { bg: string; color: string; label: string }> = {
   APPROVED:    { bg: '#f0fdf4', color: '#166534', label: 'Qualified'   },
-  EXPIRED:     { bg: '#fef2f2', color: '#dc2626', label: 'Expired'     },
   IN_PROGRESS: { bg: '#eff6ff', color: '#1d4ed8', label: 'In progress' },
   INITIATED:   { bg: '#f5f3ff', color: '#6d28d9', label: 'Initiated'   },
   NONE:        { bg: '#f9fafb', color: '#9ca3af', label: '—'           },
@@ -168,24 +166,15 @@ export function CompetencyMatrix({ isOrgWide, isSubScope }: Props) {
                     )
 
                     const status = qual?.status ?? 'NONE'
-
-                    // Check if expiring within 30 days
-                    const isExpiringSoon = qual?.status === 'APPROVED' && qual.expiryDate
-                      ? new Date(qual.expiryDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-                      : false
-
-                    const style = isExpiringSoon
-                      ? { bg: '#fefce8', color: '#854d0e', label: 'Expiring soon' }
-                      : (CELL_STYLES[status] ?? CELL_STYLES.NONE)
+                    const style  = CELL_STYLES[status] ?? CELL_STYLES.NONE
 
                     return (
                       <td key={t.id} className="px-3 py-3 text-center">
                         <div
                           className="inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium mx-auto"
                           style={{ background: style.bg, color: style.color, minWidth: '80px' }}
-                          title={isExpiringSoon ? `Expires: ${qual?.expiryDate}` : undefined}
                         >
-                          {isExpiringSoon ? 'Expiring ⚠️' : style.label}
+                          {style.label}
                         </div>
                       </td>
                     )

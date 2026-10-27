@@ -39,7 +39,6 @@ const QUALIFICATION_SELECT = {
   performedOn: true,
   initiatedAt: true,
   approvedAt:  true,
-  expiryDate:  true,
   createdAt:   true,
   person: {
     select: {
@@ -193,15 +192,6 @@ export async function getQualifications(filters?: {
   fromDate?:           string   // 'YYYY-MM-DD' — period filter on initiatedAt, lower bound
   toDate?:             string   // 'YYYY-MM-DD' — period filter on initiatedAt, upper bound
 }) {
-  // Auto-expire overdue qualifications
-  await prisma.qualificationRecord.updateMany({
-    where: {
-      status:     'APPROVED',
-      expiryDate: { lt: new Date() },
-    },
-    data: { status: 'EXPIRED' },
-  })
-
   const where: Record<string, unknown> = {}
 
   if (filters?.relevantToId) {
@@ -565,7 +555,6 @@ export async function signQualification(
           personId:   qual.person.id,
           issuedById: actorId,
           fileUrl:    `certificates/${qualificationId}-${certNumber}.pdf`,
-          validUntil: null,
         },
       })
 
@@ -773,14 +762,6 @@ export async function getCompetencyMatrix(filters?: {
   sectionId?:      string
   subordinateIds?: string[]   // ← new
 }) {
-  await prisma.qualificationRecord.updateMany({
-    where: {
-      status:     'APPROVED',
-      expiryDate: { lt: new Date() },
-    },
-    data: { status: 'EXPIRED' },
-  })
-
   const persons = await prisma.person.findMany({
     where: {
       isActive: true,
@@ -802,7 +783,6 @@ export async function getCompetencyMatrix(filters?: {
         select: {
           id:          true,
           status:      true,
-          expiryDate:  true,
           techniqueId: true,
         },
       },
@@ -817,24 +797,6 @@ export async function getCompetencyMatrix(filters?: {
   })
 
   return { persons, techniques }
-}
-
-// ── Upcoming expiries (for dashboard alerts) ──────────────────────
-
-export async function getUpcomingExpiries(daysAhead: number = 30) {
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() + daysAhead)
-
-  return prisma.qualificationRecord.findMany({
-    where: {
-      status:     'APPROVED',
-      expiryDate: { lte: cutoff, gte: new Date() },
-    },
-    select: {
-      ...QUALIFICATION_SELECT,
-    },
-    orderBy: { expiryDate: 'asc' },
-  })
 }
 
 // ── Get persons and techniques for form dropdowns ─────────────────

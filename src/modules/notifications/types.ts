@@ -4,7 +4,6 @@ export type NotificationType =
   | 'OVERDUE'
   | 'FAILED'
   | 'RETRAINING'
-  | 'QUALIFICATION_EXPIRY'
   | 'PASSWORD_RESET'
   | 'DOCUMENT_UPDATED'
 

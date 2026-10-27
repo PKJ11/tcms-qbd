@@ -11,7 +11,6 @@ export {
   getScannedDocumentUrl,
   getCertificateUrl,
   getCompetencyMatrix,
-  getUpcomingExpiries,
   getPersonsAndTechniques,
   getEligibleSignatories,
   assignSignatory,

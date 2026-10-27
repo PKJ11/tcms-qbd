@@ -296,8 +296,6 @@ export async function getQualificationStatusBoard(filters?: {
   status?:       string
   subordinateIds?: string[]
 }): Promise<QualificationStatusRow[]> {
-  const now = new Date()
-
   // ── Fix Bug 2: cast status to QualStatus enum ─────────────────
   const statusFilter = filters?.status as QualStatus | undefined
 
@@ -321,7 +319,6 @@ export async function getQualificationStatusBoard(filters?: {
       status:     true,
       outcome:    true,
       approvedAt: true,
-      expiryDate: true,
       // ── Fix Bug 3: select person object not personId ──────────
       person: {
         select: {
@@ -334,10 +331,7 @@ export async function getQualificationStatusBoard(filters?: {
       technique:   { select: { name: true } },
       certificate: { select: { certNumber: true } },
     },
-    orderBy: [
-      { expiryDate: 'asc' },
-      { person:     { name: 'asc' } },
-    ],
+    orderBy: { person: { name: 'asc' } },
   })
 
   return qualifications.map((q) => ({
@@ -351,10 +345,6 @@ export async function getQualificationStatusBoard(filters?: {
     status:       q.status,
     outcome:      q.outcome,
     approvedAt:   q.approvedAt,
-    expiryDate:   q.expiryDate,
-    daysToExpiry: q.expiryDate
-      ? Math.ceil((q.expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-      : null,
     certNumber:   q.certificate?.certNumber ?? null,
   }))
 }
@@ -374,7 +364,6 @@ export async function getTrainingHeadStats() {
     overdueAssignments,
     completedThisMonth,
     activeQualifications,
-    expiringQuals,
     pendingRefreshers,
     failedAssessments,
   ] = await Promise.all([
@@ -398,15 +387,6 @@ export async function getTrainingHeadStats() {
       },
     }),
     prisma.qualificationRecord.count({ where: { status: 'APPROVED' } }),
-    prisma.qualificationRecord.count({
-      where: {
-        status:     'APPROVED',
-        expiryDate: {
-          lte: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
-          gte: now,
-        },
-      },
-    }),
     prisma.refresherTrigger.count({
       where: { status: { in: ['PENDING', 'OVERDUE'] } },
     }),
@@ -421,7 +401,6 @@ export async function getTrainingHeadStats() {
     overdueAssignments,
     completedThisMonth,
     activeQualifications,
-    expiringQuals,
     pendingRefreshers,
     failedAssessments,
   }
