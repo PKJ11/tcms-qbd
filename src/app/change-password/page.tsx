@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { NoSavePasswordInput } from '@/components/shared/NoSavePasswordInput'
 
 export default function ChangePasswordPage() {
   const router          = useRouter()
@@ -110,8 +111,7 @@ export default function ChangePasswordPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Current Password
               </label>
-              <input
-                type="password"
+              <NoSavePasswordInput
                 required
                 value={current}
                 onChange={(e) => setCurrent(e.target.value)}
@@ -127,8 +127,7 @@ export default function ChangePasswordPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 New Password
               </label>
-              <input
-                type="password"
+              <NoSavePasswordInput
                 required
                 value={newPass}
                 onChange={(e) => setNewPass(e.target.value)}
@@ -144,8 +143,7 @@ export default function ChangePasswordPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Confirm New Password
               </label>
-              <input
-                type="password"
+              <NoSavePasswordInput
                 required
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}

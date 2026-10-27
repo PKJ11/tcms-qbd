@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { NoSavePasswordInput } from '@/components/shared/NoSavePasswordInput'
 
 interface JustificationModalProps {
   isOpen:      boolean
@@ -149,14 +150,12 @@ export function JustificationModal({
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Confirm your password <span className="text-red-500">*</span>
               </label>
-              <input
-                type="password"
+              <NoSavePasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Your account password"
                 className="w-full px-3 py-2.5 rounded-lg border text-sm outline-none"
                 style={{ borderColor: '#d1d5db' }}
-                autoComplete="current-password"
               />
             </div>
           )}

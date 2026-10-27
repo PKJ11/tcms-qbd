@@ -8,6 +8,7 @@ import {
   isSafeInternalPath,
   readLastUserHint,
 } from '@/lib/work-drafts'
+import { NoSavePasswordInput } from '@/components/shared/NoSavePasswordInput'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -223,7 +224,7 @@ export default function LoginPage() {
                 <input
                   id="employeeId"
                   type="text"
-                  autoComplete="username"
+                  autoComplete="off"
                   autoFocus
                   required
                   value={form.employeeId}
@@ -255,10 +256,8 @@ export default function LoginPage() {
               >
                 Password
               </label>
-              <input
+              <NoSavePasswordInput
                 id="password"
-                type="password"
-                autoComplete="current-password"
                 autoFocus={!!welcomeBack}
                 required
                 value={form.password}
