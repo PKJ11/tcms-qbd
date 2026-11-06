@@ -17,6 +17,29 @@ import type { Prisma } from '@prisma/client'
 import { syncRefresherCompletion } from '@/modules/refresher'
 import { assertTopicContentAccess } from '@/modules/topics'
 import { PASSING_PERCENTAGE, QUESTIONS_PER_ATTEMPT, MAX_ATTEMPTS } from './constants'
+import { selectAttemptQuestions } from './selection'
+
+// Resolve the question bank from the version pinned on an assignment. The
+// client also sends a bankId; it must match, but is never used to look the
+// bank up, so a trainee can't borrow another bank's attempt limit or pass mark.
+async function getPinnedBank(pinnedVersionId: string, clientBankId?: string) {
+  const version = await prisma.questionBankVersion.findUnique({
+    where:  { id: pinnedVersionId },
+    select: {
+      bank: {
+        select: {
+          id: true, passingPercentage: true, questionsPerAttempt: true,
+          maxAttempts: true, isActive: true,
+        },
+      },
+    },
+  })
+  if (!version) throw new Error('Questions not found')
+  if (clientBankId && clientBankId !== version.bank.id) {
+    throw new Error('This assessment does not belong to the assignment')
+  }
+  return version.bank
+}
 
 // ─────────────────────────────────────────────────────────────────
 // QUESTION BANK MANAGEMENT
@@ -170,17 +193,6 @@ export async function getAttemptQuestions(
   attemptNo: number
   attemptsRemaining: number
 }> {
-  const bank = await prisma.questionBank.findUnique({
-    where:  { id: bankId },
-    select: {
-      id: true, passingPercentage: true, questionsPerAttempt: true,
-      maxAttempts: true, isActive: true,
-    },
-  })
-
-  if (!bank)            throw new Error('Questions not found')
-  if (!bank.isActive)   throw new Error('This assessment is currently inactive')
-
   // Verify assignment belongs to this person and is in valid state
   const assignment = await prisma.trainingAssignment.findUnique({
     where:  { id: assignmentId },
@@ -197,6 +209,11 @@ export async function getAttemptQuestions(
   if (assignment.personId !== personId) throw new Error('Not authorised')
   if (assignment.status === 'COMPLETED') throw new Error('This training is already completed')
   if (!assignment.questionBankVersionId) throw new Error('No question version is pinned for this assignment')
+
+  // The bank always comes from the version pinned on the assignment — never
+  // from the client — so attempt limits and the pass mark can't be swapped.
+  const bank = await getPinnedBank(assignment.questionBankVersionId, bankId)
+  if (!bank.isActive) throw new Error('This assessment is currently inactive')
 
   // Always draw from the version pinned at assignment time, never whatever
   // the bank currently looks like — that's what makes an attempt traceable.
@@ -217,18 +234,22 @@ export async function getAttemptQuestions(
     }
   }
 
-  // Check attempt count
+  // Check attempt count (every attempt on this assignment, whatever bankId
+  // the client sends)
   const previousAttempts = await prisma.assessmentAttempt.count({
-    where: { personId, bankId, assignmentId },
+    where: { personId, assignmentId },
   })
 
   if (previousAttempts >= bank.maxAttempts) {
     throw new Error('Maximum attempts exceeded. Please contact your Training Coordinator.')
   }
 
-  // Randomly select N questions from the active pool of the pinned version
-  const shuffled = [...version.questions].sort(() => Math.random() - 0.5)
-  const selected = shuffled.slice(0, Math.min(bank.questionsPerAttempt, shuffled.length))
+  // Select N questions from the active pool of the pinned version. The draw
+  // is deterministic per (assignment, attempt) so submitAttempt can re-derive
+  // exactly which questions were issued and grade all of them.
+  const selected = selectAttemptQuestions(
+    version.questions, bank.questionsPerAttempt, assignmentId, previousAttempts + 1,
+  )
 
   // Strip correct answers before sending to client
   const safeQuestions: QuestionItemSafe[] = selected.map((q) => ({
@@ -387,28 +408,28 @@ export async function submitAttempt(
     }
   }
 
-  const bank = await prisma.questionBank.findUnique({
-    where:  { id: input.bankId },
-    select: { id: true, passingPercentage: true, maxAttempts: true },
-  })
-  if (!bank) throw new Error('Questions not found')
+  // Bank comes from the pinned version, never from the client
+  const bank = await getPinnedBank(assignment.questionBankVersionId, input.bankId)
 
   // Re-check attempt limit server-side (never trust the client)
   const previousAttempts = await prisma.assessmentAttempt.count({
-    where: { personId: actorId, bankId: input.bankId, assignmentId: input.assignmentId },
+    where: { personId: actorId, assignmentId: input.assignmentId },
   })
   if (previousAttempts >= bank.maxAttempts) {
     throw new Error('Maximum attempts exceeded')
   }
+  const attemptNo = previousAttempts + 1
 
-  // Fetch correct answers for ONLY the questions that were actually answered,
-  // scoped to the version pinned on the assignment — never whatever the bank
-  // currently looks like — so grading always matches what the trainee saw.
-  const questionIds = Object.keys(input.answers)
-  const questions    = await prisma.question.findMany({
-    where:  { id: { in: questionIds }, bankVersionId: assignment.questionBankVersionId },
+  // Re-derive exactly the questions issued for this attempt (same
+  // deterministic draw as getAttemptQuestions) from the version pinned on the
+  // assignment, and grade against ALL of them. Answers to questions that were
+  // not issued are ignored; an issued question left unanswered counts as wrong.
+  const pool = await prisma.question.findMany({
+    where:  { bankVersionId: assignment.questionBankVersionId, isActive: true },
     select: { id: true, correctAnswer: true },
   })
+  if (pool.length === 0) throw new Error('No questions available')
+  const questions = selectAttemptQuestions(pool, bank.questionsPerAttempt, input.assignmentId, attemptNo)
 
   // Grade — pure server-side calculation
   let correctCount = 0
@@ -417,7 +438,13 @@ export async function submitAttempt(
   }
   const totalCount = questions.length
   const score      = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0
-  const attemptNo  = previousAttempts + 1
+
+  // Persist only the answers to issued questions, so the stored record
+  // matches exactly what was graded
+  const issuedAnswers: Record<string, string> = {}
+  for (const q of questions) {
+    if (input.answers[q.id] !== undefined) issuedAnswers[q.id] = input.answers[q.id]
+  }
   const passed     = score >= bank.passingPercentage
 
   // Determine outcome
@@ -435,13 +462,13 @@ export async function submitAttempt(
     await tx.assessmentAttempt.create({
       data: {
         personId:      actorId,
-        bankId:        input.bankId,
+        bankId:        bank.id,
         bankVersionId: assignment.questionBankVersionId!,
         assignmentId:  input.assignmentId,
         attemptNo,
         score,
         outcome,
-        answers:       input.answers,
+        answers:       issuedAnswers,
         startedAt:     new Date(input.startedAt),
         submittedAt:   new Date(),
       },
@@ -590,14 +617,10 @@ export async function submitOralAttempt(
   if (!assignment) throw new Error('Assignment not found')
   if (!assignment.questionBankVersionId) throw new Error('No question version is pinned for this assignment')
 
-  const bank = await prisma.questionBank.findUnique({
-    where:  { id: input.bankId },
-    select: { id: true, maxAttempts: true, passingPercentage: true },
-  })
-  if (!bank) throw new Error('Assessment questions not found')
+  const bank = await getPinnedBank(assignment.questionBankVersionId, input.bankId)
 
   const previousAttempts = await prisma.assessmentAttempt.count({
-    where: { personId: assignment.personId, bankId: input.bankId, assignmentId: input.assignmentId },
+    where: { personId: assignment.personId, assignmentId: input.assignmentId },
   })
 
   if (previousAttempts >= bank.maxAttempts) {
@@ -621,7 +644,7 @@ export async function submitOralAttempt(
     await tx.assessmentAttempt.create({
       data: {
         personId:      assignment.personId,
-        bankId:        input.bankId,
+        bankId:        bank.id,
         bankVersionId: assignment.questionBankVersionId!,
         assignmentId:  input.assignmentId,
         attemptNo,

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getQuestionBankVersionQuestions } from '@/modules/assessment'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
-// Read-only drill-down into a historical version's exact question set —
-// trainer + viewer both need this for traceability, no extra role gate.
+// Read-only drill-down into a historical version's exact question set,
+// including correct answers — trainer + viewer (and admin) need this for
+// traceability; trainees and contractual employees must never reach it.
 export async function GET(
   _req: NextRequest,
   { params }: { params: { versionId: string } }
@@ -11,6 +13,9 @@ export async function GET(
   const session = await getSession()
   if (!session) {
     return NextResponse.json({ message: 'Unauthorised' }, { status: 401 })
+  }
+  if (!hasAnyRole(session.user, PERMISSIONS.VIEW_REPORTS)) {
+    return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
   try {

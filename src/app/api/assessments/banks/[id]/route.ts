@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getQuestionBankByTopic } from '@/modules/assessment'
 import { prisma } from '@/lib/prisma'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+import { redactBankForViewer } from '@/modules/assessment/redact'
 
 export async function GET(
   _req: NextRequest,
@@ -20,5 +22,8 @@ export async function GET(
   if (!bank) return NextResponse.json({ message: 'Not found' }, { status: 404 })
 
   const fullBank = await getQuestionBankByTopic(bank.topicId)
-  return NextResponse.json({ bank: fullBank })
+
+  // Questions (and their correct answers) are only for content authors.
+  const canSeeQuestions = hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)
+  return NextResponse.json({ bank: canSeeQuestions ? fullBank : redactBankForViewer(fullBank) })
 }

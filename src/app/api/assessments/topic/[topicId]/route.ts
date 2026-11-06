@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getQuestionBankByTopic } from '@/modules/assessment'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
+import { redactBankForViewer } from '@/modules/assessment/redact'
 
 export async function GET(
   _req: NextRequest,
@@ -12,5 +14,9 @@ export async function GET(
   }
 
   const bank = await getQuestionBankByTopic(params.topicId)
-  return NextResponse.json({ bank })
+
+  // Questions (and their correct answers) are only for content authors.
+  // Everyone else — trainees in particular — gets the bank settings only.
+  const canSeeQuestions = hasAnyRole(session.user, PERMISSIONS.AUTHOR_CONTENT)
+  return NextResponse.json({ bank: canSeeQuestions ? bank : redactBankForViewer(bank) })
 }
