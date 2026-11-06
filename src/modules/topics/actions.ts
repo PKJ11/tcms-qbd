@@ -5,6 +5,7 @@ import { logAuditEvent } from '@/modules/audit-trail'
 import { getDepartmentTree } from '@/modules/organization'
 import { createTopicSchema, updateTopicSchema, isTrainingTypeDowngrade } from './schema'
 import type { CreateTopicInput, UpdateTopicInput, TopicScopeItem } from './types'
+import { resolveTopicFolders, folderNames } from './folders'
 
 // ── Shared select ─────────────────────────────────────────────────
 
@@ -41,7 +42,27 @@ const TOPIC_SELECT = {
       },
     },
   },
+  folderItems: {
+    select:  { folder: { select: { id: true, name: true } } },
+    orderBy: { folder: { name: 'asc' } },
+  },
 } as const
+
+// Log the creation of folders made on the fly while saving a topic
+async function auditNewFolders(created: { id: string; name: string }[], topicName: string, justification: string, actorId: string) {
+  for (const f of created) {
+    await logAuditEvent({
+      userId:        actorId,
+      action:        'CREATE',
+      module:        'TRAINING_TOPIC',
+      recordId:      f.id,
+      recordType:    'TopicFolder',
+      beforeValue:   null,
+      afterValue:    { name: f.name },
+      justification: `Folder created while filing topic "${topicName}": ${justification}`,
+    })
+  }
+}
 
 // Validate every scope's department/unit/section actually exist and nest correctly
 async function validateScopes(scopes: TopicScopeItem[]) {
@@ -72,8 +93,15 @@ export async function getTopics(filters?: {
   departmentId?: string
   isActive?:     boolean
   search?:       string
+  folderId?:     string   // a folder id, or 'none' for topics in no folder
 }) {
   const where: Record<string, unknown> = {}
+
+  if (filters?.folderId === 'none') {
+    where.folderItems = { none: {} }
+  } else if (filters?.folderId) {
+    where.folderItems = { some: { folderId: filters.folderId } }
+  }
 
   if (filters?.isActive !== undefined) {
     where.isActive = filters.isActive
@@ -178,8 +206,15 @@ export async function createTopic(
       })),
     })
 
-    return created
+    const folders = await resolveTopicFolders(tx, parsed.data.folderIds, parsed.data.newFolderNames, actorId)
+    await tx.topicFolderItem.createMany({
+      data: folders.ids.map((folderId) => ({ folderId, topicId: created.id })),
+    })
+
+    return { ...created, folders, folderNames: await folderNames(tx, folders.ids) }
   })
+
+  await auditNewFolders(topic.folders.created, topic.name, justification, actorId)
 
   // Audit log
   await logAuditEvent({
@@ -195,11 +230,12 @@ export async function createTopic(
       sopReference: input.sopReference,
       trainingType: input.trainingType ?? 'MATERIAL_MCQ',
       scopes:       input.scopes,
+      folders:      topic.folderNames,
     },
     justification,
   })
 
-  return topic
+  return { id: topic.id, name: topic.name }
 }
 
 // ── Update topic ──────────────────────────────────────────────────
@@ -229,9 +265,12 @@ export async function updateTopic(
       topicScopes: {
         select: { departmentId: true, unitId: true, sectionId: true },
       },
+      folderItems: { select: { folder: { select: { name: true } } } },
     },
   })
   if (!before) throw new Error('Topic not found')
+  const foldersBefore = before.folderItems.map((i) => i.folder.name).sort()
+  const changeFolders = input.folderIds !== undefined || input.newFolderNames !== undefined
 
   // Training type is upgrade-only: Acknowledgement → Material → Material + MCQ
   if (input.trainingType !== undefined && isTrainingTypeDowngrade(before.trainingType, input.trainingType)) {
@@ -268,8 +307,21 @@ export async function updateTopic(
       })
     }
 
-    return updated
+    // Replace folder filing if provided
+    let folders: { ids: string[]; created: { id: string; name: string }[] } | null = null
+    if (changeFolders) {
+      folders = await resolveTopicFolders(tx, input.folderIds ?? [], input.newFolderNames ?? [], actorId)
+      await tx.topicFolderItem.deleteMany({ where: { topicId: id, folderId: { notIn: folders.ids } } })
+      await tx.topicFolderItem.createMany({
+        data:           folders.ids.map((folderId) => ({ folderId, topicId: id })),
+        skipDuplicates: true,
+      })
+    }
+
+    return { ...updated, folders, folderNames: folders ? await folderNames(tx, folders.ids) : foldersBefore }
   })
+
+  if (after.folders) await auditNewFolders(after.folders.created, after.name, justification, actorId)
 
   // Audit log
   await logAuditEvent({
@@ -285,6 +337,7 @@ export async function updateTopic(
       trainingType: before.trainingType,
       isActive:     before.isActive,
       scopes:       before.topicScopes,
+      folders:      foldersBefore,
     },
     afterValue:    {
       name:         input.name         ?? before.name,
@@ -293,11 +346,12 @@ export async function updateTopic(
       trainingType: input.trainingType ?? before.trainingType,
       isActive:     input.isActive     ?? before.isActive,
       scopes:       input.scopes       ?? before.topicScopes,
+      folders:      after.folderNames,
     },
     justification,
   })
 
-  return after
+  return { id: after.id, name: after.name }
 }
 
 // ── Deactivate topic ──────────────────────────────────────────────

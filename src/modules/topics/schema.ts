@@ -47,7 +47,16 @@ export const createTopicSchema = z.object({
   scopes: z
     .array(scopeSchema)
     .default([]),
+
+  // Folders the topic is filed under: existing folder ids and/or names of new
+  // folders to create. At least one folder overall is required.
+  folderIds:      z.array(z.string().min(1)).default([]),
+  newFolderNames: z.array(z.string().max(60, 'Folder name too long')).default([]),
 })
+  .refine(
+    (d) => d.folderIds.length + d.newFolderNames.filter((n) => n.trim()).length > 0,
+    { path: ['folderIds'], message: 'Choose at least one folder for this topic' },
+  )
   // Acknowledgement-only training has no material or assessment — the
   // description IS the statement trainees read and confirm they understood,
   // so it can't be left blank for this type.
@@ -87,4 +96,8 @@ export const updateTopicSchema = z.object({
   isActive: z
     .boolean()
     .optional(),
+
+  // When present, replaces the topic's folders (at least one required)
+  folderIds:      z.array(z.string().min(1)).optional(),
+  newFolderNames: z.array(z.string().max(60, 'Folder name too long')).optional(),
 })

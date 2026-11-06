@@ -6,6 +6,7 @@ import { JustificationModal } from '@/components/JustificationModal'
 import { useWorkDraft } from '@/hooks/useWorkDraft'
 import { TOPIC_NEW_DRAFT_KEY, TOPIC_NEW_DRAFT_SCHEMA } from '@/lib/work-drafts'
 import { TOPIC_TYPE_INFO } from './status'
+import { FolderPicker, type FolderOption } from './FolderPicker'
 
 interface Section    { id: string; name: string; code: string }
 interface Unit       { id: string; name: string; sections: Section[] }
@@ -18,7 +19,10 @@ interface Scope {
 }
 
 interface Props {
-  departments: Department[]
+  departments:       Department[]
+  folders:           FolderOption[]
+  initialFolderIds?: string[]
+  cancelHref?:       string
 }
 
 // Compulsory-scope targeting (department/unit/section) is not part of the
@@ -33,7 +37,7 @@ const TRAINING_TYPES = (Object.keys(TOPIC_TYPE_INFO) as (keyof typeof TOPIC_TYPE
   steps:       TOPIC_TYPE_INFO[value].steps,
 }))
 
-export function CreateTopicForm({ departments }: Props) {
+export function CreateTopicForm({ departments, folders, initialFolderIds = [], cancelHref = '/topics' }: Props) {
   const router = useRouter()
 
   const [name,         setName]         = useState('')
@@ -41,6 +45,8 @@ export function CreateTopicForm({ departments }: Props) {
   const [sopReference, setSopReference] = useState('')
   const [trainingType, setTrainingType] = useState('MATERIAL_MCQ')
   const [scopes,       setScopes]       = useState<Scope[]>([])
+  const [folderIds,      setFolderIds]      = useState<string[]>(initialFolderIds)
+  const [newFolderNames, setNewFolderNames] = useState<string[]>([])
 
   const [builderDeptId,    setBuilderDeptId]    = useState('')
   const [builderUnitId,    setBuilderUnitId]    = useState('')
@@ -59,21 +65,28 @@ export function CreateTopicForm({ departments }: Props) {
     builderDeptId:   string
     builderUnitId:   string
     builderSectionId: string
+    folderIds?:      string[]
+    newFolderNames?: string[]
   }
 
   const draft = useWorkDraft<TopicDraft>(TOPIC_NEW_DRAFT_KEY, {
     routePath:     '/topics/new',
     schemaVersion: TOPIC_NEW_DRAFT_SCHEMA,
     watch:         [name, description, sopReference, trainingType, scopes,
-                    builderDeptId, builderUnitId, builderSectionId],
+                    builderDeptId, builderUnitId, builderSectionId, folderIds, newFolderNames],
     snapshot: () => ({
       name, description, sopReference, trainingType, scopes,
-      builderDeptId, builderUnitId, builderSectionId,
+      builderDeptId, builderUnitId, builderSectionId, folderIds, newFolderNames,
     }),
     isEmpty: (s) =>
       !s.name?.trim() && !s.description?.trim() && !s.sopReference?.trim() &&
-      (s.scopes?.length ?? 0) === 0,
+      (s.scopes?.length ?? 0) === 0 &&
+      (s.folderIds?.length ?? 0) === 0 && (s.newFolderNames?.length ?? 0) === 0,
     onRestore: (s) => {
+      // drop any folder that was removed since the draft was saved; keep the
+      // folder the form was opened from
+      setFolderIds([...new Set([...initialFolderIds, ...(s.folderIds ?? [])])].filter((id) => folders.some((f) => f.id === id)))
+      setNewFolderNames(s.newFolderNames ?? [])
       setName(s.name ?? '')
       setDescription(s.description ?? '')
       setSopReference(s.sopReference ?? '')
@@ -136,6 +149,11 @@ export function CreateTopicForm({ departments }: Props) {
       return
     }
 
+    if (folderIds.length + newFolderNames.length === 0) {
+      setError('Choose at least one folder for this topic, or create a new one.')
+      return
+    }
+
     setModalOpen(true)
   }
 
@@ -153,6 +171,8 @@ export function CreateTopicForm({ departments }: Props) {
         sopReference: sopReference.trim() || undefined,
         trainingType,
         scopes,
+        folderIds,
+        newFolderNames,
         justification,
       }),
     })
@@ -246,6 +266,23 @@ export function CreateTopicForm({ departments }: Props) {
               style={inputStyle}
               onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
               onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
+            />
+          </div>
+
+          {/* Folders */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Folder(s) <span className="text-red-500">*</span>
+            </label>
+            <p className="text-xs text-gray-400 mb-2">
+              Where this topic appears on the Training Topics page. Pick one or more existing folders, or create a new one.
+            </p>
+            <FolderPicker
+              folders={folders}
+              selectedIds={folderIds}
+              onSelectedChange={(ids) => { setFolderIds(ids); setError(null) }}
+              newNames={newFolderNames}
+              onNewNamesChange={(names) => { setNewFolderNames(names); setError(null) }}
             />
           </div>
 
@@ -458,7 +495,7 @@ export function CreateTopicForm({ departments }: Props) {
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-2">
             <a
-              href="/topics"
+              href={cancelHref}
               className="px-4 py-2 rounded-lg text-sm border font-medium"
               style={{ borderColor: '#e5e7eb', color: '#374151' }}
             >
@@ -479,7 +516,10 @@ export function CreateTopicForm({ departments }: Props) {
       <JustificationModal
         isOpen={modalOpen}
         title="Confirm topic creation"
-        description={`Creating topic "${name}".`}
+        description={`Creating topic "${name}" in ${[
+          ...folders.filter((f) => folderIds.includes(f.id)).map((f) => f.name),
+          ...newFolderNames.map((n) => `${n} (new folder)`),
+        ].join(', ')}.`}
         onConfirm={handleConfirm}
         onCancel={() => setModalOpen(false)}
         loading={loading}

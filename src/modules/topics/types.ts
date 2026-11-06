@@ -32,6 +32,9 @@ export interface TopicListItem {
       _count: { questions: number }
     } | null
   } | null
+  folderItems: {
+    folder: { id: string; name: string }
+  }[]
 }
 
 export interface TopicDetail extends TopicListItem {
@@ -63,6 +66,8 @@ export interface CreateTopicInput {
   sopReference?: string
   trainingType?: TrainingType
   scopes:        TopicScopeItem[]
+  folderIds?:      string[]
+  newFolderNames?: string[]
 }
 
 export interface UpdateTopicInput {
@@ -72,4 +77,6 @@ export interface UpdateTopicInput {
   trainingType?: TrainingType
   scopes?:       TopicScopeItem[]
   isActive?:     boolean
+  folderIds?:      string[]
+  newFolderNames?: string[]
 }

@@ -7,6 +7,8 @@ import { TopicAccessPanel } from '@/modules/topics/TopicAccessPanel'
 import { TopicMaterialsList } from '@/components/content/TopicMaterialsList'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 import { QUESTIONS_PER_ATTEMPT } from '@/modules/assessment/constants'
+import { getTopicFolders } from '@/modules/topics/folders'
+import { FolderIcon } from '@/modules/topics/FolderPicker'
 
 function StepBadge({ done }: { done: boolean }) {
   return (
@@ -25,15 +27,18 @@ function StepBadge({ done }: { done: boolean }) {
 
 export default async function TopicDetailPage({
   params,
+  searchParams,
 }: {
-  params: { id: string }
+  params:       { id: string }
+  searchParams: { editFolders?: string }
 }) {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  const [topic, departments] = await Promise.all([
+  const [topic, departments, allFolders] = await Promise.all([
     getTopicById(params.id),
     getAllDepartments(),
+    getTopicFolders(),
   ])
 
   if (!topic) redirect('/topics')
@@ -86,6 +91,32 @@ export default async function TopicDetailPage({
             {topic.description && (
               <p className="text-sm text-gray-500 mt-1">{topic.description}</p>
             )}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {topic.folderItems.length === 0 ? (
+                <span className="text-xs text-gray-400">Not in any folder yet</span>
+              ) : (
+                topic.folderItems.map(({ folder }) => (
+                  <a
+                    key={folder.id}
+                    href={`/topics?folder=${folder.id}`}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
+                    style={{ background: '#f0fdf4', color: '#166534' }}
+                  >
+                    <FolderIcon size={12} />
+                    {folder.name}
+                  </a>
+                ))
+              )}
+              {canEdit && (
+                <a
+                  href={`/topics/${topic.id}?editFolders=1#topic-actions`}
+                  className="text-xs font-medium underline underline-offset-2 ml-1"
+                  style={{ color: '#2d6a4f' }}
+                >
+                  Change folders
+                </a>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <span
@@ -403,7 +434,12 @@ export default async function TopicDetailPage({
 
         {/* Edit actions */}
         {canEdit && (
-          <TopicDetailView topic={topic} departments={departments} />
+          <TopicDetailView
+            topic={topic}
+            departments={departments}
+            folders={allFolders.map((f) => ({ id: f.id, name: f.name }))}
+            startEditingFolders={searchParams.editFolders === '1'}
+          />
         )}
 
       </div>

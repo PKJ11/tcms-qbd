@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
 import { TRAINING_TYPE_RANK } from './schema'
+import { FolderPicker, type FolderOption } from './FolderPicker'
 
 interface Section    { id: string; name: string }
 interface Unit       { id: string; name: string; sections: Section[] }
@@ -25,11 +26,14 @@ interface Topic {
     unit:       { id: string; name: string } | null
     section:    { id: string; name: string } | null
   }[]
+  folderItems: { folder: { id: string; name: string } }[]
 }
 
 interface Props {
   topic:       Topic
   departments: Department[]
+  folders:     FolderOption[]
+  startEditingFolders?: boolean
 }
 
 const TRAINING_TYPES: { value: string; label: string }[] = [
@@ -38,16 +42,29 @@ const TRAINING_TYPES: { value: string; label: string }[] = [
   { value: 'ACKNOWLEDGEMENT_ONLY',  label: 'Acknowledgement Only' },
 ]
 
-type ActionType = 'deactivate' | 'edit-scopes' | 'change-type' | null
+type ActionType = 'deactivate' | 'edit-scopes' | 'change-type' | 'edit-folders' | null
 
 // Not part of the current business requirement — button (and its modal)
 // stay in place, just hidden, so this can be switched back on later.
 const SHOW_EDIT_SCOPES = false
 
-export function TopicDetailView({ topic, departments }: Props) {
+export function TopicDetailView({ topic, departments, folders, startEditingFolders = false }: Props) {
   const router = useRouter()
 
   const [action,       setAction]       = useState<ActionType>(null)
+  const currentFolderIds = topic.folderItems.map((i) => i.folder.id)
+  const [editingFolders, setEditingFolders] = useState(startEditingFolders)
+  const [folderIds,      setFolderIds]      = useState<string[]>(currentFolderIds)
+  const [newFolderNames, setNewFolderNames] = useState<string[]>([])
+  const [folderError,    setFolderError]    = useState<string | null>(null)
+  const foldersChanged =
+    newFolderNames.length > 0 ||
+    folderIds.length !== currentFolderIds.length ||
+    folderIds.some((id) => !currentFolderIds.includes(id))
+  const chosenFolderLabel = [
+    ...folders.filter((f) => folderIds.includes(f.id)).map((f) => f.name),
+    ...newFolderNames.map((n) => `${n} (new folder)`),
+  ].join(', ')
   const [scopes,       setScopes]       = useState<Scope[]>(
     topic.topicScopes.map((ts) => ({
       departmentId: ts.department.id,
@@ -116,6 +133,8 @@ export function TopicDetailView({ topic, departments }: Props) {
         ? { action: 'deactivate', justification }
         : action === 'change-type'
         ? { trainingType, justification }
+        : action === 'edit-folders'
+        ? { folderIds, newFolderNames, justification }
         : { scopes, trainingType, justification }
 
     const res = await fetch(`/api/topics/${topic.id}`, {
@@ -136,10 +155,24 @@ export function TopicDetailView({ topic, departments }: Props) {
 
     if (action === 'deactivate') {
       router.push('/topics')
+    } else if (action === 'edit-folders') {
+      setEditingFolders(false)
+      setNewFolderNames([])
+      setResult(`Folders updated: ${chosenFolderLabel.replace(/ \(new folder\)/g, '')}.`)
+      router.refresh()
     } else {
       setResult('Topic updated successfully.')
       router.refresh()
     }
+  }
+
+  function saveFolders() {
+    setFolderError(null)
+    if (folderIds.length + newFolderNames.length === 0) {
+      setFolderError('A topic must stay in at least one folder.')
+      return
+    }
+    setAction('edit-folders')
   }
 
   const inputClass = "w-full px-3 py-2 rounded-lg border text-sm outline-none transition-all"
@@ -148,12 +181,23 @@ export function TopicDetailView({ topic, departments }: Props) {
   return (
     <>
       <div
-        className="bg-white rounded-xl border p-5"
+        id="topic-actions"
+        className="bg-white rounded-xl border p-5 scroll-mt-6"
         style={{ borderColor: '#e5e7eb' }}
       >
         <h2 className="text-sm font-semibold text-gray-700 mb-4">Actions</h2>
 
         <div className="flex flex-wrap gap-3">
+          {!editingFolders && (
+            <button
+              onClick={() => { setFolderIds(currentFolderIds); setNewFolderNames([]); setFolderError(null); setResult(null); setEditingFolders(true) }}
+              className="px-4 py-2 rounded-lg border text-sm font-medium transition-colors"
+              style={{ borderColor: '#e5e7eb', color: '#374151' }}
+            >
+              Edit folders
+            </button>
+          )}
+
           {SHOW_EDIT_SCOPES && (
             <button
               onClick={() => setAction('edit-scopes')}
@@ -189,6 +233,40 @@ export function TopicDetailView({ topic, departments }: Props) {
           )}
         </div>
 
+        {editingFolders && (
+          <div className="mt-4 rounded-xl border p-4 flex flex-col gap-3" style={{ borderColor: '#e5e7eb', background: '#fafafa' }}>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800">Folders for this topic</h3>
+              <p className="text-xs text-gray-500">Tick every folder this topic should appear in, or create a new one.</p>
+            </div>
+            <FolderPicker
+              folders={folders}
+              selectedIds={folderIds}
+              onSelectedChange={(ids) => { setFolderIds(ids); setFolderError(null) }}
+              newNames={newFolderNames}
+              onNewNamesChange={(names) => { setNewFolderNames(names); setFolderError(null) }}
+            />
+            {folderError && <p className="text-sm" style={{ color: '#dc2626' }}>{folderError}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setEditingFolders(false)}
+                className="px-4 py-2 rounded-lg border text-sm font-medium"
+                style={{ borderColor: '#e5e7eb', color: '#374151', background: '#fff' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveFolders}
+                disabled={!foldersChanged}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                style={{ background: '#2d6a4f' }}
+              >
+                Save folders
+              </button>
+            </div>
+          </div>
+        )}
+
         {result && (
           <div
             className="mt-4 text-sm px-4 py-3 rounded-lg border"
@@ -202,6 +280,16 @@ export function TopicDetailView({ topic, departments }: Props) {
           </div>
         )}
       </div>
+
+      {/* Edit folders — e-signature */}
+      <JustificationModal
+        isOpen={action === 'edit-folders'}
+        title="Confirm folder change"
+        description={`"${topic.name}" will be filed in: ${chosenFolderLabel}.`}
+        onConfirm={handleConfirm}
+        onCancel={() => setAction(null)}
+        loading={modalLoading}
+      />
 
       {/* Deactivate modal */}
       <JustificationModal

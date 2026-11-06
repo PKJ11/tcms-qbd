@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     departmentId: searchParams.get('departmentId') ?? undefined,
     isActive:     searchParams.get('isActive') === 'false' ? false : true,
     search:       searchParams.get('search')    ?? undefined,
+    folderId:     searchParams.get('folderId')  ?? undefined,
   })
 
   return NextResponse.json({ topics })

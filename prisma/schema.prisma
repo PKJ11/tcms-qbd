@@ -340,6 +340,7 @@ model Person {
   topicAccessGranted          TopicCollaborator[]   @relation("topicCollaboratorPerson")
   topicAccessAddedBy          TopicCollaborator[]   @relation("topicCollaboratorAddedBy")
   topicGroupsCreated          TopicGroup[]          @relation("topicGroupCreator")
+  topicFoldersCreated         TopicFolder[]         @relation("topicFolderCreator")
   workDrafts                  WorkDraft[]
   trainingCalendarRowsCreated TrainingCalendarRow[]  @relation("trainingCalendarRowCreator")
   trainingCalendarMarks       TrainingCalendarMark[] @relation("trainingCalendarMarkMarker")
@@ -374,8 +375,40 @@ model TrainingTopic {
   collaborators TopicCollaborator[]
   groupItems   TopicGroupItem[]
   calendarRows TrainingCalendarRow[]
+  folderItems  TopicFolderItem[]
 
   @@map("training_topics")
+}
+
+// Purely organisational folders for the Training Topics page (e.g. "IT",
+// "Induction", "Schedule", "Common Training"). A topic can sit in several
+// folders at once. Unlike TopicGroup, a folder never drives assignment.
+// createdById is null for the system folders seeded by the migration.
+model TopicFolder {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  isActive    Boolean  @default(true)
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  createdBy Person?           @relation("topicFolderCreator", fields: [createdById], references: [id])
+  items     TopicFolderItem[]
+
+  @@map("topic_folders")
+}
+
+model TopicFolderItem {
+  id        String   @id @default(cuid())
+  folderId  String
+  topicId   String
+  createdAt DateTime @default(now())
+
+  folder TopicFolder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  topic  TrainingTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, topicId])
+  @@index([topicId])
+  @@map("topic_folder_items")
 }
 
 // Grants a Trainer/Guest Trainer who did NOT create the topic permission to
