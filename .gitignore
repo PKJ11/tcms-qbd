@@ -40,3 +40,5 @@ next-env.d.ts
 .env.local
 uploads/
 storage/
+# local rollback copy of the previous production build
+/.next.rollback/

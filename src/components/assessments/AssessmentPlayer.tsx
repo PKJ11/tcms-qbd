@@ -64,6 +64,19 @@ export function AssessmentPlayer({ assignmentId, bankId, topicName, onDone }: Pr
     start()
   }, [bankId, assignmentId])
 
+  // Warn before a refresh, tab close or navigation away would throw away
+  // answers that haven't been submitted yet.
+  const hasUnsavedAnswers = Object.keys(answers).length > 0 && !result
+  useEffect(() => {
+    if (!hasUnsavedAnswers) return
+    function warn(e: BeforeUnloadEvent) {
+      e.preventDefault()
+      e.returnValue = '' // required by Chrome/Edge to show the prompt
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [hasUnsavedAnswers])
+
   function selectAnswer(questionId: string, option: string) {
     setAnswers((prev) => ({ ...prev, [questionId]: option }))
   }
