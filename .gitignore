@@ -42,3 +42,7 @@ uploads/
 storage/
 # local rollback copy of the previous production build
 /.next.rollback/
+
+# production secrets - never commit (template: .env.example)
+/.env
+/.env.pre-rotation-*
