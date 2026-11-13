@@ -6,7 +6,7 @@ import {
   getTrainingHeadStats,
   getReviewerStats,
 } from '@/modules/reports'
-import { hasAnyRole } from '@/lib/permissions'
+import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 // ── Stat card ─────────────────────────────────────────────────────
 
@@ -66,7 +66,7 @@ function QuickLink({
 
 // ── Dashboard content per role ────────────────────────────────────
 
-async function TrainingHeadDashboard({ userId }: { userId: string }) {
+async function TrainingHeadDashboard({ userId, canViewPersonnel, canViewReports }: { userId: string; canViewPersonnel: boolean; canViewReports: boolean }) {
   const stats = await getTrainingHeadStats()
 
   const recentActivity = await prisma.auditLog.findMany({
@@ -98,8 +98,8 @@ async function TrainingHeadDashboard({ userId }: { userId: string }) {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-        <StatCard label="Active personnel"    value={stats.totalPersons}       color="#1d4ed8" href="/personnel"       />
-        <StatCard label="Overdue trainings"   value={stats.overdueAssignments} color="#dc2626" href="/reports"         />
+        <StatCard label="Active personnel"    value={stats.totalPersons}       color="#1d4ed8" href={canViewPersonnel ? '/personnel' : undefined} />
+        <StatCard label="Overdue trainings"   value={stats.overdueAssignments} color="#dc2626" href={canViewReports ? '/reports' : undefined} />
         <StatCard label="Pending approvals"   value={stats.pendingApprovals}   color="#854d0e" href="/content"         />
         <StatCard label="Active quals"        value={stats.activeQualifications} color="#c2410c" href="/qualifications"  />
         <StatCard label="Completed (month)"   value={stats.completedThisMonth} color="#166534"                        />
@@ -115,7 +115,9 @@ async function TrainingHeadDashboard({ userId }: { userId: string }) {
             <QuickLink href="/content/upload"        label="Upload material"       description="Add a new training document or video"       icon="📁" />
             <QuickLink href="/qualifications/new"    label="New qualification"     description="Start an analyst qualification record"      icon="🏆" />
             <QuickLink href="/refresher/new"         label="Trigger refresher"     description="Planned or deviation-triggered refresher"  icon="🔄" />
-            <QuickLink href="/reports"               label="View reports"          description="Training matrix, overdue, qualification"   icon="📊" />
+            {canViewReports && (
+              <QuickLink href="/reports"             label="View reports"          description="Training matrix, overdue, qualification"   icon="📊" />
+            )}
           </div>
         </div>
 
@@ -347,7 +349,11 @@ export default async function DashboardPage() {
 
       {/* Additional role-specific dashboard content */}
       {hasAnyRole(user, ['TRAINER', 'GUEST_TRAINER']) && (
-        <TrainingHeadDashboard userId={user.id} />
+        <TrainingHeadDashboard
+          userId={user.id}
+          canViewPersonnel={hasAnyRole(user, PERMISSIONS.VIEW_PERSONNEL)}
+          canViewReports={hasAnyRole(user, PERMISSIONS.VIEW_REPORTS_MODULE)}
+        />
       )}
       {hasAnyRole(user, ['ADMINISTRATOR', 'VIEWER']) && (
         <ReviewerDashboard />
