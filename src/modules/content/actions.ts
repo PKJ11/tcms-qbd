@@ -16,7 +16,6 @@ import { assertTopicContentAccess } from '@/modules/topics'
 // ── Allowed file types per category ──────────────────────────────
 
 const ALLOWED_EXTENSIONS: Record<string, string[]> = {
-  PPT:   ['ppt', 'pptx'],
   PDF:   ['pdf'],
   VIDEO: ['mp4', 'mov', 'avi', 'webm'],
   OTHER: ['doc', 'docx', 'xls', 'xlsx', 'csv'],

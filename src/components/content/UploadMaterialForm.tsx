@@ -8,7 +8,6 @@ interface Topic { id: string; name: string }
 interface Props  { topics: Topic[]; initialTopicId?: string }
 
 const FILE_TYPES = [
-  { value: 'PPT',   label: 'PowerPoint (PPT/PPTX)',    accept: '.ppt,.pptx'                },
   { value: 'PDF',   label: 'PDF Document',              accept: '.pdf'                      },
   { value: 'VIDEO', label: 'Video',                     accept: '.mp4,.mov,.avi,.webm'      },
   { value: 'OTHER', label: 'Other (DOC/XLS/CSV)',       accept: '.doc,.docx,.xls,.xlsx,.csv'},
@@ -23,7 +22,7 @@ export function UploadMaterialForm({ topics, initialTopicId }: Props) {
   const [form, setForm] = useState({
     title:    '',
     topicId:  hasInitialTopic ? initialTopicId! : '',
-    fileType: 'PPT',
+    fileType: 'PDF',
   })
 
   const [file,       setFile]       = useState<File | null>(null)
