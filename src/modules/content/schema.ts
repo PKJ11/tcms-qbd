@@ -15,7 +15,10 @@ export const createMaterialSchema = z.object({
     .min(5,   'Change summary must be at least 5 characters')
     .max(500, 'Change summary too long'),
 
-  fileType: z.enum(['PPT', 'PDF', 'VIDEO', 'OTHER']),
+  // PowerPoint upload removed (business decision 14-Nov-2026); existing PPT materials stay viewable
+  fileType: z.enum(['PDF', 'VIDEO', 'OTHER'], {
+    message: 'Invalid file type. Allowed: PDF, Video or Other (DOC/XLS/CSV)',
+  }),
 })
 
 export const approveMaterialSchema = z.object({

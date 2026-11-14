@@ -36,7 +36,7 @@ export default async function UploadMaterialPage({
             Upload training material
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Upload a PPT, PDF, or video file. All uploads are version controlled. URS-CNT-001.
+            Upload a PDF, video or document file. All uploads are version controlled. URS-CNT-001.
           </p>
         </div>
 
