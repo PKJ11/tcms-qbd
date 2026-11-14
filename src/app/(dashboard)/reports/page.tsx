@@ -8,7 +8,7 @@ export default async function ReportsPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
-  if (!hasAnyRole(session.user, PERMISSIONS.VIEW_REPORTS)) redirect('/unauthorised')
+  if (!hasAnyRole(session.user, PERMISSIONS.VIEW_REPORTS_MODULE)) redirect('/unauthorised')
 
   const canViewAll = hasAnyRole(session.user, REPORT_OVERSIGHT_ROLES)
   const teamIds     = await getTeamIds(session.user.id)

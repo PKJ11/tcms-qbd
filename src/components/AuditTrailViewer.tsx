@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { Fragment, useState, useEffect, useCallback, useRef } from 'react'
 import { formatDateTime } from '@/lib/utils'
 
 interface AuditLog {
@@ -52,6 +52,25 @@ const ACTION_COLORS: Record<string, { bg: string; color: string }> = {
 
 // Simple debounce hook — delays updating the "settled" value until
 // the input has stopped changing for `delay` ms.
+function formatValue(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—'
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
+}
+
+// Field-by-field before/after rows for an audit entry (top-level keys only).
+function diffRows(before: object | null, after: object | null) {
+  const b = (before ?? {}) as Record<string, unknown>
+  const a = (after  ?? {}) as Record<string, unknown>
+  const keys = Array.from(new Set([...Object.keys(b), ...Object.keys(a)]))
+    .filter((k) => !['id', 'createdAt', 'updatedAt', 'passwordHash'].includes(k))
+  return keys.map((k) => {
+    const bv = formatValue(b[k])
+    const av = formatValue(a[k])
+    return { field: k, before: bv, after: av, changed: bv !== av }
+  })
+}
+
 function useDebouncedValue<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
   useEffect(() => {
@@ -67,6 +86,7 @@ export function AuditTrailViewer() {
   const [loading,    setLoading]    = useState(true)
   const [page,       setPage]       = useState(1)
   const [action,     setAction]     = useState('')
+  const [expanded,   setExpanded]   = useState<string | null>(null)
 
   // ── Justification search ──────────────────────────────────────
   const [searchInput, setSearchInput] = useState('')
@@ -324,9 +344,12 @@ export function AuditTrailViewer() {
                   bg: '#f9fafb', color: '#374151'
                 }
 
+                const hasChanges = !!(log.beforeValue || log.afterValue)
+                const isOpen     = expanded === log.id
+
                 return (
+                  <Fragment key={log.id}>
                   <tr
-                    key={log.id}
                     style={{ borderBottom: '1px solid #f3f4f6' }}
                     className="hover:bg-gray-50 transition-colors"
                   >
@@ -360,8 +383,43 @@ export function AuditTrailViewer() {
                       <div className="truncate" title={log.justification}>
                         {log.justification}
                       </div>
+                      {hasChanges && (
+                        <button
+                          type="button"
+                          onClick={() => setExpanded(isOpen ? null : log.id)}
+                          className="mt-1 text-xs font-medium"
+                          style={{ color: '#1d4ed8' }}
+                        >
+                          {isOpen ? 'Hide changes' : 'View changes'}
+                        </button>
+                      )}
                     </td>
                   </tr>
+                  {isOpen && (
+                    <tr style={{ borderBottom: '1px solid #f3f4f6', background: '#f9fafb' }}>
+                      <td colSpan={4} className="px-4 py-3">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr className="text-gray-500 uppercase tracking-wide">
+                              <th className="text-left py-1 pr-4 font-semibold">Field</th>
+                              <th className="text-left py-1 pr-4 font-semibold">Before</th>
+                              <th className="text-left py-1 font-semibold">After</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {diffRows(log.beforeValue, log.afterValue).map((r) => (
+                              <tr key={r.field} style={r.changed ? { background: '#fefce8' } : undefined}>
+                                <td className="py-1 pr-4 font-medium text-gray-700">{r.field}</td>
+                                <td className="py-1 pr-4 text-gray-600 break-all">{r.before}</td>
+                                <td className={`py-1 break-all ${r.changed ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>{r.after}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 )
               })}
             </tbody>

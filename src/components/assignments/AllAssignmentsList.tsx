@@ -243,7 +243,9 @@ export function AllAssignmentsList({
                       <div className="font-medium text-gray-900">{a.person.name}</div>
                       <div className="text-xs text-gray-400">{a.person.employeeId}</div>
                     </td>
-                    <td className="px-4 py-3 text-gray-700">{a.topic.name}</td>
+                    <td className="px-4 py-3 text-gray-700">
+                      <a href={`/assignments/${a.id}`} className="hover:underline" style={{ color: '#2d6a4f' }}>{a.topic.name}</a>
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className="px-2 py-0.5 rounded-full text-xs font-medium"

@@ -19,6 +19,7 @@ export default async function AssignmentDetailPage({
   if (!isElevated && assignment.person.id !== session.user.id) {
     redirect('/assignments')
   }
+  const isOwner = assignment.person.id === session.user.id
 
   return (
     <div className="min-h-screen p-6" style={{ background: '#f4f6f8' }}>
@@ -31,10 +32,10 @@ export default async function AssignmentDetailPage({
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
-          Back to my training
+          {isOwner ? 'Back to my training' : 'Back to assignments'}
         </a>
 
-        <AssignmentDetailView initialAssignment={assignment} />
+        <AssignmentDetailView initialAssignment={assignment} isOwner={isOwner} />
       </div>
     </div>
   )

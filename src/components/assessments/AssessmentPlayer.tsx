@@ -155,7 +155,7 @@ export function AssessmentPlayer({ assignmentId, bankId, topicName, onDone }: Pr
             className="text-sm px-4 py-3 rounded-lg mb-6 text-left"
             style={{ background: '#fef2f2', color: '#991b1b' }}
           >
-            You have exhausted all {result.maxAttempts} attempts. A retraining assignment has been automatically created for you to review the material again.
+            Maximum attempts exceeded — you have used all {result.maxAttempts} attempts. Your Trainer has been notified and will review whether retraining is assigned. Please contact your Training Coordinator.
           </div>
         )}
 

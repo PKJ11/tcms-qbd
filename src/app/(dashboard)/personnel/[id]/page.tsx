@@ -13,6 +13,7 @@ export default async function PersonDetailPage({
 }) {
   const session = await getSession()
   if (!session) redirect('/login')
+  if (!hasAnyRole(session.user, PERMISSIONS.VIEW_PERSONNEL)) redirect('/unauthorised')
 
   const person = await getPersonById(params.id)
   if (!person) redirect('/personnel')

@@ -81,7 +81,9 @@ interface Attempt {
   submittedAt: string | Date
 }
 
-export function AssignmentDetailView({ initialAssignment }: { initialAssignment: Assignment }) {
+// isOwner = false when a reviewer (Administrator / Viewer / Trainer / Guest Trainer) opens someone else's
+// assignment: the page is read-only — no confirm, acknowledge or start-assessment actions (OQ 8.1.16).
+export function AssignmentDetailView({ initialAssignment, isOwner = true }: { initialAssignment: Assignment; isOwner?: boolean }) {
   const [assignment, setAssignment] = useState(initialAssignment)
   const [viewerMaterial, setViewerMaterial] = useState<Material | null>(null)
   const [ackLoading, setAckLoading] = useState(false)
@@ -167,11 +169,19 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
             style={{ background: '#fff7ed', borderColor: '#fed7aa', color: '#92400e' }}
           >
             <div className="font-semibold mb-0.5">⚠️ Training under coordinator review</div>
-            <div>
-              You have been unable to achieve competency on this topic after the maximum number
-              of retraining cycles. Your Training Coordinator has been notified and will contact
-              you regarding next steps. Please speak with your manager in the meantime.
-            </div>
+            {isOwner ? (
+              <div>
+                You have been unable to achieve competency on this topic after the maximum number
+                of retraining cycles. Your Training Coordinator has been notified and will contact
+                you regarding next steps. Please speak with your manager in the meantime.
+              </div>
+            ) : (
+              <div>
+                This trainee has been unable to achieve competency on this topic after the maximum
+                number of retraining cycles. The Training Coordinator has been notified and will
+                review whether retraining is assigned.
+              </div>
+            )}
           </div>
         )}
 
@@ -302,7 +312,7 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
         )}
 
         {/* Bottom action, branched by training type */}
-        {assignment.status !== 'COMPLETED' && assignment.status !== 'CANCELLED' && (
+        {isOwner && assignment.status !== 'COMPLETED' && assignment.status !== 'CANCELLED' && (
           <div className="mt-4">
             {trainingType === 'MATERIAL_ONLY' && (
               <div
@@ -341,7 +351,8 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
 
       {/* Step 2 · Assessment — a distinct, sequential step: locked until every
           material above is confirmed, then unlocks into a clear call to action. */}
-      {trainingType === 'MATERIAL_MCQ' &&
+      {isOwner &&
+        trainingType === 'MATERIAL_MCQ' &&
         assignment.status !== 'COMPLETED' &&
         assignment.status !== 'CANCELLED' && (
         <div
@@ -406,6 +417,7 @@ export function AssignmentDetailView({ initialAssignment }: { initialAssignment:
           material={viewerMaterial}
           trainingType={trainingType}
           confirmed={confirmedIds.has(viewerMaterial.id)}
+          readOnly={!isOwner}
           onClose={() => setViewerMaterial(null)}
           onConfirmed={() => { setViewerMaterial(null); refetch() }}
         />

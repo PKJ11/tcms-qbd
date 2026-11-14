@@ -6,6 +6,7 @@ import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 export default async function PersonnelPage() {
   const session = await getSession()
   if (!session) redirect('/login')
+  if (!hasAnyRole(session.user, PERMISSIONS.VIEW_PERSONNEL)) redirect('/unauthorised')
 
   const canCreate = hasAnyRole(session.user, PERMISSIONS.MANAGE_USERS)
 

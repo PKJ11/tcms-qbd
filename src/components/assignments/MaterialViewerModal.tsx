@@ -20,11 +20,12 @@ interface Props {
   material:     Material
   trainingType: string
   confirmed:    boolean
+  readOnly?:    boolean   // reviewer viewing someone else's assignment — no Confirm button
   onClose:      () => void
   onConfirmed:  () => void
 }
 
-export function MaterialViewerModal({ assignmentId, material, trainingType, confirmed, onClose, onConfirmed }: Props) {
+export function MaterialViewerModal({ assignmentId, material, trainingType, confirmed, readOnly = false, onClose, onConfirmed }: Props) {
   const version = material.versions[0]
 
   const [confirming,  setConfirming]  = useState(false)
@@ -64,7 +65,7 @@ export function MaterialViewerModal({ assignmentId, material, trainingType, conf
   }
 
   // A material is confirmed once — after that the button is replaced by a badge
-  const showConfirm = trainingType !== 'ACKNOWLEDGEMENT_ONLY' && !confirmed
+  const showConfirm = !readOnly && trainingType !== 'ACKNOWLEDGEMENT_ONLY' && !confirmed
 
   return (
     <div

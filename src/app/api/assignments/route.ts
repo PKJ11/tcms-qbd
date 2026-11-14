@@ -8,7 +8,7 @@ import {
 } from '@/modules/assignments'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
-const CAN_VIEW_ALL_ORGS = ['TRAINER', 'GUEST_TRAINER', 'VIEWER'] as const
+const CAN_VIEW_ALL_ORGS = ['ADMINISTRATOR', 'TRAINER', 'GUEST_TRAINER', 'VIEWER'] as const
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
