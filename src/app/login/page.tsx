@@ -138,7 +138,6 @@ export default function LoginPage() {
             {[
               'GxP-validated & 21 CFR Part 11 aligned',
               'Full who / when / why / what audit trail',
-              'Unit 1 – Unit 3  (Unit 4 ready)',
             ].map((item) => (
               <div key={item} className="flex items-center gap-3">
                 <div
