@@ -4,6 +4,7 @@ import {
   getQualificationById,
   signQualification,
   rejectQualification,
+  isAssignedApproverForNextStep,
 } from '@/modules/qualification'
 import { canManageQualifications } from '@/lib/permissions'
 import { formatDate } from '@/lib/utils'
@@ -80,7 +81,11 @@ export async function PATCH(
     }
 
     if (action === 'reject') {
-      if (!canManageQualifications(session.user)) {
+      // QA department users, or the assigned approver of the current sign-off step
+      if (
+        !canManageQualifications(session.user) &&
+        !(await isAssignedApproverForNextStep(params.id, session.user.id))
+      ) {
         return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
       }
       await rejectQualification(params.id, justification, session.user.id)

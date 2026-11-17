@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { formatDateTime } from '@/lib/utils'
+import { NOTIFICATIONS_CHANGED_EVENT } from './events'
 
 interface Notification {
   id:      string
@@ -38,11 +39,16 @@ export function NotificationBell() {
     setUnreadCount(data.unreadCount ?? 0)
   }, [])
 
-  // Poll every 30 seconds for new notifications
+  // Poll every 30 seconds for new notifications, and refetch at once when the
+  // Notifications page marks items as read (keeps the unread badge in step)
   useEffect(() => {
     fetchNotifications()
     const interval = setInterval(fetchNotifications, 30000)
-    return () => clearInterval(interval)
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, fetchNotifications)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, fetchNotifications)
+    }
   }, [fetchNotifications])
 
   // Close panel when clicking outside

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDateTime } from '@/lib/utils'
+import { NOTIFICATIONS_CHANGED_EVENT } from './events'
 
 interface Notification {
   id:      string
@@ -40,11 +41,17 @@ export function AllNotificationsView() {
 
   useEffect(() => { fetchNotifications() }, [fetchNotifications])
 
+  // Tell the top-bar bell to refetch so its unread badge updates immediately
+  function notifyBell() {
+    window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT))
+  }
+
   async function handleMarkRead(id: string) {
     await fetch(`/api/notifications/${id}`, { method: 'PATCH' })
     setNotifications((prev) =>
       prev.map((n) => n.id === id ? { ...n, isRead: true, readAt: new Date().toISOString() } : n)
     )
+    notifyBell()
   }
 
   async function handleMarkAllRead() {
@@ -58,6 +65,7 @@ export function AllNotificationsView() {
       isRead: true,
       readAt: new Date().toISOString(),
     })))
+    notifyBell()
   }
 
   const filtered = notifications.filter((n) => {
