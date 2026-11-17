@@ -19,8 +19,8 @@ export default async function OrganizationPage() {
           <h1 className="text-2xl font-bold text-gray-900">Manage Structure</h1>
           <p className="text-sm text-gray-500 mt-1">
             Add Departments, Units and Sections. Select a Department to see its Units, then
-            a Unit to see its Sections. Units and Sections cannot be removed once created.
-            A Department can be deactivated only when it has no active units or members.
+            a Unit to see its Sections. Departments, Units and Sections cannot be deleted or
+            deactivated once created. Contact the developer if one must be deleted.
           </p>
         </div>
 

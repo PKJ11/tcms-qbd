@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { JustificationModal } from '@/components/JustificationModal'
+import { STRUCTURE_DELETE_BLOCKED_MESSAGE } from '@/modules/organization/constants'
 
 interface Section    { id: string; name: string; code: string }
 interface Unit       { id: string; name: string; code: string; sections: Section[] }
@@ -16,7 +17,6 @@ type PendingAction =
   | { kind: 'add-department';    name: string }
   | { kind: 'add-unit';          name: string }
   | { kind: 'add-section';       name: string }
-  | { kind: 'deactivate-department'; id: string; name: string }
   | null
 
 export function OrganizationManager({ departments }: Props) {
@@ -32,6 +32,7 @@ export function OrganizationManager({ departments }: Props) {
   const [pending, setPending] = useState<PendingAction>(null)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
+  const [notice,  setNotice]  = useState<string | null>(null)
 
   const selectedDept = departments.find((d) => d.id === selectedDeptId)
   const units        = selectedDept?.units ?? []
@@ -72,6 +73,11 @@ export function OrganizationManager({ departments }: Props) {
     setPending({ kind: 'add-section', name: sectionForm.name.trim() })
   }
 
+  function showDeleteBlocked(name: string) {
+    setError(null)
+    setNotice(`"${name}" cannot be deleted or deactivated. ${STRUCTURE_DELETE_BLOCKED_MESSAGE}`)
+  }
+
   async function handleConfirm(justification: string, password?: string) {
     if (!pending) return
     setLoading(true)
@@ -82,9 +88,7 @@ export function OrganizationManager({ departments }: Props) {
         ? { url: '/api/departments', method: 'POST',   body: { name: pending.name } }
       : pending.kind === 'add-unit'
         ? { url: '/api/units',       method: 'POST',   body: { name: pending.name, departmentId: selectedDeptId } }
-      : pending.kind === 'add-section'
-        ? { url: '/api/sections',    method: 'POST',   body: { name: pending.name, unitId: selectedUnitId } }
-        : { url: '/api/departments', method: 'DELETE', body: { id: pending.id } }
+        : { url: '/api/sections',    method: 'POST',   body: { name: pending.name, unitId: selectedUnitId } }
 
     const res  = await fetch(req.url, {
       method:  req.method,
@@ -104,7 +108,6 @@ export function OrganizationManager({ departments }: Props) {
     if (kind === 'add-department') setDeptForm({ name: '' })
     if (kind === 'add-unit')       setUnitForm({ name: '' })
     if (kind === 'add-section')    setSectionForm({ name: '' })
-    if (kind === 'deactivate-department') { setSelectedDeptId(''); setSelectedUnitId('') }
 
     router.refresh()
   }
@@ -112,12 +115,12 @@ export function OrganizationManager({ departments }: Props) {
   const inputClass = 'w-full px-3 py-2 rounded-lg border text-sm outline-none transition-all'
   const inputStyle = { borderColor: '#d1d5db', background: '#fff' }
 
-  const DeactivateBtn = ({ onClick, label }: { onClick: () => void; label: string }) => (
+  const DeleteBtn = ({ name }: { name: string }) => (
     <button
       type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
+      onClick={() => showDeleteBlocked(name)}
+      aria-label={`Delete ${name}`}
+      title="Contact the developer to delete"
       className="ml-auto w-6 h-6 flex items-center justify-center rounded text-sm flex-shrink-0"
       style={{ color: '#dc2626', border: '1px solid #fecaca' }}
     >
@@ -155,10 +158,7 @@ export function OrganizationManager({ departments }: Props) {
                   />
                   <span className="text-sm text-gray-800">{d.name}</span>
                   <span className="text-xs text-gray-400">· {d.code}</span>
-                  <DeactivateBtn
-                    label={`Deactivate ${d.name}`}
-                    onClick={() => setPending({ kind: 'deactivate-department', id: d.id, name: d.name })}
-                  />
+                  <DeleteBtn name={d.name} />
                 </div>
               ))
             )}
@@ -222,6 +222,7 @@ export function OrganizationManager({ departments }: Props) {
                       <span className="text-xs text-gray-400">
                         · {u.sections.length} section{u.sections.length !== 1 ? 's' : ''}
                       </span>
+                      <DeleteBtn name={u.name} />
                     </div>
                   ))
                 )}
@@ -269,6 +270,7 @@ export function OrganizationManager({ departments }: Props) {
                     >
                       <span>{s.name}</span>
                       <span className="text-xs text-gray-400">· {s.code}</span>
+                      <DeleteBtn name={s.name} />
                     </div>
                   ))
                 )}
@@ -297,6 +299,23 @@ export function OrganizationManager({ departments }: Props) {
         </div>
       </div>
 
+      {notice && (
+        <div
+          role="status"
+          className="flex items-start gap-3 text-sm px-4 py-3 rounded-lg border mt-4"
+          style={{ background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' }}
+        >
+          <span className="flex-1">{notice}</span>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="text-xs font-medium underline flex-shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {error && (
         <div
           className="text-sm px-4 py-3 rounded-lg border mt-4"
@@ -312,15 +331,13 @@ export function OrganizationManager({ departments }: Props) {
           pending?.kind === 'add-department'    ? 'Confirm new department'
           : pending?.kind === 'add-unit'        ? 'Confirm new unit'
           : pending?.kind === 'add-section'     ? 'Confirm new section'
-          : pending?.kind === 'deactivate-department' ? 'Deactivate department'
           : ''
         }
         description={
           !pending ? ''
           : pending.kind === 'add-department' ? `Create department "${pending.name}".`
           : pending.kind === 'add-unit'       ? `Create unit "${pending.name}" under ${selectedDept?.name}.`
-          : pending.kind === 'add-section'    ? `Create section "${pending.name}" under ${selectedUnit?.name}.`
-          : `Deactivate "${pending.name}"? It is hidden everywhere and can only be recreated by name. Blocked if active members or units remain.`
+          : `Create section "${pending.name}" under ${selectedUnit?.name}.`
         }
         onConfirm={handleConfirm}
         onCancel={() => setPending(null)}
