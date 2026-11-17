@@ -4,6 +4,11 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { NoSavePasswordInput } from '@/components/shared/NoSavePasswordInput'
+import {
+  PASSWORD_COMPLEXITY_RULES,
+  PASSWORD_COMPLEXITY_ERROR,
+  meetsPasswordComplexity,
+} from '@/lib/password-complexity'
 
 export default function ChangePasswordPage() {
   const router          = useRouter()
@@ -29,6 +34,10 @@ export default function ChangePasswordPage() {
 
     if (newPass.length < minLength) {
       setError(`Password must be at least ${minLength} characters.`)
+      return
+    }
+    if (!meetsPasswordComplexity(newPass)) {
+      setError(`${PASSWORD_COMPLEXITY_ERROR}.`)
       return
     }
     if (newPass !== confirm) {
@@ -136,6 +145,16 @@ export default function ChangePasswordPage() {
                 onFocus={(e) => e.target.style.borderColor = '#2d6a4f'}
                 onBlur={(e)  => e.target.style.borderColor = '#d1d5db'}
               />
+              <ul className="mt-2 flex flex-col gap-0.5 text-xs">
+                {[
+                  { id: 'length', label: `At least ${minLength} characters`, ok: newPass.length >= minLength },
+                  ...PASSWORD_COMPLEXITY_RULES.map((r) => ({ id: r.id, label: r.label, ok: r.test(newPass) })),
+                ].map((r) => (
+                  <li key={r.id} style={{ color: r.ok ? '#166534' : '#6b7280' }}>
+                    {r.ok ? '✓' : '•'} {r.label}
+                  </li>
+                ))}
+              </ul>
             </div>
 
             {/* Confirm password */}

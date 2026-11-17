@@ -13,10 +13,10 @@ import { getPasswordPolicy } from '@/lib/password-policy'
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-// Fixed per business requirement — every generated/reset password is QBD@1234,
+// Fixed per business requirement — every generated/reset password is Qbd@1234,
 // not a random string. mustChangePassword still forces a change on first login.
 function generateTempPassword(): string {
-  return 'QBD@1234'
+  return 'Qbd@1234'
 }
 
 const PERSON_SELECT = {

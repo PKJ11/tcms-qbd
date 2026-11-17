@@ -30,7 +30,7 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-const DEFAULT_PASSWORD = 'QBD@1234'
+const DEFAULT_PASSWORD = 'Qbd@1234'
 
 function daysFromNow(days: number): Date {
   const d = new Date()
@@ -547,7 +547,7 @@ async function main() {
   console.log('✅ 3 audit log entries created')
 
   console.log('\n🎉 Demo data seeding complete.')
-  console.log('\nLogin credentials (all use password QBD@1234 unless noted):')
+  console.log('\nLogin credentials (all use password Qbd@1234 unless noted):')
   console.log('  001  ADMINISTRATOR       (System Administrator)')
   console.log('  100  RAVI KUMAR          (Trainer, QC)')
   console.log('  101  ANITA DESAI         (Trainer, QA)')

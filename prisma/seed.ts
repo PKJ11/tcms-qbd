@@ -141,14 +141,14 @@ async function main() {
     employeeId:   '001',
     name:         'ADMINISTRATOR',
     email:        'admin@tcms.internal',
-    password:     'QBD@1234',
+    password:     'Qbd@1234',
     designation:  'System Administrator',
     roles:        ['ADMINISTRATOR'],
     departmentId: deptIT.id,
     unitId:       itUnit1.id,
   })
 
-  console.log('✅ Administrator created — Login: 001 / QBD@1234')
+  console.log('✅ Administrator created — Login: 001 / Qbd@1234')
   console.log('\n🎉 Seeding complete.')
 }
 
