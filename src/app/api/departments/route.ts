@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { createDepartment, deactivateDepartment } from '@/modules/organization'
+import { createDepartment, STRUCTURE_DELETE_BLOCKED_MESSAGE } from '@/modules/organization'
 import { PERMISSIONS, hasAnyRole } from '@/lib/permissions'
 
 export async function GET() {
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE() {
   const session = await getSession()
 
   if (!session) {
@@ -80,24 +80,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  const body = await req.json()
-  const { id, justification, password } = body
-
-  if (!id) {
-    return NextResponse.json({ message: 'Department id is required' }, { status: 400 })
-  }
-  if (!justification) {
-    return NextResponse.json({ message: 'Justification is required' }, { status: 400 })
-  }
-  if (!password) {
-    return NextResponse.json({ message: 'Password is required' }, { status: 400 })
-  }
-
-  try {
-    const result = await deactivateDepartment(id, justification, session.user.id, password)
-    return NextResponse.json(result)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to deactivate department'
-    return NextResponse.json({ message }, { status: 400 })
-  }
+  // Departments cannot be deleted or deactivated from the application.
+  return NextResponse.json({ message: STRUCTURE_DELETE_BLOCKED_MESSAGE }, { status: 403 })
 }

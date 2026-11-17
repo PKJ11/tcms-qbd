@@ -117,47 +117,8 @@ export async function createDepartment(
   return department
 }
 
-// ── Deactivate a Department ──────────────────────────────
-
-export async function deactivateDepartment(
-  id: string,
-  justification: string,
-  actorId: string,
-  password: string
-) {
-  const passwordValid = await verifyUserPassword(actorId, password)
-  if (!passwordValid) throw new Error('Incorrect password')
-
-  const department = await prisma.department.findUnique({
-    where:  { id },
-    select: { id: true, name: true, code: true },
-  })
-  if (!department) throw new Error('Department not found')
-
-  const activeUnits = await prisma.unit.count({ where: { departmentId: id, isActive: true } })
-  if (activeUnits > 0) {
-    throw new Error('This department still has active units')
-  }
-  const activePersons = await prisma.person.count({ where: { departmentId: id, isActive: true } })
-  if (activePersons > 0) {
-    throw new Error('This department still has active members assigned')
-  }
-
-  await prisma.department.update({ where: { id }, data: { isActive: false } })
-
-  await logAuditEvent({
-    userId:        actorId,
-    action:        'DEACTIVATE',
-    module:        'ORGANIZATION',
-    recordId:      id,
-    recordType:    'Department',
-    beforeValue:   { name: department.name, code: department.code },
-    afterValue:    null,
-    justification,
-  })
-
-  return { id }
-}
+// Departments, Units and Sections cannot be deleted or deactivated from the
+// application (see STRUCTURE_DELETE_BLOCKED_MESSAGE) — removal is a developer task.
 
 // ── Create a Unit within a Department ──────────────────────────────
 
