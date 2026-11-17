@@ -289,13 +289,15 @@ async function handleNeedsRetraining(
     data:  { status: 'FAILED' },
   })
 
-  // Completed/failed retraining cycles so far for this person+topic
+  // Failed training cycles so far for this person+topic (this one included).
+  // Only FAILED Schedule assignments count — a cycle the person passed
+  // (COMPLETED) is not a failed retraining cycle.
   const totalRetrain = await tx.trainingAssignment.count({
     where: {
       personId: opts.personId,
       topicId:  opts.topicId,
       trigger:  'SCHEDULE',
-      status:   { in: ['FAILED', 'COMPLETED'] },
+      status:   'FAILED',
     },
   })
 

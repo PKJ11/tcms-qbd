@@ -615,6 +615,31 @@ export async function signQualification(
 
 // ── Reject a qualification ─────────────────────────────────────────
 
+// True when the person is the assigned approver of the next pending sign-off
+// step of an In progress record — that approver may reject instead of signing.
+export async function isAssignedApproverForNextStep(
+  qualificationId: string,
+  personId:        string
+): Promise<boolean> {
+  const qual = await prisma.qualificationRecord.findUnique({
+    where:  { id: qualificationId },
+    select: {
+      status:      true,
+      signatories: {
+        where:   { status: 'PENDING' },
+        orderBy: { stepOrder: 'asc' },
+        take:    1,
+        select:  { assignedToId: true },
+      },
+    },
+  })
+  return (
+    qual?.status === 'IN_PROGRESS' &&
+    !!qual.signatories[0]?.assignedToId &&
+    qual.signatories[0].assignedToId === personId
+  )
+}
+
 export async function rejectQualification(
   qualificationId: string,
   justification:   string,

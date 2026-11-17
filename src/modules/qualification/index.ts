@@ -7,6 +7,7 @@ export {
   createQualification,
   signQualification,
   rejectQualification,
+  isAssignedApproverForNextStep,
   uploadScannedDocument,
   getScannedDocumentUrl,
   getCertificateUrl,

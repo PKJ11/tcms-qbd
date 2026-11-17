@@ -472,7 +472,7 @@ export function QualificationDetailView({
                       Approve
                     </button>
                   )}
-                  {canReject && qual.status === 'IN_PROGRESS' && (
+                  {(canReject || isAssignedApprover) && qual.status === 'IN_PROGRESS' && (
                     <button
                       onClick={() => { setModalError(null); setShowRejectModal(true) }}
                       className="px-3 py-1.5 rounded-lg border text-xs font-medium"
