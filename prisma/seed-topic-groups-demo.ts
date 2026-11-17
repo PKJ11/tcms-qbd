@@ -20,7 +20,7 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-const DEFAULT_PASSWORD = 'QBD@1234'
+const DEFAULT_PASSWORD = 'Qbd@1234'
 
 function daysFromNow(days: number): Date {
   const d = new Date()

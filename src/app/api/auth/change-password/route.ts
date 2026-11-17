@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { logAuthEvent } from '@/modules/audit-trail'
 import { getPasswordPolicy } from '@/lib/password-policy'
+import { meetsPasswordComplexity, PASSWORD_COMPLEXITY_ERROR } from '@/lib/password-complexity'
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
@@ -32,6 +33,10 @@ export async function POST(req: NextRequest) {
       { message: `Password must be at least ${policy.minPasswordLength} characters` },
       { status: 400 }
     )
+  }
+
+  if (!meetsPasswordComplexity(newPassword)) {
+    return NextResponse.json({ message: PASSWORD_COMPLEXITY_ERROR }, { status: 400 })
   }
 
   const person = await prisma.person.findUnique({

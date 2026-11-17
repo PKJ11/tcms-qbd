@@ -17,7 +17,7 @@ export default async function PasswordPolicyPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Password Policy</h1>
           <p className="text-sm text-gray-500 mt-1">
-            These values are applied to every account. Changing them takes effect immediately.
+            These values are applied to every account and cannot be changed from the application.
           </p>
         </div>
 

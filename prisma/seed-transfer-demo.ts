@@ -31,7 +31,7 @@ async function main() {
 
   // ─── Trainee currently in QA / Unit-I ──────────────────────────
 
-  const passwordHash = await bcrypt.hash('QBD@1234', 12)
+  const passwordHash = await bcrypt.hash('Qbd@1234', 12)
 
   const trainee = await prisma.person.upsert({
     where:  { employeeId: '900' },
@@ -54,7 +54,7 @@ async function main() {
     },
   })
 
-  console.log(`✅ Trainee ready — employeeId 900 / QBD@1234, currently in QA / Unit-I (id: ${trainee.id})`)
+  console.log(`✅ Trainee ready — employeeId 900 / Qbd@1234, currently in QA / Unit-I (id: ${trainee.id})`)
 
   // ─── Three topics, all scoped to the whole QC department ───────
 
@@ -135,7 +135,7 @@ async function main() {
 
   console.log('✅ Assignment history seeded — one COMPLETED, one NOT_STARTED, one never assigned')
   console.log('\n🎉 Transfer-demo seeding complete.')
-  console.log(`\nNext: log in as 001 / QBD@1234, open /personnel/${trainee.id}, change Department to "Quality Control" (any unit), and save.`)
+  console.log(`\nNext: log in as 001 / Qbd@1234, open /personnel/${trainee.id}, change Department to "Quality Control" (any unit), and save.`)
 }
 
 main()
